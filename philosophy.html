@@ -175,6 +175,32 @@ background:#06C755;color:#fff;font-weight:700;font-size:16px;padding:13px 20px 1
 border-radius:999px;text-decoration:none;box-shadow:0 10px 26px rgba(6,199,85,.42)}
 .fabline:hover{background:#05AF4B}
 @media(max-width:560px){.fabline{right:14px;bottom:14px;font-size:15px;padding:12px 18px 12px 13px}}
+/* ---- coach slot cards ---- */
+.csgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:28px}
+.cscard{background:#fff;border:1px solid var(--line);border-top:5px solid var(--c);
+border-radius:var(--r);overflow:hidden}
+.chead{display:flex;gap:14px;align-items:center;padding:16px 18px;background:#FBFAF6;
+border-bottom:1px solid var(--line)}
+.chead img{width:74px;height:92px;object-fit:cover;object-position:center top;
+border-radius:10px;flex:0 0 auto}
+.chead h3{font-size:21px;margin-bottom:2px;color:var(--ink)}
+.cspec{font-size:15px;color:var(--c);font-weight:700}
+.crank{font-size:13px;color:var(--muted);margin-top:2px}
+.gtab{width:100%;border-collapse:collapse;background:#fff}
+.gtab th,.gtab td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center}
+.gtab th:last-child,.gtab td:last-child{border-right:0}
+.gtab thead th{background:#F4F2EA;color:var(--ink2);font-size:15px;font-weight:700;padding:9px 2px}
+.gtab .gt{width:78px;background:#FAF9F4;font-family:"Barlow Condensed",sans-serif;font-size:16px;
+font-weight:700;color:var(--ink);padding:8px 4px;line-height:1.15;white-space:nowrap;text-align:left;padding-left:10px}
+.gtab .gt span{display:block;font-family:"Noto Sans TC",sans-serif;font-size:11px;font-weight:400;color:var(--muted)}
+.gtab td{padding:5px 3px}
+.gtab i{display:block;border-radius:6px;font-style:normal;font-size:14px;font-weight:700;padding:8px 2px}
+.gtab i.yes{background:var(--c);color:#fff}
+.gtab i.yes.part{font-size:10px;line-height:1.25;padding:6px 1px}
+.gtab i.no{background:#F3F2ED;color:transparent;height:32px}
+@media(max-width:640px){.chead img{width:62px;height:78px}.chead h3{font-size:19px}
+.gtab .gt{width:64px;font-size:14px;padding-left:7px}.gtab thead th{font-size:14px}
+.gtab i{font-size:13px;padding:7px 1px}.gtab i.yes.part{font-size:9px}.gtab i.no{height:29px}}
 /* ---- timetable ---- */
 .tt-scroll{margin-top:24px;overflow-x:auto;-webkit-overflow-scrolling:touch;
 border:1px solid var(--line);border-radius:var(--r);background:#fff}
