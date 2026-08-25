@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="color-scheme" content="light"><meta name="theme-color" content="#1B3240">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>港湖特訓班｜行政管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light only;
+--navy:#1B3240;--navy2:#294A5C;--ink:#15242E;--ink2:#37525F;--muted:#6E8794;
+--paper:#F5F3EC;--card:#fff;--line:#E4E1D6;--line2:#F0EDE4;
+--or:#FE7F2D;--or-d:#A8490A;--or-s:#FFF1E3;
+--yellow:#FCCA46;--sage:#A1C181;--teal:#4E8676;--teal-s:#E9F1EE;
+--red:#C0392B;--red-s:#FBE9E6;--green:#2C7A52;--green-s:#E8F2EA;
+--r:14px;--sh:0 1px 2px rgba(21,36,46,.05),0 4px 14px rgba(21,36,46,.05)}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--paper);color:var(--ink);
+font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",-apple-system,sans-serif;
+font-size:15px;line-height:1.65;padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+.num{font-family:Oswald,"Noto Sans TC",sans-serif;font-variant-numeric:tabular-nums;font-weight:500}
+table,.st b,.tag{font-variant-numeric:tabular-nums}
+
+/* ---------- 頁首 ---------- */
+header{position:sticky;top:0;z-index:40;background:var(--navy);color:#fff;
+padding:calc(11px + env(safe-area-inset-top)) 18px 11px;display:flex;align-items:center;gap:11px;
+box-shadow:inset 0 -3px 0 var(--or)}
+.mark{width:26px;height:26px;flex:0 0 26px;border-radius:50%;background:var(--or);
+display:grid;place-items:center}
+.mark svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:1.7}
+header h1{font-size:16px;font-weight:800;letter-spacing:.02em}
+header .sub{font-size:11px;opacity:.6;letter-spacing:.08em;text-transform:uppercase}
+.syncp{margin-left:auto;border:0;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;
+padding:5px 11px;border-radius:999px;display:flex;align-items:center;gap:6px;
+background:rgba(255,255,255,.13);color:rgba(255,255,255,.8)}
+.syncp i{width:7px;height:7px;border-radius:50%;background:currentColor;font-style:normal;flex:0 0 7px}
+.syncp.ok{background:rgba(161,193,129,.22);color:#C6E0AE}
+.syncp.ing{background:rgba(252,202,70,.2);color:var(--yellow)}
+.syncp.pend{background:rgba(254,127,45,.22);color:#FFC08A}
+.syncp.err{background:rgba(192,57,43,.3);color:#FFB3A8}
+.syncp.ing i{animation:bl .9s ease-in-out infinite}
+@keyframes bl{50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.syncp.ing i{animation:none}}
+.ico{background:#F2F0E8;border:1px solid var(--line);border-radius:9px;width:38px;height:38px;
+cursor:pointer;display:grid;place-items:center;padding:0;flex:0 0 38px}
+.ico svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.ico.on{background:var(--green-s);border-color:#BBDCC4}
+.ico.on svg{stroke:var(--green)}
+.tel{display:inline-block;margin-top:6px;font-size:13px;font-weight:700;color:var(--teal);text-decoration:none}
+
+.wrap{max-width:920px;margin:0 auto;padding:16px 15px 8px}
+
+/* ---------- 底部分頁 ---------- */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;background:rgba(255,255,255,.96);
+backdrop-filter:saturate(1.6) blur(12px);border-top:1px solid var(--line);
+display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+.tabbar button{flex:1;background:none;border:0;font-size:11px;color:var(--muted);font-weight:700;
+display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0 5px;cursor:pointer;
+font-family:inherit;border-radius:11px;transition:color .15s,background .15s}
+.tabbar button svg{width:22px;height:22px;stroke:currentColor;fill:none;
+stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tabbar button.on{color:var(--or-d);background:var(--or-s)}
+
+/* ---------- 記分板（總覽主視覺） ---------- */
+.board{background:var(--navy);border-radius:var(--r);padding:15px 16px 14px;color:#fff;
+box-shadow:var(--sh);position:relative;overflow:hidden}
+.board::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+background:linear-gradient(90deg,var(--or) 0 34%,var(--yellow) 34% 67%,var(--sage) 67% 100%)}
+.board .cap{display:flex;align-items:baseline;gap:8px;margin-bottom:12px}
+.board .cap b{font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.55;font-weight:600}
+.board .cap span{font-size:12px;opacity:.75;margin-left:auto}
+.bg3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:rgba(255,255,255,.12);
+border-radius:10px;overflow:hidden}
+.bg3 div{background:var(--navy2);padding:11px 8px;text-align:center}
+.bg3 small{display:block;font-size:11px;opacity:.7;margin-bottom:2px}
+.bg3 b{font-size:21px;font-weight:600;letter-spacing:-.01em}
+.bg3 .hi{color:var(--yellow)}
+
+/* ---------- 卡片 / 區塊 ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+padding:15px;margin-bottom:12px;box-shadow:var(--sh)}
+h2{font-size:21px;font-weight:800;letter-spacing:-.01em;margin-bottom:3px}
+.hint{font-size:13px;color:var(--muted);margin-bottom:14px}
+.sec-t{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:800;color:var(--muted);
+margin:20px 0 8px;letter-spacing:.1em}
+.sec-t::after{content:"";flex:1;height:1px;background:var(--line)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+
+/* ---------- 表單 ---------- */
+label{display:block;font-size:12px;font-weight:700;color:var(--ink2);margin:13px 0 5px}
+input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;
+font-size:16px;font-family:inherit;background:#fff;color:var(--ink);appearance:none}
+select{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' stroke='%236E8794' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+background-repeat:no-repeat;background-position:right 13px center;padding-right:34px}
+select[multiple]{background-image:none;padding-right:12px}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--or);box-shadow:0 0 0 3px var(--or-s)}
+button.btn{background:var(--or);color:#fff;border:0;border-radius:999px;padding:12px 22px;
+font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;
+box-shadow:0 2px 8px rgba(254,127,45,.28)}
+button.btn:active{transform:translateY(1px)}
+button.btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+button.btn.nav{background:var(--navy);color:#fff;box-shadow:none}
+button.btn.dan{background:var(--red);box-shadow:none}
+button.btn.sm{padding:8px 15px;font-size:13px}
+button.btn.full{width:100%;display:flex;align-items:center;justify-content:center;gap:7px}
+button.btn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+
+/* ---------- 統計小卡 ---------- */
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.st{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 13px;
+box-shadow:var(--sh);position:relative;padding-left:16px}
+.st::before{content:"";position:absolute;left:0;top:11px;bottom:11px;width:4px;
+border-radius:0 4px 4px 0;background:var(--teal)}
+.st small{display:block;font-size:12px;color:var(--muted)}
+.st b{font-size:20px;font-weight:600;font-family:Oswald,"Noto Sans TC",sans-serif}
+.st.or::before{background:var(--or)}.st.red::before{background:var(--red)}
+.st.sage::before{background:var(--sage)}.st.yl::before{background:var(--yellow)}
+
+/* ---------- 列表項目 ---------- */
+.item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+margin-bottom:9px;box-shadow:var(--sh);cursor:pointer;transition:border-color .15s}
+.item:active{border-color:var(--or)}
+.item .top{display:flex;align-items:flex-start;gap:10px}
+.item .nm{font-weight:800;font-size:16px;line-height:1.4}
+.item .meta{font-size:13px;color:var(--muted);margin-top:2px}
+.item .acts{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:0 0 auto}
+.item.warn{border-left:4px solid var(--red)}
+.item.pl{border-left:4px solid var(--teal)}
+
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;
+background:var(--or-s);color:var(--or-d);white-space:nowrap}
+.tag.g{background:var(--green-s);color:var(--green)}
+.tag.r{background:var(--red-s);color:var(--red)}
+.tag.b{background:#E8EFF3;color:#2F5D77}
+.tag.t{background:var(--teal-s);color:var(--teal)}
+.warnline{color:var(--red);font-weight:700}
+.mini{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.7}
+
+/* ---------- 彈出表單 ---------- */
+.modal{position:fixed;inset:0;background:rgba(21,36,46,.5);z-index:100;display:none;
+align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
+.modal.on{display:flex}
+.sheet{background:var(--paper);width:100%;max-width:920px;max-height:93vh;overflow-y:auto;
+border-radius:20px 20px 0 0;padding:8px 16px calc(30px + env(safe-area-inset-bottom));
+animation:up .22s cubic-bezier(.2,.8,.3,1)}
+@keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){.sheet{animation:none}}
+.grip{width:38px;height:4px;background:var(--line);border-radius:3px;margin:0 auto 6px}
+.sheet .close{position:sticky;top:0;display:flex;align-items:center;gap:8px;background:var(--paper);
+padding:6px 0 10px;z-index:2}
+.sheet h3{font-size:18px;font-weight:800}
+.sheet .close button{margin-left:auto}
+.fbox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:2px 13px 14px;margin-top:10px}
+.fbox>.ttl{font-size:12px;font-weight:800;color:var(--or-d);letter-spacing:.06em;
+margin:13px 0 0;padding-top:2px}
+
+/* ---------- 表格 ---------- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid var(--line2);padding:9px 4px;text-align:center}
+th{background:#F3F1E9;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+tr:last-child td{border-bottom:0}
+.tt{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tt table{min-width:660px}
+.tt td{vertical-align:top;padding:5px 3px}
+.tt th:first-child,.tt td:first-child{position:sticky;left:0;background:#F3F1E9;z-index:1}
+.slot{background:var(--teal);color:#fff;border-radius:8px;padding:6px 5px;font-size:11px;
+font-weight:700;margin-bottom:4px;line-height:1.4}
+.slot.grp{background:var(--or)}
+.slot small{display:block;font-weight:400;opacity:.92;font-size:10px}
+
+.empty{text-align:center;color:var(--muted);padding:30px 16px;font-size:14px;
+background:var(--card);border:1px dashed var(--line);border-radius:12px}
+.warnbar{background:var(--or-s);border:1px solid #FFD4AC;border-radius:12px;padding:11px 13px;
+font-size:13px;color:var(--or-d);margin-bottom:12px;font-weight:600}
+.filt{display:flex;gap:7px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px}
+.filt button{white-space:nowrap;background:#fff;border:1px solid var(--line);border-radius:999px;
+padding:7px 15px;font-size:13px;font-weight:700;color:var(--ink2);cursor:pointer;font-family:inherit}
+.filt button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+/* ---------- 重複排課 ---------- */
+.dows{display:flex;gap:5px}
+.dows button{flex:1;background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px 0;
+font-size:13px;font-weight:700;color:var(--ink2);cursor:pointer;font-family:inherit}
+.dows button.on{background:var(--teal);color:#fff;border-color:var(--teal)}
+.repbox{background:#FBFAF4;border:1px solid var(--line);border-radius:12px;padding:2px 13px 14px;margin-top:10px}
+.prev{background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px 11px;margin-top:11px;
+font-size:12px;color:var(--ink2);line-height:1.75;max-height:140px;overflow-y:auto}
+.prev b{color:var(--or-d)}
+.split{background:var(--or-s);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:12px;
+color:var(--or-d);line-height:1.75}
+.buy{border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-top:9px;background:#fff;
+cursor:pointer;display:flex;align-items:flex-start;gap:10px}
+.buy .l{font-weight:700;font-size:14px}
+.buy .m{font-size:12px;color:var(--muted);margin-top:2px}
+.buy .rr{margin-left:auto;text-align:right;flex:0 0 auto}
+</style></head><body>
+
+<header>
+  <span class="mark"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M6 5.5c2 3.5 2 9.5 0 13M18 5.5c-2 3.5-2 9.5 0 13"/></svg></span>
+  <h1>港湖特訓班</h1>
+  <button class="syncp" id="syncp" title="點一下立即同步"><i></i><span>未連線</span></button>
+</header>
+<div class="wrap" id="app"></div>
+
+<div class="tabbar" id="tabs"></div>
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+
+<script>
+/* ============ 圖示 ============ */
+var IC={
+home:'<path d="M4 20V10.5L12 4l8 6.5V20"/><path d="M9.5 20v-6h5v6"/>',
+stu:'<circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c.6-4 3.7-6 7.5-6s6.9 2 7.5 6"/>',
+les:'<rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 3h6v3H9z"/><path d="M9 11h6M9 15h4"/>',
+cal:'<rect x="3.5" y="5.5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3.5v4M16 3.5v4"/>',
+set:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><circle cx="12" cy="12.5" r="2.6"/><path d="M3 10h2M19 15h2"/>',
+plus:'<path d="M12 5v14M5 12h14"/>',
+edit:'<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"/>',
+cash:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><circle cx="12" cy="12.5" r="2.6"/>',
+warn:'<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.2v.1"/>',
+check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+cloud:'<path d="M7 18h10a3.6 3.6 0 0 0 .3-7.2A5.5 5.5 0 0 0 6.6 10 3.9 3.9 0 0 0 7 18z"/>'
+};
+function svg(k,sz){return '<svg viewBox="0 0 24 24"'+(sz?' style="width:'+sz+'px;height:'+sz+'px"':'')+'>'+IC[k]+'</svg>';}
+
+/* ============ 儲存 ============ */
+var MEM={},HASLS=true;
+try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
+function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
+function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+
+/* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function today(){return ymd(new Date());}
+function pd(ds){var a=(ds||'').split('-');return new Date(+a[0],(+a[1]||1)-1,+a[2]||1);}
+function addD(ds,n){var d=pd(ds);d.setDate(d.getDate()+n);return ymd(d);}
+function dowOf(ds){return pd(ds).getDay();}
+
+/* ============ 預設資料 ============ */
+var COACHES=['陳建廷','陳凱文','謝長霖','陳毅祥','鄭原成','盧瑞祥','彭威寰'];
+var DEFSTU=['林甫','洪子硯','李泰宇','楊旻諺','李威辰','李威廷','劉康權','林東瑾','林辰軒','林昱安','蔡承霖','呂奕辰','徐梵齊','李航輝','呂浩仁','楊翼遠','魏詩翰','桑亞涔','杜幕宸','雎慶鏞','陳可卓','韋彥均','許博勛','林奕辰','楊翰澐','林宸愷','蔡宇宸','莊秉叡','成佳駿','林韋宇','林宸樂','劉沛衡','歐禹辰','高晨恩','林禹學','魏廷國','李權旭','許能鈞','方梓皓'];
+/* 上課費率：家長付費＝公積金＋器材＋教練實收；行政費自公積金撥出 */
+var RATES=[
+ {code:'一對一-專業-單堂',pay:1300,fund:200,gear:50,coach:1050},
+ {code:'一對一-專業-套餐',pay:1200,fund:100,gear:50,coach:1050},
+ {code:'一對一-菁英-單堂',pay:1400,fund:200,gear:50,coach:1150},
+ {code:'一對一-菁英-套餐',pay:1300,fund:100,gear:50,coach:1150},
+ {code:'一對一-資深-單堂',pay:1500,fund:300,gear:50,coach:1150},
+ {code:'一對一-資深-套餐',pay:1400,fund:200,gear:50,coach:1150},
+ {code:'一對二',pay:1700,fund:200,gear:50,coach:1450},
+ {code:'團班4人',pay:1800,fund:200,gear:50,coach:1550},
+ {code:'團班5人',pay:2250,fund:300,gear:100,coach:1850},
+ {code:'團班6人',pay:2700,fund:450,gear:150,coach:2100},
+ {code:'非港湖-專業-單堂',pay:1400,fund:300,gear:50,coach:1050},
+ {code:'非港湖-菁英-單堂',pay:1500,fund:300,gear:50,coach:1150},
+ {code:'非港湖-資深-單堂',pay:1600,fund:400,gear:50,coach:1150}];
+/* 報名購課方案：單價為「每人每堂」，n 為預設堂數 */
+var BUY=[
+ {code:'一對一-專業-單堂',unit:1300,n:1},
+ {code:'一對一-專業-10堂套餐',unit:1200,n:10},
+ {code:'一對一-菁英-單堂',unit:1400,n:1},
+ {code:'一對一-菁英-10堂套餐',unit:1300,n:10},
+ {code:'一對一-資深-單堂',unit:1500,n:1},
+ {code:'一對一-資深-10堂套餐',unit:1400,n:10},
+ {code:'一對二（每人）',unit:850,n:1},
+ {code:'團班一期四堂（每人）',unit:450,n:4},
+ {code:'體驗課-專業（首次）',unit:1200,n:1},
+ {code:'體驗課-菁英（首次）',unit:1300,n:1},
+ {code:'體驗課-資深（首次）',unit:1400,n:1},
+ {code:'非港湖-專業-單堂',unit:1400,n:1},
+ {code:'非港湖-菁英-單堂',unit:1500,n:1},
+ {code:'非港湖-資深-單堂',unit:1600,n:1}];
+var TIMES=['13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+var DAYN=['週日','週一','週二','週三','週四','週五','週六'];
+
+var DB={
+ students:load('students',null),
+ lessons:load('lessons',[]),
+ payments:load('payments',[]),
+ cfg:load('cfg',{start:'2026-09-01',days:14,gw:1.5,ts:0})
+};
+var PEND=load('pend',{students:{},lessons:{},payments:{},cfg:0});
+['students','lessons','payments'].forEach(function(c){if(!PEND[c])PEND[c]={};});
+var SB=load('sb',{url:'',key:''});
+var SESS=load('sess',null);
+var SINCE=load('since',0),LASTSYNC=load('lastsync',''),SYNCST='off',SYNCMSG='';
+function sbReady(){return !!(SB.url&&SB.key);}
+function authed(){return !!(SESS&&SESS.access_token);}
+
+/* 只保留未刪除的資料給畫面用（刪除採標記法，才能同步到雲端） */
+function alive(a){return a.filter(function(x){return !x.del;});}
+function STU(){return alive(DB.students);}
+function LES(){return alive(DB.lessons);}
+function PAY(){return alive(DB.payments);}
+function byId(arr,id){for(var i=0;i<arr.length;i++)if(arr[i].id===id)return arr[i];return null;}
+function touch(col,rec){rec.ts=Date.now();PEND[col][rec.id]=rec.ts;}
+function touchCfg(){DB.cfg.ts=Date.now();PEND.cfg=DB.cfg.ts;}
+function pendCount(){var n=0;['students','lessons','payments'].forEach(function(c){
+ n+=Object.keys(PEND[c]).length;});return n+(PEND.cfg?1:0);}
+if(!DB.students){DB.students=DEFSTU.map(function(n){return {id:uid(),name:n,parent:'',phone:'',ganghu:'是',coach:'',note:''};});save('students',DB.students);}
+function persistOnly(){save('students',DB.students);save('lessons',DB.lessons);
+ save('payments',DB.payments);save('cfg',DB.cfg);save('pend',PEND);}
+var syncT=null;
+function persist(){persistOnly();upPill();
+ if(sbReady()&&authed()){clearTimeout(syncT);syncT=setTimeout(function(){syncNow();},2000);}}
+
+/* 舊資料轉入：學員身上的「購買堂數」轉成一筆報名紀錄 */
+if(!load('mig2',0)){
+ DB.students.forEach(function(s){
+  if(+s.bought>0){DB.payments.push({id:uid(),student:s.name,date:'',plan:s.plan||'舊資料轉入',
+   sessions:+s.bought,due:0,paid:0,method:'其他',note:'系統自動轉入'});}
+  delete s.bought;delete s.plan;});
+ DB.payments.forEach(function(p){if(p.sessions===undefined)p.sessions=0;});
+ save('mig2',1);persistOnly();
+}
+/* 每筆資料都要有時間戳，同步才比得出新舊 */
+['students','lessons','payments'].forEach(function(c){
+ DB[c].forEach(function(r){if(!r.ts)r.ts=0;if(r.del===undefined)r.del=0;});});
+
+function rate(code){for(var i=0;i<RATES.length;i++)if(RATES[i].code===code)return RATES[i];return null;}
+function buyPlan(code){for(var i=0;i<BUY.length;i++)if(BUY[i].code===code)return BUY[i];return null;}
+function money(n){return 'NT$'+(+n||0).toLocaleString();}
+function esc(s){return (s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function period(dstr){
+ var n=Math.floor((pd(dstr)-pd(DB.cfg.start))/86400000/DB.cfg.days)+1;
+ return n>0?('第'+n+'期'):'—';
+}
+
+/* ---- 行政費（115.08.16 第四次會議決議）----
+   1對1 50／1對2 75／團班 4人100、5人125、6人150，自公積金提撥。
+   依該堂實際登記人數計算；沒填學員時退回用方案代碼推算。 */
+var ADMINTB={1:50,2:75,3:100,4:100,5:125,6:150};
+function planHead(p){
+ p=p||'';
+ if(p.indexOf('團班')===0){var m=p.match(/(\d+)/);return m?+m[1]:4;}
+ if(p.indexOf('一對二')===0)return 2;
+ return 1;
+}
+function headOf(l){
+ var n=(l.students||[]).length;
+ if(!n)n=planHead(l.plan);
+ if(n<1)n=1;if(n>6)n=6;
+ return n;
+}
+function adminFee(l){return ADMINTB[headOf(l)]||50;}
+function amt(l,k){if(k==='admin')return adminFee(l);var r=rate(l.plan);return r?(+r[k]||0):0;}
+function headMismatch(l){var n=(l.students||[]).length;return n>0&&n!==planHead(l.plan);}
+function clash(l){
+ if(l.status==='取消')return false;
+ return LES().some(function(x){
+  return x.id!==l.id&&x.status!=='取消'&&x.coach===l.coach&&x.date===l.date&&x.start===l.start;});
+}
+
+/* ---- 學員堂數與帳款 ---- */
+function buysOf(name){return PAY().filter(function(p){return p.student===name;});}
+function boughtOf(name){return buysOf(name).reduce(function(a,p){return a+(+p.sessions||0);},0);}
+function doneCount(name){var c=0;LES().forEach(function(l){if(l.status==='已完成'&&l.students.indexOf(name)>=0)c++;});return c;}
+function leftOf(name){return boughtOf(name)-doneCount(name);}
+function oweOf(name){return buysOf(name).reduce(function(a,p){return a+((+p.due||0)-(+p.paid||0));},0);}
+
+/* ============ 重複排課 ============ */
+function repDates(start,mode,dows,endmode,cnt,until){
+ if(!start)return [];
+ if(mode==='none'||!mode)return [start];
+ var lim=endmode==='count'?Math.max(1,Math.min(+cnt||1,120)):120;
+ var out=[],cur=start,guard=0;
+ if(mode==='custom'){
+  if(!dows||!dows.length)return [start];
+  while(out.length<lim&&guard++<800){
+   if(endmode==='until'&&until&&cur>until)break;
+   if(dows.indexOf(dowOf(cur))>=0)out.push(cur);
+   cur=addD(cur,1);
+  }
+  return out;
+ }
+ var step={day:1,week:7,week2:14}[mode];
+ while(out.length<lim&&guard++<400){
+  if(endmode==='until'&&until&&cur>until)break;
+  out.push(cur);
+  if(mode==='month'){
+   var day=+start.slice(8),d=pd(cur);
+   d.setDate(1);d.setMonth(d.getMonth()+1);
+   var last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+   d.setDate(Math.min(day,last));cur=ymd(d);
+  }else cur=addD(cur,step);
+ }
+ return out;
+}
+function seriesOf(rid){return rid?LES().filter(function(l){return l.rid===rid;}):[];}
+
+/* ============ 雲端同步 ============ */
+function upPill(){
+ var e=document.getElementById('syncp');if(!e)return;
+ var n=pendCount(),cls='',tx='未連線';
+ if(!sbReady()){cls='';tx='未連線';}
+ else if(!authed()){cls='pend';tx='請登入';}
+ else if(SYNCST==='ing'){cls='ing';tx='同步中';}
+ else if(SYNCST==='err'){cls='err';tx='同步失敗';}
+ else if(n>0){cls='pend';tx='待同步 '+n;}
+ else{cls='ok';tx=LASTSYNC?'已同步 '+LASTSYNC:'已連線';}
+ e.className='syncp '+cls;
+ e.querySelector('span').textContent=tx;
+}
+
+/* ---- Supabase 連線 ---- */
+function sbURL(path){return SB.url.replace(/\/+$/,'')+path;}
+function sbErr(j,fallback){
+ return (j&&(j.message||j.error_description||j.msg||j.error||j.hint))||fallback;
+}
+function sbRefresh(){
+ return fetch(sbURL('/auth/v1/token?grant_type=refresh_token'),{
+  method:'POST',headers:{'apikey':SB.key,'Content-Type':'application/json'},
+  body:JSON.stringify({refresh_token:SESS.refresh_token})})
+ .then(function(r){return r.json();})
+ .then(function(j){
+  if(!j.access_token){SESS=null;save('sess',null);throw new Error('登入已過期，請重新登入');}
+  SESS={access_token:j.access_token,refresh_token:j.refresh_token,email:SESS.email};
+  save('sess',SESS);});
+}
+function sbFetch(path,opts,retried){
+ opts=opts||{};
+ var h={};for(var k in (opts.headers||{}))h[k]=opts.headers[k];
+ h['apikey']=SB.key;
+ h['Authorization']='Bearer '+((SESS&&SESS.access_token)||SB.key);
+ h['Content-Type']='application/json';
+ var o={method:opts.method||'GET',headers:h};
+ if(opts.body)o.body=opts.body;
+ return fetch(sbURL(path),o).then(function(r){
+  if(r.status===401&&!retried&&SESS&&SESS.refresh_token)
+   return sbRefresh().then(function(){return sbFetch(path,opts,true);});
+  return r;});
+}
+function sbLogin(email,pw){
+ return fetch(sbURL('/auth/v1/token?grant_type=password'),{
+  method:'POST',headers:{'apikey':SB.key,'Content-Type':'application/json'},
+  body:JSON.stringify({email:email,password:pw})})
+ .then(function(r){return r.json();})
+ .then(function(j){
+  if(!j.access_token)throw new Error(sbErr(j,'帳號或密碼不正確'));
+  SESS={access_token:j.access_token,refresh_token:j.refresh_token,email:email};
+  save('sess',SESS);});
+}
+function sbLogout(){SESS=null;save('sess',null);SYNCMSG='';setST('off');render();upPill();}
+/* 把一批資料寫上去（同 id 就覆蓋） */
+function sbPush(table,rows){
+ return sbFetch('/rest/v1/'+table,{method:'POST',
+  headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+  body:JSON.stringify(rows)})
+ .then(function(r){
+  if(r.ok)return true;
+  return r.json().catch(function(){return {};}).then(function(j){
+   throw new Error('寫入 '+table+' 失敗：'+sbErr(j,'HTTP '+r.status));});});
+}
+function sbPull(table){
+ return sbFetch('/rest/v1/'+table+'?select=id,ts,del,data&ts=gte.'+SINCE+'&order=ts.asc')
+ .then(function(r){return r.json().then(function(j){
+  if(!Array.isArray(j))throw new Error('讀取 '+table+' 失敗：'+sbErr(j,'HTTP '+r.status));
+  return j;});});
+}
+function setST(s){SYNCST=s;upPill();}
+
+function mergeIn(recs){
+ ['students','lessons','payments'].forEach(function(col){
+  (recs[col]||[]).forEach(function(r){
+   if(PEND[col][r.id])return;               // 本機還有沒送出的改動，先不要蓋掉
+   var o=r.data||{};o.id=r.id;o.ts=r.ts;o.del=r.del?1:0;
+   var cur=byId(DB[col],r.id);
+   if(!cur&&col==='students'&&o.name){
+    // 第一次連雲端時，把同名、從未編輯過的預設名單清掉，避免整份重複
+    for(var q=DB[col].length-1;q>=0;q--){var x=DB[col][q];
+     if(x.id!==r.id&&x.name===o.name&&!x.ts&&!PEND[col][x.id])DB[col].splice(q,1);}
+   }
+   if(!cur)DB[col].push(o);
+   else if(r.ts>=(cur.ts||0))DB[col][DB[col].indexOf(cur)]=o;
+  });});
+ (recs.cfg||[]).forEach(function(r){
+  if(PEND.cfg)return;
+  if(r.ts>=(DB.cfg.ts||0)){var c=r.data||{};c.ts=r.ts;DB.cfg=c;}});
+}
+
+var TB=['students','lessons','payments','cfg'];
+function syncNow(manual){
+ if(!sbReady()){setST('off');
+  if(manual)alert('還沒設定資料庫連線。到「結算」分頁最下面填入網址和金鑰。');return;}
+ if(!authed()){setST('off');
+  if(manual)alert('還沒登入。到「結算」分頁最下面輸入帳號密碼登入。');return;}
+ if(SYNCST==='ing')return;
+ setST('ing');
+
+ var snap={students:{},lessons:{},payments:{},cfg:PEND.cfg},jobs=[],cnt=0;
+ ['students','lessons','payments'].forEach(function(col){
+  var rows=[];
+  Object.keys(PEND[col]).forEach(function(id){
+   var r=byId(DB[col],id);
+   if(!r){delete PEND[col][id];return;}
+   snap[col][id]=r.ts;
+   rows.push({id:r.id,del:r.del?1:0,data:r});
+  });
+  if(rows.length){cnt+=rows.length;jobs.push(sbPush(col,rows));}
+ });
+ if(PEND.cfg){cnt++;jobs.push(sbPush('cfg',[{id:'cfg',del:0,data:DB.cfg}]));}
+
+ Promise.all(jobs)
+ .then(function(){return Promise.all(TB.map(function(c){
+   return sbPull(c).then(function(j){return {col:c,rows:j};});}));})
+ .then(function(res){
+  var recs={},maxts=SINCE;
+  res.forEach(function(x){
+   recs[x.col]=x.rows;
+   x.rows.forEach(function(r){if(r.ts>maxts)maxts=r.ts;});});
+  mergeIn(recs);
+  SINCE=maxts;save('since',SINCE);
+  ['students','lessons','payments'].forEach(function(col){
+   Object.keys(snap[col]).forEach(function(id){
+    if(PEND[col][id]===snap[col][id])delete PEND[col][id];});});
+  if(snap.cfg&&PEND.cfg===snap.cfg)PEND.cfg=0;
+  LASTSYNC=new Date().toTimeString().slice(0,5);save('lastsync',LASTSYNC);
+  persistOnly();SYNCMSG='';setST('ok');render();
+  if(manual)alert('同步完成，'+(cnt?'送出 '+cnt+' 筆變更。':'沒有新的變更。'));
+ })
+ .catch(function(e){
+  SYNCMSG=String(e.message||e);setST('err');upPill();
+  if(manual)alert('同步失敗\n\n'+SYNCMSG);
+ });
+}
+function pushAll(){
+ ['students','lessons','payments'].forEach(function(col){
+  DB[col].forEach(function(r){r.ts=Date.now();PEND[col][r.id]=r.ts;});});
+ touchCfg();persistOnly();syncNow(true);
+}
+window.addEventListener('online',function(){if(pendCount())syncNow();});
+document.addEventListener('visibilitychange',function(){
+ if(!document.hidden&&sbReady()&&authed())syncNow();});
+
+/* ============ 分頁 ============ */
+var TABS=[['home','總覽','home'],['stu','學員報名','stu'],['les','排課','les'],['cal','課表','cal'],['set','結算','set']];
+var TAB='home';
+document.getElementById('tabs').innerHTML=TABS.map(function(t){
+ return '<button data-t="'+t[0]+'"'+(TAB===t[0]?' class="on"':'')+'>'+svg(t[2])+t[1]+'</button>';}).join('');
+document.querySelectorAll('.tabbar button').forEach(function(b){
+ b.onclick=function(){document.querySelectorAll('.tabbar button').forEach(function(x){x.classList.remove('on');});
+ b.classList.add('on');TAB=b.dataset.t;render();window.scrollTo(0,0);};
+});
+function render(){
+ document.getElementById('app').innerHTML=
+  (HASLS?'':'<div class="warnbar">目前是預覽模式，資料不會保留。把檔案上傳到網站後開啟才會存進手機。</div>')
+  +({home:vHome,stu:vStu,les:vLes,cal:vCal,set:vSet}[TAB])();
+ bind();
+}
+
+/* ============ 總覽 ============ */
+function vHome(){
+ var now=new Date(),ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+ var ml=LES().filter(function(l){return l.date.slice(0,7)===ym&&l.status!=='取消';});
+ var sum=function(k){return ml.reduce(function(a,l){return a+amt(l,k);},0);};
+ var t0=today(),t7=addD(t0,7);
+ var wk=LES().filter(function(l){return l.date>=t0&&l.date<=t7&&l.status!=='取消';})
+   .sort(function(a,b){return a.date+a.start<b.date+b.start?-1:1;});
+ var cl=LES().filter(function(l){return l.date>=t0&&clash(l);}).length;
+ var owe=STU().filter(function(s){return oweOf(s.name)>0;});
+ var oweSum=owe.reduce(function(a,s){return a+oweOf(s.name);},0);
+ var low=STU().filter(function(s){return boughtOf(s.name)>0&&leftOf(s.name)<=1;});
+
+ return '<div class="board"><div class="cap"><b>'+ym.replace('-','／')+' 月結</b><span>'+ml.length+' 堂課</span></div>'
+ +'<div class="bg3">'
+ +'<div><small>課程收入</small><b class="hi">'+(sum('pay')).toLocaleString()+'</b></div>'
+ +'<div><small>教練實收</small><b>'+(sum('coach')).toLocaleString()+'</b></div>'
+ +'<div><small>行政費</small><b>'+(sum('admin')).toLocaleString()+'</b></div>'
+ +'</div></div>'
+ +'<div class="sec-t">本月其他</div>'
+ +'<div class="stat">'
+ +'<div class="st sage"><small>公積金提撥</small><b>'+money(sum('fund'))+'</b></div>'
+ +'<div class="st yl"><small>器材使用費</small><b>'+money(sum('gear'))+'</b></div>'
+ +'<div class="st red"><small>學費未收</small><b>'+money(oweSum)+'</b></div>'
+ +'</div>'
+ +(cl?'<div class="warnbar" style="margin-top:14px">有 '+cl+' 堂課和同一位教練的其他課撞時段，到「排課」看標紅的那幾筆。</div>':'')
+ +(owe.length?'<div class="sec-t">還沒收齊學費</div>'
+   +owe.slice(0,6).map(function(s){
+    return '<div class="item warn" data-edit="stu" data-id="'+s.id+'"><div class="top">'
+    +'<div><div class="nm">'+esc(s.name)+'</div><div class="meta">'+(s.parent?esc(s.parent)+'　':'')
+    +'已報名 '+boughtOf(s.name)+' 堂</div></div>'
+    +'<div class="acts"><span class="tag r">欠 '+money(oweOf(s.name))+'</span></div></div></div>';}).join('')
+   +(owe.length>6?'<div class="mini">還有 '+(owe.length-6)+' 位，到「學員報名」看完整名單。</div>':''):'')
+ +(low.length?'<div class="sec-t">堂數快用完</div>'
+   +low.slice(0,6).map(function(s){
+    return '<div class="item" data-edit="stu" data-id="'+s.id+'"><div class="top">'
+    +'<div><div class="nm">'+esc(s.name)+'</div><div class="meta">'+(s.coach?esc(s.coach)+'教練':'未指定教練')+'</div></div>'
+    +'<div class="acts"><span class="tag'+(leftOf(s.name)<=0?' r':'')+'">剩 '+leftOf(s.name)+' 堂</span></div>'
+    +'</div></div>';}).join(''):'')
+ +'<div class="sec-t">未來 7 天</div>'
+ +(wk.length?wk.map(lesRow).join(''):'<div class="empty">這 7 天還沒有排課</div>')
+ +'<div class="sec-t">快速動作</div><div class="card"><div class="row">'
+ +'<button class="btn" data-act="newstu">'+svg('plus',15)+' 報名收款</button>'
+ +'<button class="btn nav" data-act="newles">'+svg('plus',15)+' 排課</button>'
+ +'</div><div class="mini">流程：先「報名收款」建立學員並收費 → 再「排課」把堂數排進時段。</div></div>';
+}
+
+/* ============ 學員報名 ============ */
+var stuQ='',stuF='全部';
+function stuRow(s){
+ var b=boughtOf(s.name),lf=leftOf(s.name),ow=oweOf(s.name);
+ return '<div class="item'+(ow>0?' warn':'')+'" data-edit="stu" data-id="'+s.id+'"><div class="top">'
+ +'<div><div class="nm">'+esc(s.name)+(s.ganghu==='否'?' <span class="tag b">非港湖</span>':'')+'</div>'
+ +'<div class="meta">'+(s.coach?esc(s.coach)+'教練':'未指定教練')+(s.parent?'　'+esc(s.parent):'')+'</div>'
+ +'<div class="meta">'+(b?'已報名 '+b+' 堂　已上 '+doneCount(s.name)+' 堂':'尚未報名任何課程')+'</div></div>'
+ +'<div class="acts">'
+ +(b?'<span class="tag'+(lf<=0?' r':' g')+'">剩 '+lf+' 堂</span>':'')
+ +(ow>0?'<span class="tag r">欠 '+money(ow)+'</span>':(b?'<span class="tag g">已結清</span>':''))
+ +'</div></div></div>';
+}
+function vStu(){
+ var list=STU().filter(function(s){
+  if(stuQ&&s.name.indexOf(stuQ)<0)return false;
+  if(stuF==='上課中')return boughtOf(s.name)>0&&leftOf(s.name)>0;
+  if(stuF==='待續購')return boughtOf(s.name)>0&&leftOf(s.name)<=0;
+  if(stuF==='有欠款')return oweOf(s.name)>0;
+  if(stuF==='未報名')return boughtOf(s.name)===0;
+  return true;});
+ var act=STU().filter(function(s){return leftOf(s.name)>0;}).length;
+ return '<h2>學員報名</h2><div class="hint">先收費再上課。報名時一併登記買了什麼、繳了多少，之後排課會自動扣堂數。</div>'
+ +'<div class="card"><button class="btn full" data-act="newstu">'+svg('plus',16)+' 新增報名（含收款）</button>'
+ +'<div class="mini">已報名且還有剩餘堂數的學員：'+act+' 位</div></div>'
+ +'<div class="card" style="padding:11px 12px"><input id="q" placeholder="搜尋學員姓名" value="'+esc(stuQ)+'"></div>'
+ +'<div class="filt">'+['全部','上課中','待續購','有欠款','未報名'].map(function(c){
+   return '<button data-sf="'+c+'" class="'+(stuF===c?'on':'')+'">'+c+'</button>';}).join('')+'</div>'
+ +(list.length?list.map(stuRow).join(''):'<div class="empty">沒有符合的學員。換個條件，或用上面的按鈕新增報名。</div>');
+}
+
+/* ============ 排課 ============ */
+var lesF='全部';
+function lesRow(l){
+ var r=rate(l.plan);
+ var stag=l.status==='已完成'?'g':(l.status==='取消'?'r':'');
+ var ck=clash(l),mm=headMismatch(l);
+ return '<div class="item'+(ck?' warn':' pl')+'" data-edit="les" data-id="'+l.id+'"><div class="top">'
+ +'<div><div class="nm">'+l.date.slice(5).replace('-','/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）'+esc(l.start)+'–'+esc(l.end)
+ +(l.rid?' <span class="tag t">重複</span>':'')+'</div>'
+ +'<div class="meta">'+esc(l.coach)+'教練　'+esc(l.students.join('、')||'未填學員')+'</div>'
+ +'<div class="meta">'+esc(l.plan)+(r?'　'+money(r.pay):'')+'　行政費 '+money(adminFee(l))+'</div>'
+ +(ck?'<div class="meta warnline">和同教練的其他課撞時段</div>':'')
+ +(mm?'<div class="meta warnline">學員 '+l.students.length+' 人與方案（'+planHead(l.plan)+' 人）不符，行政費已依實際人數算</div>':'')
+ +'</div><div class="acts"><span class="tag '+stag+'">'+esc(l.status)+'</span>'
+ +'<button class="ico'+(l.status==='已完成'?' on':'')+'" data-act="done" data-id="'+l.id+'" title="標記已完成">'+svg('check')+'</button>'
+ +'</div></div></div>';
+}
+function vLes(){
+ var ls=LES().slice().sort(function(a,b){return a.date+a.start<b.date+b.start?1:-1;});
+ if(lesF!=='全部')ls=ls.filter(function(l){return l.coach===lesF;});
+ return '<h2>排課</h2><div class="hint">共 '+LES().length+' 堂。點任一筆可修改、刪除或整組刪除。</div>'
+ +'<div class="card"><button class="btn full" data-act="newles">'+svg('plus',16)+' 新增課程</button>'
+ +'<div class="mini">要排固定時段，在表單裡選「重複」就能一次建立整期。</div></div>'
+ +'<div class="filt">'+['全部'].concat(COACHES).map(function(c){
+   return '<button data-f="'+c+'" class="'+(lesF===c?'on':'')+'">'+c+'</button>';}).join('')+'</div>'
+ +(ls.length?ls.map(lesRow).join(''):'<div class="empty">還沒有排課。用上面的按鈕新增第一堂。</div>');
+}
+
+/* ============ 課表 ============ */
+var calMon=(function(){var d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7));return ymd(d);})();
+function vCal(){
+ var days=[];
+ for(var i=0;i<6;i++)days.push(addD(calMon,i));
+ var rows=TIMES.slice(0,8).map(function(t,ti){
+  var tds=days.map(function(ds){
+   var hit=LES().filter(function(l){return l.date===ds&&l.start===t&&l.status!=='取消';});
+   return '<td>'+hit.map(function(l){
+     var g=l.plan.indexOf('團班')===0;
+     return '<div class="slot'+(g?' grp':'')+'">'+esc(l.coach)+'<small>'+esc(l.students.join('、'))+'</small></div>';
+   }).join('')+'</td>';}).join('');
+  return '<tr><th>'+t+'<br><small style="font-weight:400">'+TIMES[ti+1]+'</small></th>'+tds+'</tr>';}).join('');
+ return '<h2>週課表</h2><div class="hint">'+calMon.replace(/-/g,'/')+' 起這一週已排定的課</div>'
+ +'<div class="card"><div class="row"><button class="btn sec sm" data-act="prevw">← 上一週</button>'
+ +'<button class="btn sec sm" data-act="thisw">本週</button>'
+ +'<button class="btn sec sm" data-act="nextw">下一週 →</button></div>'
+ +'<label>直接指定該週星期一</label><input type="date" id="mon" value="'+calMon+'"></div>'
+ +'<div class="card tt" style="padding:10px"><table><tr><th>時段</th>'
+ +days.map(function(ds){return '<th>'+DAYN[dowOf(ds)].slice(1)+'<br><small style="font-weight:400">'
+   +(+ds.slice(5,7))+'/'+(+ds.slice(8))+'</small></th>';}).join('')
+ +'</tr>'+rows+'</table></div>'
+ +'<div class="mini">綠色是個別課，橘色是團班。</div>';
+}
+
+/* ============ 結算 ============ */
+var setP='第1期';
+function vSet(){
+ var ls=LES().filter(function(l){return l.status!=='取消'&&period(l.date)===setP;});
+ var rowsC=COACHES.map(function(c){
+  var mine=ls.filter(function(l){return l.coach===c;});
+  var s=function(k){return mine.reduce(function(a,l){return a+amt(l,k);},0);};
+  return '<tr><td>'+c+'</td><td>'+mine.length+'</td><td>'+money(s('pay'))+'</td><td>'+money(s('admin'))+'</td><td><b>'+money(s('coach'))+'</b></td></tr>';
+ }).join('');
+ var tot=function(k){return ls.reduce(function(a,l){return a+amt(l,k);},0);};
+ var gw=DB.cfg.gw;
+ var wsum=ls.reduce(function(a,l){return a+(l.plan.indexOf('團班')===0?gw:1);},0);
+ var fundLeft=tot('fund')-tot('admin');
+ var back=COACHES.map(function(c){
+  var w=ls.filter(function(l){return l.coach===c;}).reduce(function(a,l){return a+(l.plan.indexOf('團班')===0?gw:1);},0);
+  var amtb=wsum?Math.round(fundLeft*w/wsum):0;
+  return '<tr><td>'+c+'</td><td>'+w.toFixed(1)+'</td><td>'+(wsum?Math.round(w/wsum*100):0)+'%</td><td>'+money(amtb)+'</td></tr>';
+ }).join('');
+ var pers=[];for(var i=1;i<=12;i++)pers.push('第'+i+'期');
+ return '<h2>雙週結算</h2><div class="hint">依上課紀錄自動計算</div>'
+ +'<div class="card"><label>結算期別</label><select id="per">'
+ +pers.map(function(p){return '<option'+(p===setP?' selected':'')+'>'+p+'</option>';}).join('')+'</select>'
+ +'<div class="mini">起算日 '+DB.cfg.start+'　每 '+DB.cfg.days+' 天一期　本期 '+ls.length+' 堂</div></div>'
+ +'<div class="sec-t">教練請款</div><div class="card"><table><tr><th>教練</th><th>堂數</th><th>家長付費</th><th>產生行政費</th><th>應匯</th></tr>'+rowsC+'</table>'
+ +'<div class="mini">「產生行政費」是該教練的課所產生的金額，不是要匯給他的錢。行政費統一自公積金撥給行政（陳建廷）。</div></div>'
+ +'<div class="sec-t">公積金</div><div class="card"><table>'
+ +'<tr><td>公積金提撥</td><td><b>'+money(tot('fund'))+'</b></td></tr>'
+ +'<tr><td>行政費（撥給行政）</td><td><b>'+money(tot('admin'))+'</b></td></tr>'
+ +'<tr><td>可回饋餘額</td><td><b>'+money(fundLeft)+'</b></td></tr>'
+ +'<tr><td>器材使用費（給風哥）</td><td>'+money(tot('gear'))+'</td></tr></table></div>'
+ +'<div class="sec-t">餘額回饋（團班每堂折算 '+gw+' 堂）</div>'
+ +'<div class="card"><table><tr><th>教練</th><th>加權堂數</th><th>占比</th><th>金額</th></tr>'+back+'</table></div>'
+ +'<div class="sec-t">行政費計算規則</div><div class="card">'
+ +'<table><tr><th>上課人數</th><th>行政費／堂</th><th>對應方案</th></tr>'
+ +'<tr><td>1 人</td><td>'+money(50)+'</td><td>一對一</td></tr>'
+ +'<tr><td>2 人</td><td>'+money(75)+'</td><td>一對二</td></tr>'
+ +'<tr><td>4 人</td><td>'+money(100)+'</td><td>團班 4 人</td></tr>'
+ +'<tr><td>5 人</td><td>'+money(125)+'</td><td>團班 5 人</td></tr>'
+ +'<tr><td>6 人</td><td>'+money(150)+'</td><td>團班 6 人</td></tr></table>'
+ +'<div class="mini">依 115.08.16 第四次會議決議。系統依<b>該堂實際登記的學員人數</b>計算，'
+ +'團班報 5 人到 4 人、一對二臨時剩 1 人，行政費會跟著實際人數走，排課列表也會標出人數與方案不符的課。</div></div>'
+ +'<div class="sec-t">雲端同步</div><div class="card">'
+ +(!sbReady()
+   ?'<div class="warnbar" style="margin-bottom:4px">目前資料只存在這支手機。填入下面兩欄並登入之後，資料會存到雲端資料庫，換手機或清快取都不會不見。</div>'
+   :(!authed()
+     ?'<div class="warnbar" style="margin-bottom:4px">已設定資料庫，還沒登入。輸入帳號密碼後才會開始同步。</div>'
+     :'<div class="row" style="justify-content:space-between;margin-bottom:4px">'
+      +'<span class="tag'+(SYNCST==='err'?' r':' g')+'">'+(SYNCST==='err'?'同步異常':'已連線')+'　'+esc(SESS.email||'')+'</span>'
+      +'<span class="mini" style="margin:0">'+(LASTSYNC?'上次同步 '+LASTSYNC:'尚未同步')+'　待同步 '+pendCount()+' 筆</span></div>'))
+ +(SYNCMSG?'<div class="warnbar" style="margin:8px 0 0">'+esc(SYNCMSG)+'</div>':'')
+ +'<label>專案網址（Project URL）</label><input id="c_url" placeholder="https://xxxxxxxx.supabase.co" value="'+esc(SB.url)+'">'
+ +'<label>公開金鑰（Publishable key，或舊版介面的 anon public）</label><input id="c_key" type="password" value="'+esc(SB.key)+'">'
+ +'<div class="row" style="margin-top:12px"><button class="btn sec sm" data-act="savesb">儲存連線設定</button></div>'
+ +(sbReady()?(authed()
+   ?'<div class="row" style="margin-top:16px">'
+    +'<button class="btn sm" data-act="sync">立即同步</button>'
+    +'<button class="btn sec sm" data-act="pushall">全部上傳</button>'
+    +'<button class="btn sec sm" data-act="logout">登出</button></div>'
+   :'<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:2px">'
+    +'<label>登入帳號（Email）</label><input id="c_em" type="email" autocomplete="username" value="">'
+    +'<label>密碼</label><input id="c_pw" type="password" autocomplete="current-password" value="">'
+    +'<div class="row" style="margin-top:14px"><button class="btn sm" data-act="login">登入</button></div></div>'):'')
+ +'<div class="mini">登入後會自動同步：改完資料 2 秒、切回這個頁面、網路恢復時各同步一次。'
+ +'沒網路照樣能用，變更會排隊等連線。第一次登入完請按「全部上傳」，把這支手機上既有的資料推上去。</div></div>'
+ +'<div class="sec-t">資料管理</div><div class="card"><div class="row">'
+ +'<button class="btn sec sm" data-act="csvS">匯出學員</button>'
+ +'<button class="btn sec sm" data-act="csvL">匯出課程</button>'
+ +'<button class="btn sec sm" data-act="csvP">匯出收款</button>'
+ +'<button class="btn sec sm" data-act="csvB">匯出結算</button></div>'
+ +'<div class="row" style="margin-top:9px">'
+ +'<button class="btn sec sm" data-act="bak">備份 JSON</button>'
+ +'<button class="btn sec sm" data-act="res">還原備份</button>'
+ +'<button class="btn dan sm" data-act="wipe">清除全部</button></div>'
+ +'<div class="mini">四個 CSV 的欄位順序和「港湖特訓班資料庫.xlsx」的同名分頁完全一致，'
+ +'貼進去之後公積金帳、器材使用費、月報表的數字就會自己算出來。備份 JSON 是整份資料的完整快照，建議每期結算完存一份。</div></div>'
+ +'<div class="sec-t">設定</div><div class="card">'
+ +'<label>結算起算日</label><input type="date" id="cstart" value="'+DB.cfg.start+'">'
+ +'<label>一期天數</label><input type="number" id="cdays" value="'+DB.cfg.days+'">'
+ +'<label>團班加權（每堂折算幾堂）</label><input type="number" step="0.1" id="cgw" value="'+DB.cfg.gw+'">'
+ +'<button class="btn sm" data-act="savecfg" style="margin-top:14px">儲存設定</button></div>';
+}
+
+/* ============ 表單 ============ */
+function openSheet(h){document.getElementById('sheet').innerHTML='<div class="grip"></div>'+h;
+ document.getElementById('modal').classList.add('on');bind();}
+function closeSheet(){document.getElementById('modal').classList.remove('on');}
+document.getElementById('modal').onclick=function(e){if(e.target.id==='modal')closeSheet();};
+function head(t){return '<div class="close"><h3>'+t+'</h3><button class="btn sec sm" data-act="close">關閉</button></div>';}
+
+/* ---- 學員 / 報名 ---- */
+function buyOpts(sel){return '<option value="">請選擇方案</option>'
+ +BUY.map(function(b){return '<option'+(sel===b.code?' selected':'')+'>'+b.code+'</option>';}).join('');}
+function buyBlock(p,pfx){
+ p=p||{plan:'',sessions:'',due:'',paid:'',date:today(),method:'轉帳',note:''};
+ return '<label>購買方案</label><select id="'+pfx+'plan">'+buyOpts(p.plan)+'</select>'
+ +'<div class="grid2"><div><label>堂數</label><input type="number" id="'+pfx+'n" value="'+(p.sessions||'')+'" min="0"></div>'
+ +'<div><label>應收金額</label><input type="number" id="'+pfx+'due" value="'+(p.due||'')+'"></div></div>'
+ +'<div class="grid2"><div><label>已收金額</label><input type="number" id="'+pfx+'paid" value="'+(p.paid===undefined?'':p.paid)+'"></div>'
+ +'<div><label>繳費方式</label><select id="'+pfx+'method">'
+ +['轉帳','現金','其他'].map(function(v){return '<option'+(p.method===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div></div>'
+ +'<label>繳費日期</label><input type="date" id="'+pfx+'date" value="'+(p.date||today())+'">'
+ +'<label>備註</label><input id="'+pfx+'note" value="'+esc(p.note)+'" placeholder="例如 指定週三晚上">';
+}
+function fStu(id){
+ var s=id?DB.students.filter(function(x){return x.id===id;})[0]:{name:'',parent:'',phone:'',ganghu:'是',coach:'',note:''};
+ var bs=id?buysOf(s.name):[];
+ var h=head(id?'編輯學員':'新增報名')
+ +'<div class="fbox"><div class="ttl">學員資料</div>'
+ +'<label>學員姓名 *</label><input id="f_name" value="'+esc(s.name)+'">'
+ +'<div class="grid2"><div><label>家長稱呼</label><input id="f_parent" value="'+esc(s.parent)+'"></div>'
+ +'<div><label>聯絡電話</label><input id="f_phone" type="tel" value="'+esc(s.phone)+'">'
+ +(s.phone?'<a class="tel" href="tel:'+esc(s.phone)+'">撥打給 '+esc(s.parent||s.name)+'</a>':'')+'</div></div>'
+ +'<div class="grid2"><div><label>港湖球員</label><select id="f_ganghu">'
+ +['是','否'].map(function(v){return '<option'+(s.ganghu===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div>'
+ +'<div><label>主要教練</label><select id="f_coach"><option value="">未指定</option>'
+ +COACHES.map(function(c){return '<option'+(s.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div></div>'
+ +'<label>備註</label><textarea id="f_note" rows="2">'+esc(s.note)+'</textarea></div>';
+
+ if(!id){
+  h+='<div class="fbox"><div class="ttl">這次報名與繳費</div>'
+   +'<div class="mini" style="margin:6px 0 0">選好方案會自動帶出堂數與金額，可以再改。全部留白就只建立學員、不記帳。</div>'
+   +buyBlock(null,'b_')+'</div>';
+ }else{
+  var tb=boughtOf(s.name),ow=oweOf(s.name);
+  h+='<div class="sec-t">報名與繳費紀錄</div>'
+   +'<div class="card" style="margin-bottom:0"><div class="row" style="justify-content:space-between">'
+   +'<div><small style="color:var(--muted);font-size:12px">總堂數</small><div class="num" style="font-size:20px">'+tb+' 堂</div></div>'
+   +'<div><small style="color:var(--muted);font-size:12px">已上</small><div class="num" style="font-size:20px">'+doneCount(s.name)+' 堂</div></div>'
+   +'<div><small style="color:var(--muted);font-size:12px">剩餘</small><div class="num" style="font-size:20px;color:'+(leftOf(s.name)<=0?'var(--red)':'var(--green)')+'">'+leftOf(s.name)+' 堂</div></div>'
+   +'<div><small style="color:var(--muted);font-size:12px">未收</small><div class="num" style="font-size:20px;color:'+(ow>0?'var(--red)':'var(--green)')+'">'+money(ow)+'</div></div>'
+   +'</div>'
+   +bs.map(function(p){
+     var lf=(+p.due||0)-(+p.paid||0);
+     return '<div class="buy" data-edit="buy" data-id="'+p.id+'">'
+     +'<div><div class="l">'+esc(p.plan||'（未填方案）')+'</div>'
+     +'<div class="m">'+(p.date||'未填日期')+'　'+(+p.sessions||0)+' 堂　'+esc(p.method||'')+(p.note?'　'+esc(p.note):'')+'</div></div>'
+     +'<div class="rr"><div class="num" style="font-size:15px">'+money(p.paid)+'</div>'
+     +'<span class="tag'+(lf>0?' r':' g')+'">'+(lf>0?'欠 '+money(lf):'已結清')+'</span></div></div>';}).join('')
+   +(bs.length?'':'<div class="mini">還沒有報名紀錄。</div>')
+   +'<button class="btn sec sm" data-act="newbuy" data-id="'+esc(s.name)+'" style="margin-top:12px">'+svg('plus',14)+' 新增報名／續購</button>'
+   +'</div>';
+ }
+ h+='<div class="row" style="margin-top:18px"><button class="btn" data-act="saveStu" data-id="'+(id||'')+'">'
+  +(id?'儲存':'建立報名')+'</button>'
+  +(id?'<button class="btn dan" data-act="delStu" data-id="'+id+'">刪除學員</button>':'')+'</div>';
+ openSheet(h);
+}
+function fBuy(pid,name){
+ var p=pid?DB.payments.filter(function(x){return x.id===pid;})[0]:null;
+ var who=p?p.student:name;
+ openSheet(head(pid?'編輯報名紀錄':'新增報名／續購')
+ +'<div class="fbox"><div class="ttl">'+esc(who)+'</div>'+buyBlock(p,'b_')+'</div>'
+ +'<div class="row" style="margin-top:18px"><button class="btn" data-act="saveBuy" data-id="'+(pid||'')+'" data-nm="'+esc(who)+'">儲存</button>'
+ +(pid?'<button class="btn dan" data-act="delBuy" data-id="'+pid+'">刪除</button>':'')+'</div>');
+}
+/* 選方案自動帶堂數與金額 */
+function upBuy(force){
+ var b=buyPlan(val('b_plan'));if(!b)return;
+ var n=document.getElementById('b_n'),due=document.getElementById('b_due');
+ if(!n||!due)return;
+ if(force||!n.value)n.value=b.n;
+ due.value=b.unit*(+n.value||0);
+}
+function upBuyDue(){
+ var b=buyPlan(val('b_plan'));if(!b)return;
+ var due=document.getElementById('b_due');if(due)due.value=b.unit*(+val('b_n')||0);
+}
+function readBuy(who){
+ return {student:who,plan:val('b_plan'),sessions:+val('b_n')||0,due:+val('b_due')||0,
+  paid:+val('b_paid')||0,method:val('b_method'),date:val('b_date'),note:val('b_note')};
+}
+
+/* ---- 課程 ---- */
+function fLes(id){
+ var l=id?DB.lessons.filter(function(x){return x.id===id;})[0]:
+   {date:today(),start:'18:00',end:'19:00',coach:'',plan:'',students:[],status:'已排定',venue:'彩虹少棒場',note:''};
+ var sib=l.rid?seriesOf(l.rid):[],ds=sib.map(function(x){return x.date;}).sort();
+ openSheet(head(id?'編輯課程':'新增課程')
+ +(sib.length>1?'<div class="warnbar">這堂屬於一組重複課程，整組共 '+sib.length+' 堂（'+ds[0]+' ～ '+ds[ds.length-1]+'）。</div>':'')
+ +'<div class="fbox"><div class="ttl">時間與教練</div>'
+ +'<label>日期 *</label><input type="date" id="f_date" value="'+l.date+'">'
+ +'<div class="grid2"><div><label>開始</label><select id="f_start">'
+ +TIMES.map(function(t){return '<option'+(l.start===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
+ +'<div><label>結束</label><select id="f_end">'
+ +TIMES.concat(['16:30','19:30','21:30']).map(function(t){return '<option'+(l.end===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div></div>'
+ +'<label>教練 *</label><select id="f_coach"><option value="">請選擇</option>'
+ +COACHES.map(function(c){return '<option'+(l.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'
+ +'<div class="fbox"><div class="ttl">課程與學員</div>'
+ +'<label>方案 *（決定金額）</label><select id="f_plan"><option value="">請選擇</option>'
+ +RATES.map(function(r){return '<option'+(l.plan===r.code?' selected':'')+'>'+r.code+'</option>';}).join('')+'</select>'
+ +'<label>學員（按住可複選，團班選多位）</label><select id="f_stu" multiple size="7">'
+ +STU().map(function(s){var lf=leftOf(s.name);
+   return '<option'+(l.students.indexOf(s.name)>=0?' selected':'')+' value="'+esc(s.name)+'">'
+   +esc(s.name)+(boughtOf(s.name)?'（剩 '+lf+' 堂）':'（未報名）')+'</option>';}).join('')+'</select>'
+ +'<div class="split" id="splitp"></div></div>'
+ +(id?'':'<div class="fbox"><div class="ttl">重複</div>'+REPUI(l.date)+'</div>')
+ +'<div class="fbox"><div class="ttl">場地與狀態</div>'
+ +'<div class="grid2"><div><label>場地</label><select id="f_venue">'
+ +['彩虹少棒場','打擊籠','麥帥二橋下'].map(function(v){return '<option'+(l.venue===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div>'
+ +'<div><label>狀態</label><select id="f_status">'
+ +['已排定','已完成','請假改期','取消'].map(function(v){return '<option'+(l.status===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div></div>'
+ +'<label>備註</label><textarea id="f_note" rows="2">'+esc(l.note)+'</textarea></div>'
+ +'<div class="row" style="margin-top:18px"><button class="btn" data-act="saveLes" data-id="'+(id||'')+'">儲存</button>'
+ +(sib.length>1?'<button class="btn sec" data-act="saveAfter" data-id="'+id+'">套用到之後所有</button>':'')
+ +(id?'<button class="btn dan" data-act="delLes" data-id="'+id+'">刪除</button>':'')
+ +(sib.length>1?'<button class="btn dan" data-act="delSeries" data-id="'+id+'">刪整組</button>':'')+'</div>');
+ upSplit();
+}
+function REPUI(d0){
+ return '<label>重複方式</label><select id="f_rep">'
+ +[['none','不重複'],['week','每週（同星期）'],['week2','每兩週'],['day','每天'],
+   ['month','每月（同日期）'],['custom','自訂星期（可複選）']]
+   .map(function(o){return '<option value="'+o[0]+'">'+o[1]+'</option>';}).join('')+'</select>'
+ +'<div class="repbox" id="repbox" style="display:none">'
+ +'<label>自訂星期（選「自訂星期」時才有作用）</label>'
+ +'<div class="dows" id="dowrow">'+DAYN.map(function(n,i){
+    return '<button type="button" class="dow'+(i===dowOf(d0)?' on':'')+'" data-d="'+i+'">'+n.slice(1)+'</button>';}).join('')+'</div>'
+ +'<div class="grid2"><div><label>結束方式</label><select id="f_endmode">'
+ +'<option value="count">依次數</option><option value="until">依結束日期</option></select></div>'
+ +'<div><label>重複幾堂</label><input type="number" id="f_cnt" value="8" min="1" max="120"></div></div>'
+ +'<label>結束日期</label><input type="date" id="f_until" value="'+addD(d0,56)+'">'
+ +'<div class="prev" id="prev"></div></div>';
+}
+function repPick(){
+ var dows=[];
+ document.querySelectorAll('#dowrow .dow.on').forEach(function(x){dows.push(+x.dataset.d);});
+ return repDates(val('f_date'),val('f_rep')||'none',dows,val('f_endmode'),val('f_cnt'),val('f_until'));
+}
+function upPrev(){
+ var box=document.getElementById('repbox'),pv=document.getElementById('prev');
+ if(!box)return;
+ var mode=val('f_rep')||'none';
+ box.style.display=mode==='none'?'none':'block';
+ if(mode==='none'||!pv)return;
+ var ds=repPick(),co=val('f_coach'),st=val('f_start');
+ var bad=ds.filter(function(d){
+  return DB.lessons.some(function(x){return x.status!=='取消'&&x.coach===co&&x.date===d&&x.start===st;});});
+ var show=ds.slice(0,8).map(function(d){return d.slice(5).replace('-','/')+'('+DAYN[dowOf(d)].slice(1)+')';}).join('、');
+ pv.innerHTML='一次建立 <b>'+ds.length+'</b> 堂：'+show
+  +(ds.length>8?' … 最後一堂 '+ds[ds.length-1]:'')
+  +(bad.length?'<br><span class="warnline">其中 '+bad.length+' 堂和該教練既有課程撞時段</span>':'');
+}
+function upSplit(){
+ var box=document.getElementById('splitp');if(!box)return;
+ var sel=document.getElementById('f_stu'),ss=[];
+ if(sel)for(var i=0;i<sel.options.length;i++)if(sel.options[i].selected)ss.push(sel.options[i].value);
+ var l={plan:val('f_plan'),students:ss},r=rate(l.plan);
+ if(!r){box.innerHTML='選好方案後這裡會顯示金額拆分';return;}
+ var n=headOf(l);
+ var no=ss.filter(function(x){return leftOf(x)<=0;});
+ box.innerHTML='家長付費 '+money(r.pay)+'　教練實收 '+money(r.coach)+'　公積金 '+money(r.fund)
+  +'　器材費 '+money(r.gear)+'<br><b>行政費 '+money(adminFee(l))+'</b>（依 '+n+' 人計算'
+  +(ss.length?'，已選 '+ss.length+' 位學員':'，尚未選學員，暫用方案人數')+'）'
+  +(headMismatch(l)?'<br><span class="warnline">人數與方案不符，行政費以實際人數為準</span>':'')
+  +(no.length?'<br><span class="warnline">'+no.join('、')+' 沒有剩餘堂數，記得先收費</span>':'');
+}
+
+/* ============ 匯出 ============ */
+function dl(name,txt){
+ var b=new Blob(['\ufeff'+txt],{type:'text/csv;charset=utf-8'});
+ var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();
+}
+function csvS(){
+ var h='學員姓名,家長,電話,港湖球員,主要教練,總購買堂數,已上堂數,剩餘堂數,應收合計,已收合計,未收,備註\n';
+ dl('學員名冊.csv',h+STU().map(function(s){
+  var bs=buysOf(s.name);
+  var due=bs.reduce(function(a,p){return a+(+p.due||0);},0);
+  var paid=bs.reduce(function(a,p){return a+(+p.paid||0);},0);
+  return [s.name,s.parent,s.phone,s.ganghu,s.coach,boughtOf(s.name),doneCount(s.name),leftOf(s.name),
+   due,paid,due-paid,s.note].join(',');}).join('\n'));
+}
+function csvL(){
+ var h='日期,期別,教練,方案代碼,學員姓名,人數,家長付費,公積金提撥,器材使用費,教練實收,行政費,狀態,場地,備註\n';
+ dl('上課明細.csv',h+LES().map(function(l){var r=rate(l.plan)||{};
+  return [l.date,period(l.date),l.coach,l.plan,'"'+l.students.join('、')+'"',l.students.length,
+   r.pay||0,r.fund||0,r.gear||0,r.coach||0,adminFee(l),l.status,l.venue,l.note].join(',');}).join('\n'));
+}
+function csvP(){
+ var h='繳費日期,學員姓名,購買方案,堂數,應收金額,已收金額,未收金額,繳費方式,備註\n';
+ dl('報名收款.csv',h+PAY().map(function(p){
+  return [p.date,p.student,p.plan,p.sessions||0,p.due,p.paid,(+p.due||0)-(+p.paid||0),p.method,p.note].join(',');}).join('\n'));
+}
+
+function csvB(){
+ var h='期別,教練,堂數,家長付費,公積金提撥,器材使用費,應匯教練,產生行政費\n';
+ var map={};
+ LES().forEach(function(l){
+  if(l.status==='取消')return;
+  var k=period(l.date)+'|'+l.coach;
+  var o=map[k]||(map[k]={p:period(l.date),c:l.coach,n:0,pay:0,fund:0,gear:0,coach:0,adm:0});
+  o.n++;o.pay+=amt(l,'pay');o.fund+=amt(l,'fund');o.gear+=amt(l,'gear');
+  o.coach+=amt(l,'coach');o.adm+=amt(l,'admin');});
+ dl('雙週結算.csv',h+Object.keys(map).sort().map(function(k){var o=map[k];
+  return [o.p,o.c,o.n,o.pay,o.fund,o.gear,o.coach,o.adm].join(',');}).join('\n'));
+}
+
+/* ============ 綁定 ============ */
+function val(id){var e=document.getElementById(id);return e?e.value:'';}
+function bind(){
+ document.querySelectorAll('[data-act]').forEach(function(b){
+  b.onclick=function(ev){
+   ev.stopPropagation();
+   var a=b.dataset.act,id=b.dataset.id;
+   if(a==='close')return closeSheet();
+   if(a==='newstu')return fStu();
+   if(a==='newles')return fLes();
+   if(a==='newbuy')return fBuy('',id);
+
+   if(a==='saveStu'){
+    var n=document.getElementById('f_name').value.trim();
+    if(!n)return alert('請填學員姓名');
+    var o={name:n,parent:val('f_parent'),phone:val('f_phone'),ganghu:val('f_ganghu'),
+      coach:val('f_coach'),note:val('f_note')};
+    if(id){
+     var old=byId(DB.students,id);
+     if(old&&old.name!==n){
+      DB.payments.forEach(function(p){if(p.student===old.name){p.student=n;touch('payments',p);}});
+      DB.lessons.forEach(function(l){
+       if(l.students.indexOf(old.name)>=0){
+        l.students=l.students.map(function(x){return x===old.name?n:x;});touch('lessons',l);}});
+     }
+     if(old){Object.assign(old,o);touch('students',old);}
+    }else{
+     o.id=uid();o.del=0;DB.students.push(o);touch('students',o);
+     if(val('b_plan')||+val('b_paid')||+val('b_n')){
+      var pay=readBuy(n);pay.id=uid();pay.del=0;DB.payments.push(pay);touch('payments',pay);
+     }
+    }
+    persist();closeSheet();render();return;}
+
+   if(a==='delStu'){
+    var s2=byId(DB.students,id);
+    if(!s2)return;
+    if(confirm('刪除「'+s2.name+'」？他的報名收款紀錄也會一起刪掉，排課紀錄不會動。')){
+     s2.del=1;touch('students',s2);
+     DB.payments.forEach(function(p){if(p.student===s2.name&&!p.del){p.del=1;touch('payments',p);}});
+     persist();closeSheet();render();}
+    return;}
+
+   if(a==='saveBuy'){
+    var who=b.dataset.nm;
+    if(!val('b_plan')&&!+val('b_n'))return alert('請選方案或填堂數');
+    var o2=readBuy(who);
+    if(id){var pe=byId(DB.payments,id);if(pe){Object.assign(pe,o2);touch('payments',pe);}}
+    else{o2.id=uid();o2.del=0;DB.payments.push(o2);touch('payments',o2);}
+    persist();closeSheet();
+    var st=STU().filter(function(x){return x.name===who;})[0];
+    render();if(st)fStu(st.id);return;}
+
+   if(a==='delBuy'){
+    var p3=byId(DB.payments,id);
+    if(p3&&confirm('刪除這筆報名收款紀錄？')){
+     p3.del=1;touch('payments',p3);
+     persist();closeSheet();
+     var st2=STU().filter(function(x){return x.name===p3.student;})[0];
+     render();if(st2)fStu(st2.id);}
+    return;}
+
+   if(a==='saveLes'||a==='saveAfter'){
+    var sel=document.getElementById('f_stu');
+    var ss=[];for(var i=0;i<sel.options.length;i++)if(sel.options[i].selected)ss.push(sel.options[i].value);
+    if(!val('f_coach'))return alert('請選教練');
+    if(!val('f_plan'))return alert('請選方案');
+    var o3={date:val('f_date'),start:val('f_start'),end:val('f_end'),coach:val('f_coach'),
+      plan:val('f_plan'),students:ss,venue:val('f_venue'),status:val('f_status'),note:val('f_note')};
+    if(a==='saveAfter'){
+     var base=byId(DB.lessons,id);
+     if(!base)return;
+     var aff=LES().filter(function(l){return l.rid&&l.rid===base.rid&&l.date>=base.date;});
+     if(!confirm('這堂以後的 '+aff.length+' 堂課會一起改成新的設定，日期各自保留。確定？'))return;
+     aff.forEach(function(l){var d=l.date;Object.assign(l,o3);l.students=o3.students.slice();
+      l.date=(l.id===id?o3.date:d);touch('lessons',l);});
+     persist();closeSheet();render();return;}
+    if(id){var le=byId(DB.lessons,id);
+     if(le){Object.assign(le,o3);le.students=o3.students.slice();touch('lessons',le);}
+     persist();closeSheet();render();return;}
+    var dts=repPick();
+    if(!dts.length)return alert('請確認日期');
+    var rid='';
+    if(dts.length>1){
+     var bad=dts.filter(function(d){return DB.lessons.some(function(x){
+      return x.status!=='取消'&&x.coach===o3.coach&&x.date===d&&x.start===o3.start;});});
+     if(!confirm('一次建立 '+dts.length+' 堂課\n'+dts[0]+' ～ '+dts[dts.length-1]
+      +(bad.length?'\n\n其中 '+bad.length+' 堂和該教練既有課程撞時段，仍會建立，之後可在排課頁修改。':'')
+      +'\n\n確定建立？'))return;
+     rid=uid();
+    }
+    dts.forEach(function(d){
+     var nn={};for(var k in o3)nn[k]=o3[k];
+     nn.students=o3.students.slice();nn.date=d;nn.id=uid();nn.del=0;if(rid)nn.rid=rid;
+     DB.lessons.push(nn);touch('lessons',nn);});
+    persist();closeSheet();render();
+    if(dts.length>1)alert('已建立 '+dts.length+' 堂課');
+    return;}
+
+   if(a==='delLes'){var ld=byId(DB.lessons,id);
+    if(ld&&confirm('刪除這堂課？')){ld.del=1;touch('lessons',ld);persist();closeSheet();render();}return;}
+   if(a==='delSeries'){
+    var b2=byId(DB.lessons,id);if(!b2||!b2.rid)return;
+    var cnt=seriesOf(b2.rid).length;
+    if(confirm('刪除整組重複課程共 '+cnt+' 堂？無法復原。')){
+     LES().forEach(function(l){if(l.rid===b2.rid){l.del=1;touch('lessons',l);}});
+     persist();closeSheet();render();}
+    return;}
+   if(a==='done'){var lt=byId(DB.lessons,id);
+    if(lt){lt.status=(lt.status==='已完成'?'已排定':'已完成');touch('lessons',lt);persist();render();}
+    return;}
+
+   if(a==='csvS')return csvS();
+   if(a==='csvL')return csvL();
+   if(a==='csvP')return csvP();
+   if(a==='csvB')return csvB();
+   if(a==='sync')return syncNow(true);
+   if(a==='pushall'){if(confirm('把這支手機上的所有資料上傳到雲端？\n\n只在「主要那支手機」按一次就好。'
+    +'其他裝置登入後會自動把資料拉下來，不需要再按，重複按可能產生同名的學員。'))pushAll();return;}
+   if(a==='savesb'){
+    var u=val('c_url').trim().replace(/\/+$/,''),ky=val('c_key').trim();
+    if(u&&!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(u))
+     return alert('網址看起來不對。應該長得像 https://abcdefgh.supabase.co，結尾不要有斜線或其他路徑。');
+    if(u&&ky.length<20)
+     return alert('金鑰看起來太短。請完整複製那一整串金鑰，不要漏字。');
+    SB={url:u,key:ky};save('sb',SB);
+    if(!u||!ky){SESS=null;save('sess',null);setST('off');render();upPill();
+     return alert('已清除連線設定，改回只存在這支手機。');}
+    render();upPill();
+    alert('連線設定已儲存。接著在下面輸入帳號密碼登入。');return;}
+   if(a==='login'){
+    var em=val('c_em').trim(),pw=val('c_pw');
+    if(!em||!pw)return alert('請輸入帳號和密碼');
+    b.disabled=true;b.textContent='登入中…';
+    sbLogin(em,pw).then(function(){
+     render();upPill();syncNow(true);
+    }).catch(function(e){
+     b.disabled=false;b.textContent='登入';
+     alert('登入失敗\n\n'+String(e.message||e));});
+    return;}
+   if(a==='logout'){
+    if(!confirm('登出後這支手機就不再同步，本機資料還在。確定登出？'))return;
+    sbLogout();return;}
+   if(a==='bak'){var bb=new Blob([JSON.stringify(DB)],{type:'application/json'});
+    var l2=document.createElement('a');l2.href=URL.createObjectURL(bb);
+    l2.download='港湖特訓班備份_'+today()+'.json';l2.click();return;}
+   if(a==='res'){var inp=document.createElement('input');inp.type='file';inp.accept='.json';
+    inp.onchange=function(){var f=inp.files[0];if(!f)return;var rd=new FileReader();
+     rd.onload=function(){try{var dd=JSON.parse(rd.result);
+      if(dd.students)DB.students=dd.students;if(dd.lessons)DB.lessons=dd.lessons;
+      if(dd.payments)DB.payments=dd.payments;if(dd.cfg)DB.cfg=dd.cfg;
+      ['students','lessons','payments'].forEach(function(c){
+       DB[c].forEach(function(r){if(r.del===undefined)r.del=0;if(!r.ts)r.ts=0;});});
+      persistOnly();render();alert('已還原備份。若要同步到雲端，請按「全部上傳」。');}
+      catch(e){alert('檔案格式不對，請確認選的是本系統匯出的 JSON。');}};
+     rd.readAsText(f);};inp.click();return;}
+   if(a==='wipe'){if(confirm('清除這支手機上的全部資料？無法復原，建議先備份。\n注意：雲端上的資料不會被刪除。')){
+    DB.students=DEFSTU.map(function(n){return {id:uid(),name:n,parent:'',phone:'',ganghu:'是',coach:'',note:'',del:0,ts:0};});
+    DB.lessons=[];DB.payments=[];PEND={students:{},lessons:{},payments:{},cfg:0};
+    SINCE=0;save('since',0);persistOnly();render();}return;}
+   if(a==='savecfg'){DB.cfg={start:val('cstart'),days:+val('cdays')||14,gw:+val('cgw')||1.5};
+    touchCfg();persist();render();alert('設定已儲存');return;}
+   if(a==='prevw'){calMon=addD(calMon,-7);render();return;}
+   if(a==='nextw'){calMon=addD(calMon,7);render();return;}
+   if(a==='thisw'){var t=new Date();t.setDate(t.getDate()-((t.getDay()+6)%7));calMon=ymd(t);render();return;}
+  };
+ });
+ document.querySelectorAll('[data-edit]').forEach(function(c){
+  c.onclick=function(){var t=c.dataset.edit;
+   if(t==='stu')fStu(c.dataset.id);
+   if(t==='les')fLes(c.dataset.id);
+   if(t==='buy')fBuy(c.dataset.id);};
+ });
+ document.querySelectorAll('[data-f]').forEach(function(b){b.onclick=function(){lesF=b.dataset.f;render();};});
+ document.querySelectorAll('[data-sf]').forEach(function(b){b.onclick=function(){stuF=b.dataset.sf;render();};});
+ var q=document.getElementById('q');
+ if(q)q.oninput=function(){stuQ=q.value.trim();var p=q.selectionStart;render();
+  var n=document.getElementById('q');if(n){n.focus();n.setSelectionRange(p,p);}};
+ var mon=document.getElementById('mon');
+ if(mon)mon.onchange=function(){calMon=mon.value;render();};
+ var per=document.getElementById('per');
+ if(per)per.onchange=function(){setP=per.value;render();};
+ /* 重複排課 */
+ ['f_rep','f_endmode','f_cnt','f_until','f_date','f_coach','f_start'].forEach(function(k){
+  var e=document.getElementById(k);if(e){e.onchange=upPrev;e.oninput=upPrev;}});
+ document.querySelectorAll('#dowrow .dow').forEach(function(b){
+  b.onclick=function(){b.classList.toggle('on');upPrev();};});
+ ['f_plan','f_stu'].forEach(function(k){var e=document.getElementById(k);if(e)e.onchange=upSplit;});
+ if(document.getElementById('repbox'))upPrev();
+ /* 購課自動計價 */
+ var bp=document.getElementById('b_plan');if(bp)bp.onchange=function(){upBuy(true);};
+ var bn=document.getElementById('b_n');if(bn)bn.oninput=upBuyDue;
+}
+document.getElementById('syncp').onclick=function(){
+ if(!sbReady()||!authed()){TAB='set';
+  document.querySelectorAll('.tabbar button').forEach(function(x){
+   x.classList.toggle('on',x.dataset.t==='set');});
+  render();window.scrollTo(0,document.body.scrollHeight);return;}
+ syncNow(true);};
+render();upPill();
+if(sbReady()&&authed())syncNow();
+</script></body></html>
