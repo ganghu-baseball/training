@@ -206,6 +206,7 @@ font-size:15px;font-family:Oswald,inherit;font-weight:500;color:var(--ink);curso
 .mc-g button.t{border-color:var(--or);color:var(--or-d);font-weight:600}
 .mc-g button.on{background:var(--or);color:#fff;border-color:var(--or)}
 .mc-g button.busy{background:#F3F1E9;color:var(--muted)}
+.mc-g button i{font-style:normal;font-size:10px;vertical-align:super;margin-left:1px;opacity:.9}
 .mc-g button.on.busy{background:var(--or);color:#fff}
 .mc-g button:disabled{opacity:.25;cursor:default}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -300,7 +301,18 @@ var BUY=[
  {code:'非港湖-專業-單堂',unit:1400,n:1,les:'非港湖-專業-單堂'},
  {code:'非港湖-菁英-單堂',unit:1500,n:1,les:'非港湖-菁英-單堂'},
  {code:'非港湖-資深-單堂',unit:1600,n:1,les:'非港湖-資深-單堂'}];
-var TIMES=['13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+var TIMES=['13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30',
+ '18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30'];
+function t2m(t){var a=(t||'0:0').split(':');return (+a[0])*60+(+a[1]);}
+function m2t(m){return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
+function timeOpts(sel){return TIMES.map(function(t){
+ return '<option'+(sel===t?' selected':'')+'>'+t+'</option>';}).join('');}
+/* 整週實際有課的時段，課表和匯出圖都用這個 */
+function usedSlots(days){
+ var u=TIMES.filter(function(t){
+  return LES().some(function(l){return l.status!=='取消'&&l.start===t&&days.indexOf(l.date)>=0;});});
+ return u.length?u:['15:00','16:00','18:00','19:00'];
+}
 var DAYN=['週日','週一','週二','週三','週四','週五','週六'];
 
 var DB={
@@ -604,9 +616,8 @@ function vHome(){
  +(wk.length?wk.map(lesRow).join(''):'<div class="empty">這 7 天還沒有排課</div>')
  +'<div class="sec-t">快速動作</div><div class="card"><div class="row">'
  +'<button class="btn" data-act="newen">'+svg('plus',15)+' 新增報名</button>'
- +'<button class="btn nav" data-act="newles">'+svg('plus',15)+' 單獨排課</button>'
  +'<button class="btn sec" data-act="poster">'+svg('cal',15)+' 匯出週課表</button>'
- +'</div><div class="mini">「新增報名」一次做完學員、繳費和排課。「單獨排課」是臨時加課、補課時用。</div></div>';
+ +'</div><div class="mini">「新增報名」一次做完學員、繳費和排課。要幫既有學員加課，到學員頁點他的名字選「續購並排課」。</div></div>';
 }
 
 /* ============ 學員報名 ============ */
@@ -623,9 +634,8 @@ function vStu(){
  return '<h2>報名排課</h2><div class="hint">報名時一次登記學員、繳費與上課日期，不用分兩次做。</div>'
  +'<div class="card"><button class="btn full" data-act="newen">'+svg('plus',16)+' 新增報名（含繳費與排課）</button>'
  +'<div class="row" style="margin-top:9px">'
- +'<button class="btn sec sm" data-act="newles">單獨排課</button>'
  +'<button class="btn sec sm" data-act="newstuonly">只建立學員</button></div>'
- +'<div class="mini">臨時加課、補課或團班併班時，用「單獨排課」。</div></div>'
+ +'<div class="mini">既有學員要加課或續購，點下面清單裡他的名字。</div></div>'
  +'<div class="seg">'+['學員','課程'].map(function(c){
    return '<button data-seg="'+c+'" class="'+(stuSeg===c?'on':'')+'">'+c+'</button>';}).join('')+'</div>'
  +(stuSeg==='學員'?vStuList():vLes());
@@ -673,14 +683,15 @@ var calMon=(function(){var d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7)
 function vCal(){
  var days=[];
  for(var i=0;i<7;i++)days.push(addD(calMon,i));
- var rows=TIMES.slice(0,8).map(function(t,ti){
+ var slots=usedSlots(days);
+ var rows=slots.map(function(t){
   var tds=days.map(function(ds){
    var hit=LES().filter(function(l){return l.date===ds&&l.start===t&&l.status!=='取消';});
    return '<td>'+hit.map(function(l){
      var g=l.plan.indexOf('團班')===0;
      return '<div class="slot'+(g?' grp':'')+'">'+esc(l.coach)+'<small>'+esc(l.students.join('、'))+'</small></div>';
    }).join('')+'</td>';}).join('');
-  return '<tr><th>'+t+'<br><small style="font-weight:400">'+TIMES[ti+1]+'</small></th>'+tds+'</tr>';}).join('');
+  return '<tr><th>'+t+'</th>'+tds+'</tr>';}).join('');
  return '<h2>週課表</h2><div class="hint">'+calMon.replace(/-/g,'/')+' 起這一週已排定的課</div>'
  +'<div class="card"><div class="row"><button class="btn sec sm" data-act="prevw">← 上一週</button>'
  +'<button class="btn sec sm" data-act="thisw">本週</button>'
@@ -859,16 +870,21 @@ function fEnroll(sid){
  +'<div class="mini" style="margin:6px 0 0">選好方案會自動帶出堂數與金額，可以再改。</div>'
  +buyBlock(null,'b_')+'</div>'
  +'<div class="fbox"><div class="ttl">排課</div>'
- +'<div class="mini" style="margin:6px 0 0">先選教練和時段，再在行事曆上點出上課日期。這一段可以全部留白，之後再排。</div>'
+ +'<div class="mini" style="margin:6px 0 0">先設定教練與時段，再在行事曆上點出上課的那幾天。這一段可以全部留白，之後再排。</div>'
  +'<label>教練</label><select id="f_coach"><option value="">先不排課</option>'
  +COACHES.map(function(c){return '<option'+(s&&s.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select>'
- +'<div class="grid2"><div><label>開始</label><select id="f_start">'
- +TIMES.map(function(t){return '<option'+(t==='18:00'?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
- +'<div><label>結束</label><select id="f_end">'
- +TIMES.concat(['16:30','19:30','21:30']).map(function(t){return '<option'+(t==='19:00'?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div></div>'
+ +'<div class="grid2"><div><label>開始時間</label><select id="f_start">'+timeOpts('18:00')+'</select></div>'
+ +'<div><label>每堂時間</label><select id="f_dur">'
+ +[[60,'60 分鐘'],[90,'90 分鐘'],[120,'120 分鐘']].map(function(o){
+   return '<option value="'+o[0]+'"'+(o[0]===60?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></div></div>'
+ +'<label>每次上課幾堂</label><select id="f_per">'
+ +[[1,'1 堂（例如 18:00–19:00）'],[2,'2 堂連上（例如 18:00–20:00）'],[3,'3 堂連上']].map(function(o){
+   return '<option value="'+o[0]+'"'+(o[0]===1?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'
  +'<label>場地</label><select id="f_venue">'
  +['彩虹少棒場','打擊籠','麥帥二橋下'].map(function(v){return '<option>'+v+'</option>';}).join('')+'</select>'
- +'<label>上課日期（點一下選、再點一下取消）</label>'
+ +'<label>上課日期</label>'
+ +'<div class="mini" style="margin:0 0 2px">在行事曆上點那天就加入，再點一次整天取消。'
+ +'買 10 堂、每次上 2 堂的話，點第一天之後按<b>「每週同一天排滿」</b>，會自動排成 5 天共 10 堂。</div>'
  +calBlock()+'</div>'
  +'<div class="row" style="margin-top:18px">'
  +'<button class="btn" data-act="saveEn" data-id="'+(sid||'')+'">完成報名</button></div>');
@@ -905,28 +921,20 @@ function fLes(id){
  var l=id?DB.lessons.filter(function(x){return x.id===id;})[0]:
    {date:today(),start:'18:00',end:'19:00',coach:'',plan:'',students:[],status:'已排定',venue:'彩虹少棒場',note:''};
  var sib=l.rid?seriesOf(l.rid):[],ds=sib.map(function(x){return x.date;}).sort();
- if(!id)calInit([l.date]);
  openSheet(head(id?'編輯課程':'新增課程')
  +(sib.length>1?'<div class="warnbar">這堂屬於一組重複課程，整組共 '+sib.length+' 堂（'+ds[0]+' ～ '+ds[ds.length-1]+'）。</div>':'')
  +'<div class="fbox"><div class="ttl">時間與教練</div>'
  +'<label>日期 *</label><input type="date" id="f_date" value="'+l.date+'">'
- +'<div class="grid2"><div><label>開始</label><select id="f_start">'
- +TIMES.map(function(t){return '<option'+(l.start===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
- +'<div><label>結束</label><select id="f_end">'
- +TIMES.concat(['16:30','19:30','21:30']).map(function(t){return '<option'+(l.end===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div></div>'
+ +'<div class="grid2"><div><label>開始</label><select id="f_start">'+timeOpts(l.start)+'</select></div>'
+ +'<div><label>結束</label><select id="f_end">'+timeOpts(l.end)+'</select></div></div>'
  +'<label>教練 *</label><select id="f_coach"><option value="">請選擇</option>'
  +COACHES.map(function(c){return '<option'+(l.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'
  +'<div class="fbox"><div class="ttl">課程與學員</div>'
  +'<label>方案 *（決定金額）</label><select id="f_plan"><option value="">請選擇</option>'
  +RATES.map(function(r){return '<option'+(l.plan===r.code?' selected':'')+'>'+r.code+'</option>';}).join('')+'</select>'
- +'<label>學員（按住可複選，團班選多位）</label><select id="f_stu" multiple size="7">'
- +STU().map(function(s){var lf=leftOf(s.name);
-   return '<option'+(l.students.indexOf(s.name)>=0?' selected':'')+' value="'+esc(s.name)+'">'
-   +esc(s.name)+(boughtOf(s.name)?'（剩 '+lf+' 堂）':'（未報名）')+'</option>';}).join('')+'</select>'
+ +'<label>學員（直接打中文姓名，多位用「、」分隔）</label>'
+ +'<input id="f_stu" value="'+esc((l.students||[]).join('、'))+'" placeholder="例如 林甫、洪子硯">'
  +'<div class="split" id="splitp"></div></div>'
- +(id?'':'<div class="fbox"><div class="ttl">上課日期</div>'
-   +'<div class="mini" style="margin:6px 0 0">在行事曆上點出所有上課日期，可以一次建立多堂。灰底代表該教練那個時段已經有課。</div>'
-   +calBlock()+'</div>')
  +'<div class="fbox"><div class="ttl">場地與狀態</div>'
  +'<div class="grid2"><div><label>場地</label><select id="f_venue">'
  +['彩虹少棒場','打擊籠','麥帥二橋下'].map(function(v){return '<option'+(l.venue===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div>'
@@ -938,19 +946,31 @@ function fLes(id){
  +(id?'<button class="btn dan" data-act="delLes" data-id="'+id+'">刪除</button>':'')
  +(sib.length>1?'<button class="btn dan" data-act="delSeries" data-id="'+id+'">刪整組</button>':'')+'</div>');
  upSplit();
- if(!id){drawCal();drawChips();}
 }
 /* ============ 迷你行事曆（多選上課日期）============ */
+/* CALSEL 每一筆是一堂課：{d 日期, s 開始, e 結束} */
 var CALSEL=[],CALM='';
-function calInit(dates){
- CALSEL=(dates||[]).slice().sort();
- CALM=(CALSEL[0]||today()).slice(0,7);
+function calSort(){CALSEL.sort(function(a,b){return (a.d+a.s)<(b.d+b.s)?-1:1;});}
+function calInit(list){
+ CALSEL=(list||[]).slice();calSort();
+ CALM=((CALSEL[0]||{}).d||today()).slice(0,7);
+}
+function calOn(ds){return CALSEL.filter(function(x){return x.d===ds;});}
+/* 一次加入「每次上課堂數」堂，時段接著排下去 */
+function calPer(){return Math.max(1,Math.min(4,+val('f_per')||1));}
+function calDur(){return Math.max(30,+val('f_dur')||60);}
+function addDay(ds){
+ var base=t2m(val('f_start')||'18:00'),dur=calDur();
+ for(var k=0;k<calPer();k++){
+  var s=m2t(base+k*dur),e=m2t(base+(k+1)*dur);
+  if(!CALSEL.some(function(x){return x.d===ds&&x.s===s;}))CALSEL.push({d:ds,s:s,e:e});
+ }
 }
 function calBlock(){
  return '<div class="mc" id="mc"></div>'
  +'<div class="row" style="margin-top:10px">'
- +'<button class="btn sec sm" data-act="calweek">依每週補滿</button>'
- +'<button class="btn sec sm" data-act="cal2week">每兩週補滿</button>'
+ +'<button class="btn sec sm" data-act="calweek">每週同一天排滿</button>'
+ +'<button class="btn sec sm" data-act="cal2week">每兩週排滿</button>'
  +'<button class="btn sec sm" data-act="calclear">清空</button></div>'
  +'<div class="chips" id="calchips"></div>'
  +'<div class="cnt" id="calcnt"></div>';
@@ -968,18 +988,19 @@ function drawCal(){
  var co=val('f_coach'),st=val('f_start');
  for(var d=1;d<=last;d++){
   var ds=CALM+'-'+String(d).padStart(2,'0');
-  var on=CALSEL.indexOf(ds)>=0;
+  var mine=calOn(ds);
   var busy=co&&LES().some(function(l){
    return l.status!=='取消'&&l.coach===co&&l.date===ds&&l.start===st;});
-  h+='<button type="button" class="'+(on?'on ':'')+(busy?'busy ':'')+(ds===today()?'t':'')
-   +'" data-d="'+ds+'">'+d+'</button>';
+  h+='<button type="button" class="'+(mine.length?'on ':'')+(busy?'busy ':'')+(ds===today()?'t':'')
+   +'" data-d="'+ds+'">'+d+(mine.length>1?'<i>'+mine.length+'</i>':'')+'</button>';
  }
  box.innerHTML=h+'</div>';
  box.querySelectorAll('[data-d]').forEach(function(b){
   b.onclick=function(){
-   var ds=b.dataset.d,i=CALSEL.indexOf(ds);
-   if(i>=0)CALSEL.splice(i,1);else CALSEL.push(ds);
-   CALSEL.sort();drawCal();drawChips();};});
+   var ds=b.dataset.d;
+   if(calOn(ds).length)CALSEL=CALSEL.filter(function(x){return x.d!==ds;});
+   else addDay(ds);
+   calSort();drawCal();drawChips();};});
  box.querySelector('[data-act="calprev"]').onclick=function(){
   var d=new Date(y,m-2,1);CALM=ymd(d).slice(0,7);drawCal();};
  box.querySelector('[data-act="calnext"]').onclick=function(){
@@ -988,53 +1009,72 @@ function drawCal(){
 function drawChips(){
  var c=document.getElementById('calchips'),n=document.getElementById('calcnt');
  if(!c)return;
- c.innerHTML=CALSEL.map(function(d){
-  return '<button type="button" data-x="'+d+'">'+d.slice(5).replace('-','/')+'('+DAYN[dowOf(d)].slice(1)+')</button>';}).join('');
+ c.innerHTML=CALSEL.map(function(o,i){
+  return '<button type="button" data-x="'+i+'">'+o.d.slice(5).replace('-','/')
+   +'('+DAYN[dowOf(o.d)].slice(1)+') '+o.s+'</button>';}).join('');
  c.querySelectorAll('[data-x]').forEach(function(b){
-  b.onclick=function(){CALSEL.splice(CALSEL.indexOf(b.dataset.x),1);drawCal();drawChips();};});
+  b.onclick=function(){CALSEL.splice(+b.dataset.x,1);drawCal();drawChips();};});
  if(n){
   var want=+val('b_n')||0;
   n.className='cnt'+(want&&CALSEL.length===want?' ok':'');
-  n.innerHTML='已選 <b>'+CALSEL.length+'</b> 堂'
-   +(want?'　方案共 '+want+' 堂'+(CALSEL.length===want?'　✓ 剛好':(CALSEL.length<want?'　還差 '+(want-CALSEL.length)+' 堂':'　多了 '+(CALSEL.length-want)+' 堂')):'');
+  var dd={};CALSEL.forEach(function(o){dd[o.d]=1;});
+  var nd=Object.keys(dd).length,per=calPer();
+  n.className='cnt'+(want&&CALSEL.length===want?' ok':'');
+  n.innerHTML='已選 <b>'+CALSEL.length+'</b> 堂　'+nd+' 天'+(per>1?'，每次 '+per+' 堂':'')
+   +(want?'　方案共 '+want+' 堂'+(CALSEL.length===want?'　✓ 剛好'
+     :(CALSEL.length<want?'　還差 '+(want-CALSEL.length)+' 堂':'　多了 '+(CALSEL.length-want)+' 堂')):'');
  }
 }
-/* 從最後一個選的日期往後，用固定間隔補到堂數 */
-function calFill(step){
- var want=+val('b_n')||0;
- if(!CALSEL.length)return alert('請先在行事曆上點一個開始日期');
- if(!want)want=CALSEL.length+7;
- var cur=CALSEL[CALSEL.length-1],guard=0;
- while(CALSEL.length<want&&guard++<200){
-  cur=addD(cur,step);
-  if(CALSEL.indexOf(cur)<0)CALSEL.push(cur);
+/* 改了時間／時長／每次堂數之後，把已選的那幾天用新設定重排一次 */
+function recalcDays(){
+ if(!document.getElementById('mc'))return;
+ if(CALSEL.length){
+  var dd=[];CALSEL.forEach(function(o){if(dd.indexOf(o.d)<0)dd.push(o.d);});
+  CALSEL=[];dd.forEach(addDay);calSort();
  }
- CALSEL.sort();CALM=CALSEL[0].slice(0,7);drawCal();drawChips();
+ drawCal();drawChips();
+}
+/* 以最早選的那天為起點整份重算，按幾次結果都一樣 */
+function calFill(step){
+ if(!CALSEL.length)return alert('請先在行事曆上點一天，當作第一次上課');
+ calSort();
+ var first=CALSEL[0].d,per=calPer();
+ var want=+val('b_n')||CALSEL.length;
+ var days=Math.max(1,Math.ceil(want/per));
+ CALSEL=[];
+ var cur=first;
+ for(var i=0;i<days;i++){addDay(cur);cur=addD(cur,step);}
+ calSort();
+ if(CALSEL.length>want)CALSEL=CALSEL.slice(0,want);
+ CALM=first.slice(0,7);drawCal();drawChips();
 }
 
+/* 把打字輸入的姓名切成陣列 */
+function readNames(){
+ return (val('f_stu')||'').split(/[、,，\s]+/)
+  .map(function(x){return x.trim();}).filter(Boolean);
+}
 function upSplit(){
  var box=document.getElementById('splitp');if(!box)return;
- var sel=document.getElementById('f_stu'),ss=[];
- if(sel)for(var i=0;i<sel.options.length;i++)if(sel.options[i].selected)ss.push(sel.options[i].value);
+ var ss=readNames();
  var l={plan:val('f_plan'),students:ss},r=rate(l.plan);
  if(!r){box.innerHTML='選好方案後這裡會顯示金額拆分';return;}
  var n=headOf(l);
- var no=ss.filter(function(x){return leftOf(x)<=0;});
+ var known=STU().map(function(s){return s.name;});
+ var neo=ss.filter(function(x){return known.indexOf(x)<0;});
+ var no=ss.filter(function(x){return known.indexOf(x)>=0&&leftOf(x)<=0;});
  box.innerHTML='家長付費 '+money(r.pay)+'　教練實收 '+money(r.coach)+'　公積金 '+money(r.fund)
   +'　器材費 '+money(r.gear)+'<br><b>行政費 '+money(adminFee(l))+'</b>（依 '+n+' 人計算'
-  +(ss.length?'，已選 '+ss.length+' 位學員':'，尚未選學員，暫用方案人數')+'）'
+  +(ss.length?'，已填 '+ss.length+' 位學員':'，尚未填學員，暫用方案人數')+'）'
   +(headMismatch(l)?'<br><span class="warnline">人數與方案不符，行政費以實際人數為準</span>':'')
+  +(neo.length?'<br><span class="warnline">'+neo.join('、')+' 不在學員名單，儲存後會自動建立</span>':'')
   +(no.length?'<br><span class="warnline">'+no.join('、')+' 沒有剩餘堂數，記得先收費</span>':'');
 }
 
 /* ============ 週課表圖片 ============ */
 function makePoster(){
  var days=[];for(var i=0;i<7;i++)days.push(addD(calMon,i));
- var slots=TIMES.slice(0,8);
- /* 只畫有課的時段，整週都沒課就畫前四個時段 */
- var used=slots.filter(function(t){
-  return LES().some(function(l){return l.status!=='取消'&&l.start===t&&days.indexOf(l.date)>=0;});});
- if(!used.length)used=slots.slice(0,4);
+ var used=usedSlots(days);
 
  var W=1512,PAD=36,HEAD=196,TC=150,COLH=76;
  var CW=(W-PAD*2-TC)/7;
@@ -1106,7 +1146,9 @@ function makePoster(){
  /* 每個時段一列 */
  var y=top+COLH;
  used.forEach(function(t,ri){
-  var hRow=rowH[ri],end=TIMES[TIMES.indexOf(t)+1]||'';
+  var hRow=rowH[ri];
+  var end=(function(){var e='';days.forEach(function(ds){
+   var h=cell(t,ds);if(h.length&&!e)e=h[0].end;});return e;})();
   x.fillStyle=ri%2?'#EFEDE6':'#F5F3EC';
   x.fillRect(PAD,y,W-PAD*2,hRow);
   /* 時段欄 */
@@ -1238,8 +1280,8 @@ function bind(){
     if(val('f_coach')&&CALSEL.length){
      var bp=buyPlan(val('b_plan'));
      var lesplan=(bp&&bp.les)||'一對一-菁英-單堂';
-     CALSEL.forEach(function(d){
-      joinOrCreate({date:d,start:val('f_start'),end:val('f_end'),coach:val('f_coach'),
+     CALSEL.forEach(function(o){
+      joinOrCreate({date:o.d,start:o.s,end:o.e,coach:val('f_coach'),
         plan:lesplan,venue:val('f_venue'),status:'已排定',note:''},st.name);
       made++;});
     }
@@ -1298,10 +1340,14 @@ function bind(){
     return;}
 
    if(a==='saveLes'||a==='saveAfter'){
-    var sel=document.getElementById('f_stu');
-    var ss=[];for(var i=0;i<sel.options.length;i++)if(sel.options[i].selected)ss.push(sel.options[i].value);
+    var ss=readNames();
     if(!val('f_coach'))return alert('請選教練');
     if(!val('f_plan'))return alert('請選方案');
+    /* 名單上沒有的名字，自動建立學員 */
+    ss.forEach(function(nm){
+     if(!STU().some(function(s){return s.name===nm;})){
+      var ns={id:uid(),del:0,name:nm,parent:'',phone:'',ganghu:'是',coach:val('f_coach'),note:''};
+      DB.students.push(ns);touch('students',ns);}});
     var o3={date:val('f_date'),start:val('f_start'),end:val('f_end'),coach:val('f_coach'),
       plan:val('f_plan'),students:ss,venue:val('f_venue'),status:val('f_status'),note:val('f_note')};
     if(a==='saveAfter'){
@@ -1413,9 +1459,19 @@ function bind(){
  var per=document.getElementById('per');
  if(per)per.onchange=function(){setP=per.value;render();};
  /* 重複排課 */
- ['f_coach','f_start'].forEach(function(k){
-  var e=document.getElementById(k);if(e)e.onchange=function(){drawCal();};});
- ['f_plan','f_stu'].forEach(function(k){var e=document.getElementById(k);if(e)e.onchange=upSplit;});
+ var fc=document.getElementById('f_coach');
+ if(fc)fc.onchange=function(){drawCal();};
+ var fs=document.getElementById('f_start');
+ if(fs)fs.onchange=function(){
+  /* 課程編輯頁：改開始時間時結束時間自動往後一小時 */
+  var fe=document.getElementById('f_end');
+  if(fe){var i=TIMES.indexOf(fs.value);
+   if(i>=0&&TIMES[i+2])fe.value=TIMES[i+2];}
+  recalcDays();};
+ ['f_dur','f_per'].forEach(function(k){
+  var e=document.getElementById(k);if(e)e.onchange=recalcDays;});
+ ['f_plan','f_stu'].forEach(function(k){var e=document.getElementById(k);
+  if(e){e.onchange=upSplit;e.oninput=upSplit;}});
  /* 購課自動計價 */
  var bp=document.getElementById('b_plan');if(bp)bp.onchange=function(){upBuy(true);drawChips();};
  var bn=document.getElementById('b_n');if(bn)bn.oninput=function(){upBuyDue();drawChips();};
