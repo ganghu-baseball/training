@@ -401,6 +401,24 @@ function leftOf(name){return boughtOf(name)-doneCount(name);}
 function paidOf(name){return buysOf(name).reduce(function(a,p){return a+(+p.due||0);},0);}
 
 function seriesOf(rid){return rid?LES().filter(function(l){return l.rid===rid;}):[];}
+/* 團班人數變動後，方案代碼跟著調整 */
+function fixGroupPlan(l){
+ if(l.plan.indexOf('團班')===0){
+  var n=Math.max(4,Math.min(6,l.students.length));
+  l.plan='團班'+n+'人';
+ }
+}
+/* 把某位學員的某一堂課改到新的日期時段
+   solo=true 只搬這位學員（原班其他人不動）；false 整堂一起搬 */
+function moveLesson(l,name,d,s,e,solo){
+ if(!solo||(l.students||[]).length<=1){
+  l.date=d;l.start=s;l.end=e;touch('lessons',l);return l;
+ }
+ l.students=l.students.filter(function(x){return x!==name;});
+ fixGroupPlan(l);touch('lessons',l);
+ return joinOrCreate({date:d,start:s,end:e,coach:l.coach,plan:l.plan,
+   venue:l.venue,status:'已排定',note:l.note||''},name);
+}
 /* 團班／一對二：同教練同時段已有課就把學員併進去，並依人數調整方案 */
 function joinOrCreate(o,name){
  var hit=LES().filter(function(l){
@@ -843,13 +861,77 @@ function fStu(id){
    +(bs.length?'':'<div class="mini">還沒有報名紀錄。</div>')
    +'<button class="btn sm" data-act="newen" data-id="'+esc(s.id)+'" style="margin-top:12px">'+svg('plus',14)+' 續購並排課</button>'
    +'<button class="btn sec sm" data-act="newbuy" data-id="'+esc(s.name)+'" style="margin-top:12px">只登記繳費</button>'
-   +'</div>';
+   +'</div>'
+   +stuLessons(s.name);
  }
  h+='<div class="row" style="margin-top:18px"><button class="btn" data-act="saveStu" data-id="'+(id||'')+'">'
   +(id?'儲存':'建立報名')+'</button>'
   +(id?'<button class="btn dan" data-act="delStu" data-id="'+id+'">刪除學員</button>':'')+'</div>';
  openSheet(h);
 }
+/* ---- 學員的上課安排（可以改期）---- */
+function lessonsOf(name){
+ return LES().filter(function(l){return (l.students||[]).indexOf(name)>=0;})
+  .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;});
+}
+function stuLessons(name){
+ var all=lessonsOf(name);
+ var todo=all.filter(function(l){return l.status==='已排定'||l.status==='請假改期';});
+ var done=all.filter(function(l){return l.status!=='已排定'&&l.status!=='請假改期';});
+ return '<div class="sec-t">上課安排</div><div class="card" style="margin-bottom:0">'
+ +'<div class="mini" style="margin:0 0 10px">日期排錯了就點下面那一堂，可以直接改到別天。已完成的課不能改期。</div>'
+ +(todo.length
+   ?todo.map(function(l){
+     var grp=(l.students||[]).length>1;
+     return '<div class="buy" data-edit="mv" data-id="'+l.id+'" data-nm="'+esc(name)+'">'
+      +'<div><div class="l">'+l.date.replace(/-/g,'/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）'
+      +esc(l.start)+'–'+esc(l.end)+'</div>'
+      +'<div class="m">'+esc(l.coach)+'教練　'+esc(l.venue)
+      +(grp?'　同班 '+l.students.length+' 人':'')+'</div></div>'
+      +'<div class="rr"><span class="tag'+(l.status==='請假改期'?' r':'')+'">'
+      +(l.status==='請假改期'?'待改期':'改期')+'</span></div></div>';}).join('')
+   :'<div class="mini">目前沒有已排定的課。</div>')
+ +(todo.length>1
+   ?'<div class="row" style="margin-top:12px">'
+    +'<button class="btn sec sm" data-act="dly7" data-nm="'+esc(name)+'">全部延後一週</button>'
+    +'<button class="btn sec sm" data-act="dly14" data-nm="'+esc(name)+'">延後兩週</button></div>'
+    +'<div class="mini">整批延後只會動「只有這位學員」的課，團班和一對二要個別處理。</div>'
+   :'')
+ +(done.length?'<div class="mini" style="margin-top:12px">已完成 '+done.length+' 堂。</div>':'')
+ +'</div>';
+}
+/* ---- 改期 ---- */
+function fMove(lid,name){
+ var l=byId(DB.lessons,lid);if(!l)return;
+ var grp=(l.students||[]).length>1;
+ var dur=Math.max(30,t2m(l.end)-t2m(l.start))||60;
+ calInit([]);CALM=l.date.slice(0,7);
+ openSheet(head('課程改期')
+ +'<div class="fbox"><div class="ttl">'+esc(name)+'</div>'
+ +'<div class="mini" style="margin:10px 0 0">原本是 <b>'+l.date.replace(/-/g,'/')+'（'
+ +DAYN[dowOf(l.date)].slice(1)+'）'+esc(l.start)+'–'+esc(l.end)+'</b>　'+esc(l.coach)+'教練'
+ +(grp?'<br>這堂還有其他學員：'+esc(l.students.join('、')):'')+'</div>'
+ +'<input type="hidden" id="f_per" value="1">'
+ +'<div class="grid2"><div><label>新的開始時間</label><select id="f_start">'+timeOpts(l.start)+'</select></div>'
+ +'<div><label>每堂時間</label><select id="f_dur">'
+ +[[60,'60 分鐘'],[90,'90 分鐘'],[120,'120 分鐘']].map(function(o){
+   return '<option value="'+o[0]+'"'+(o[0]===dur?' selected':'')+'>'+o[1]+'</option>';}).join('')
+ +(([60,90,120].indexOf(dur)<0)?'<option value="'+dur+'" selected>'+dur+' 分鐘</option>':'')
+ +'</select></div></div>'
+ +'<label>改到哪一天</label>'
+ +'<div class="mini" style="margin:0 0 2px">點一下就選好了，可以往前後翻月份。</div>'
+ +calBlock(true)+'</div>'
+ +'<div class="row" style="margin-top:18px">'
+ +'<button class="btn" data-act="saveMv" data-id="'+lid+'" data-nm="'+esc(name)+'" data-solo="1">'
+ +(grp?'只把 '+esc(name)+' 改期':'確認改期')+'</button>'
+ +(grp?'<button class="btn nav" data-act="saveMv" data-id="'+lid+'" data-nm="'+esc(name)+'" data-solo="">整堂一起改</button>':'')
+ +'</div>'
+ +'<div class="row" style="margin-top:9px">'
+ +'<button class="btn sec sm" data-act="mvLeave" data-id="'+lid+'" data-nm="'+esc(name)+'">先標記待改期</button>'
+ +'<button class="btn dan sm" data-act="mvCancel" data-id="'+lid+'" data-nm="'+esc(name)+'">取消這堂</button></div>'
+ +'<div class="mini">「取消這堂」會把課刪掉並把堂數還回去，不會扣到學員的剩餘堂數。</div>');
+}
+
 /* ---- 新增報名（學員＋繳費＋排課 一次做完）---- */
 function fEnroll(sid){
  var s=sid?byId(DB.students,sid):null;
@@ -966,12 +1048,15 @@ function addDay(ds){
   if(!CALSEL.some(function(x){return x.d===ds&&x.s===s;}))CALSEL.push({d:ds,s:s,e:e});
  }
 }
-function calBlock(){
+var CALONE=false;
+function calBlock(one){
+ CALONE=!!one;
  return '<div class="mc" id="mc"></div>'
- +'<div class="row" style="margin-top:10px">'
- +'<button class="btn sec sm" data-act="calweek">每週同一天排滿</button>'
- +'<button class="btn sec sm" data-act="cal2week">每兩週排滿</button>'
- +'<button class="btn sec sm" data-act="calclear">清空</button></div>'
+ +(one?''
+   :'<div class="row" style="margin-top:10px">'
+    +'<button class="btn sec sm" data-act="calweek">每週同一天排滿</button>'
+    +'<button class="btn sec sm" data-act="cal2week">每兩週排滿</button>'
+    +'<button class="btn sec sm" data-act="calclear">清空</button></div>')
  +'<div class="chips" id="calchips"></div>'
  +'<div class="cnt" id="calcnt"></div>';
 }
@@ -998,7 +1083,8 @@ function drawCal(){
  box.querySelectorAll('[data-d]').forEach(function(b){
   b.onclick=function(){
    var ds=b.dataset.d;
-   if(calOn(ds).length)CALSEL=CALSEL.filter(function(x){return x.d!==ds;});
+   if(CALONE){CALSEL=[];addDay(ds);}
+   else if(calOn(ds).length)CALSEL=CALSEL.filter(function(x){return x.d!==ds;});
    else addDay(ds);
    calSort();drawCal();drawChips();};});
  box.querySelector('[data-act="calprev"]').onclick=function(){
@@ -1017,6 +1103,13 @@ function drawChips(){
  if(n){
   var want=+val('b_n')||0;
   n.className='cnt'+(want&&CALSEL.length===want?' ok':'');
+  if(CALONE){
+   n.className='cnt'+(CALSEL.length?' ok':'');
+   n.innerHTML=CALSEL.length
+    ?'改到 <b>'+CALSEL[0].d.replace(/-/g,'/')+'</b>（'+DAYN[dowOf(CALSEL[0].d)]+'）'+CALSEL[0].s+'–'+CALSEL[0].e
+    :'請在上面點一個新的日期';
+   return;
+  }
   var dd={};CALSEL.forEach(function(o){dd[o.d]=1;});
   var nd=Object.keys(dd).length,per=calPer();
   n.className='cnt'+(want&&CALSEL.length===want?' ok':'');
@@ -1254,6 +1347,53 @@ function bind(){
    if(a==='newbuy')return fBuy('',id);
    if(a==='newen')return fEnroll(id||'');
    if(a==='poster')return fPoster();
+   if(a==='saveMv'){
+    if(!CALSEL.length)return alert('請在行事曆上點一個新的日期');
+    var lm=byId(DB.lessons,id);if(!lm)return;
+    var o=CALSEL[0],solo=!!b.dataset.solo,nm3=b.dataset.nm;
+    /* 同一位學員同一時段已經有課，改過去會變成重複，先擋下來 */
+    var dupL=LES().some(function(x){
+     return x.id!==lm.id&&x.status!=='取消'&&x.date===o.d&&x.start===o.s
+      &&(x.students||[]).indexOf(nm3)>=0;});
+    if(dupL)return alert(nm3+' 在 '+o.d.replace(/-/g,'/')+' '+o.s+' 已經有一堂課了。\n請改成別的日期或時間。');
+    /* 教練撞堂只提醒，不擋 */
+    var busyC=LES().some(function(x){
+     return x.id!==lm.id&&x.status!=='取消'&&x.coach===lm.coach&&x.date===o.d&&x.start===o.s;});
+    if(busyC&&(lm.students||[]).length<=1
+      &&!confirm(lm.coach+'教練在 '+o.d.replace(/-/g,'/')+' '+o.s+' 已經有其他課程。\n還是要改到這個時段嗎？'))return;
+    moveLesson(lm,nm3,o.d,o.s,o.e,solo);
+    persist();closeSheet();render();
+    var sm=STU().filter(function(x){return x.name===b.dataset.nm;})[0];
+    if(sm)fStu(sm.id);
+    return;}
+   if(a==='mvLeave'){
+    var l2=byId(DB.lessons,id);
+    if(l2){l2.status='請假改期';touch('lessons',l2);persist();closeSheet();render();
+     var s2=STU().filter(function(x){return x.name===b.dataset.nm;})[0];if(s2)fStu(s2.id);}
+    return;}
+   if(a==='mvCancel'){
+    var l3=byId(DB.lessons,id);if(!l3)return;
+    if(!confirm('取消這堂課？堂數會還回去，之後可以重新排。'))return;
+    if((l3.students||[]).length>1){
+     l3.students=l3.students.filter(function(x){return x!==b.dataset.nm;});
+     fixGroupPlan(l3);touch('lessons',l3);
+    }else{l3.del=1;touch('lessons',l3);}
+    persist();closeSheet();render();
+    var s3=STU().filter(function(x){return x.name===b.dataset.nm;})[0];if(s3)fStu(s3.id);
+    return;}
+   if(a==='dly7'||a==='dly14'){
+    var step=a==='dly7'?7:14,nm2=b.dataset.nm;
+    var mine=lessonsOf(nm2).filter(function(l){
+     return (l.status==='已排定'||l.status==='請假改期')&&(l.students||[]).length<=1;});
+    var skip=lessonsOf(nm2).filter(function(l){
+     return (l.status==='已排定'||l.status==='請假改期')&&(l.students||[]).length>1;}).length;
+    if(!mine.length)return alert('沒有可以整批延後的課。團班和一對二請個別改期。');
+    if(!confirm('把 '+nm2+' 的 '+mine.length+' 堂課全部往後延 '+step+' 天？'
+      +(skip?'\n（'+skip+' 堂是團班或一對二，不會動到）':'')))return;
+    mine.forEach(function(l){l.date=addD(l.date,step);touch('lessons',l);});
+    persist();closeSheet();render();
+    var s4=STU().filter(function(x){return x.name===nm2;})[0];if(s4)fStu(s4.id);
+    return;}
    if(a==='calweek')return calFill(7);
    if(a==='cal2week')return calFill(14);
    if(a==='calclear'){CALSEL=[];drawCal();drawChips();return;}
@@ -1446,7 +1586,8 @@ function bind(){
   c.onclick=function(){var t=c.dataset.edit;
    if(t==='stu')fStu(c.dataset.id);
    if(t==='les')fLes(c.dataset.id);
-   if(t==='buy')fBuy(c.dataset.id);};
+   if(t==='buy')fBuy(c.dataset.id);
+   if(t==='mv')fMove(c.dataset.id,c.dataset.nm);};
  });
  document.querySelectorAll('[data-f]').forEach(function(b){b.onclick=function(){lesF=b.dataset.f;render();};});
  document.querySelectorAll('[data-sf]').forEach(function(b){b.onclick=function(){stuF=b.dataset.sf;render();};});
