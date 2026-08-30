@@ -258,6 +258,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
+var APPVER='2026.08.30';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -800,7 +801,9 @@ function vSet(){
  +'<div class="sec-t">設定</div><div class="card">'
  +'<label>結算起算日</label><input type="date" id="cstart" value="'+DB.cfg.start+'">'
  +'<label>一期天數</label><input type="number" id="cdays" value="'+DB.cfg.days+'">'
- +'<button class="btn sm" data-act="savecfg" style="margin-top:14px">儲存設定</button></div>';
+ +'<button class="btn sm" data-act="savecfg" style="margin-top:14px">儲存設定</button></div>'
+ +'<div class="mini" style="text-align:center;margin:16px 0 4px">版本 '+APPVER
+ +'　　若畫面和說明不符，請重新整理頁面（下拉或按重新整理鍵）</div>';
 }
 
 /* ============ 表單 ============ */
@@ -877,7 +880,9 @@ function stuLessons(name){
  var todo=all.filter(function(l){return l.status==='已排定'||l.status==='請假改期';});
  var done=all.filter(function(l){return l.status!=='已排定'&&l.status!=='請假改期';});
  return '<div class="sec-t">上課安排</div><div class="card" style="margin-bottom:0">'
- +'<div class="mini" style="margin:0 0 10px">日期排錯了就點下面那一堂，可以直接改到別天。已完成的課不能改期。</div>'
+ +'<div class="mini" style="margin:0 0 10px">'
+ +(todo.length?'日期排錯了就點下面那一堂，可以改日期或換教練。已完成的課不能改期。'
+   :'還沒安排上課日期，用下面的按鈕排課。')+'</div>'
  +(todo.length
    ?todo.map(function(l){
      var grp=(l.students||[]).length>1;
@@ -888,10 +893,12 @@ function stuLessons(name){
       +(grp?'　同班 '+l.students.length+' 人':'')+'</div></div>'
       +'<div class="rr"><span class="tag'+(l.status==='請假改期'?' r':'')+'">'
       +(l.status==='請假改期'?'待改期':'改期')+'</span></div></div>';}).join('')
-   :'<div class="mini">目前沒有已排定的課。</div>')
+   :'')
  +'<div class="row" style="margin-top:12px">'
- +(leftOf(name)>0?'<button class="btn sm" data-act="book" data-nm="'+esc(name)+'">'+svg('plus',14)
-   +' 用剩餘 '+leftOf(name)+' 堂排課</button>':'')
+ +(boughtOf(name)>0
+   ?'<button class="btn sm" data-act="book" data-nm="'+esc(name)+'">'+svg('plus',14)
+    +(leftOf(name)>0?' 用剩餘 '+leftOf(name)+' 堂排課':' 加排課程（剩餘 0 堂）')+'</button>'
+   :'<div class="mini" style="margin:0">還沒有報名紀錄，先在上面登記繳費才能排課。</div>')
  +(todo.length?'<button class="btn sec sm" data-act="swap" data-nm="'+esc(name)+'">更換教練</button>':'')
  +'</div>'
  +(todo.length>1
