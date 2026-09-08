@@ -323,10 +323,12 @@ var DB={
  students:load('students',null),
  lessons:load('lessons',[]),
  payments:load('payments',[]),
+ expenses:load('expenses',[]),
  cfg:load('cfg',{start:'2026-09-01',days:14,ts:0})
 };
-var PEND=load('pend',{students:{},lessons:{},payments:{},cfg:0});
-['students','lessons','payments'].forEach(function(c){if(!PEND[c])PEND[c]={};});
+var COLS=['students','lessons','payments','expenses'];
+var PEND=load('pend',{students:{},lessons:{},payments:{},expenses:{},cfg:0});
+COLS.forEach(function(c){if(!PEND[c])PEND[c]={};});
 var SB=load('sb',{url:'',key:''});
 var SESS=load('sess',null);
 var SINCE=load('since',0),LASTSYNC=load('lastsync',''),SYNCST='off',SYNCMSG='';
@@ -338,14 +340,15 @@ function alive(a){return a.filter(function(x){return !x.del;});}
 function STU(){return alive(DB.students);}
 function LES(){return alive(DB.lessons);}
 function PAY(){return alive(DB.payments);}
+function EXP(){return alive(DB.expenses);}
 function byId(arr,id){for(var i=0;i<arr.length;i++)if(arr[i].id===id)return arr[i];return null;}
 function touch(col,rec){rec.ts=Date.now();PEND[col][rec.id]=rec.ts;}
 function touchCfg(){DB.cfg.ts=Date.now();PEND.cfg=DB.cfg.ts;}
-function pendCount(){var n=0;['students','lessons','payments'].forEach(function(c){
+function pendCount(){var n=0;COLS.forEach(function(c){
  n+=Object.keys(PEND[c]).length;});return n+(PEND.cfg?1:0);}
 if(!DB.students){DB.students=DEFSTU.map(function(n){return {id:uid(),name:n,parent:'',phone:'',ganghu:'是',coach:'',note:''};});save('students',DB.students);}
 function persistOnly(){save('students',DB.students);save('lessons',DB.lessons);
- save('payments',DB.payments);save('cfg',DB.cfg);save('pend',PEND);}
+ save('payments',DB.payments);save('expenses',DB.expenses);save('cfg',DB.cfg);save('pend',PEND);}
 var syncT=null;
 function persist(){persistOnly();upPill();
  if(sbReady()&&authed()){clearTimeout(syncT);syncT=setTimeout(function(){syncNow();},2000);}}
@@ -360,7 +363,8 @@ if(!load('mig2',0)){
  save('mig2',1);persistOnly();
 }
 /* 每筆資料都要有時間戳，同步才比得出新舊 */
-['students','lessons','payments'].forEach(function(c){
+COLS.forEach(function(c){
+ if(!DB[c])DB[c]=[];
  DB[c].forEach(function(r){if(!r.ts)r.ts=0;if(r.del===undefined)r.del=0;});});
 
 function rate(code){for(var i=0;i<RATES.length;i++)if(RATES[i].code===code)return RATES[i];return null;}
@@ -530,7 +534,7 @@ function sbPull(table){
 function setST(s){SYNCST=s;upPill();}
 
 function mergeIn(recs){
- ['students','lessons','payments'].forEach(function(col){
+ COLS.forEach(function(col){
   (recs[col]||[]).forEach(function(r){
    if(PEND[col][r.id])return;               // 本機還有沒送出的改動，先不要蓋掉
    var o=r.data||{};o.id=r.id;o.ts=r.ts;o.del=r.del?1:0;
@@ -548,7 +552,7 @@ function mergeIn(recs){
   if(r.ts>=(DB.cfg.ts||0)){var c=r.data||{};c.ts=r.ts;DB.cfg=c;}});
 }
 
-var TB=['students','lessons','payments','cfg'];
+var TB=['students','lessons','payments','expenses','cfg'];
 function syncNow(manual){
  if(!sbReady()){setST('off');
   if(manual)alert('還沒設定資料庫連線。到「結算」分頁最下面填入網址和金鑰。');return;}
@@ -557,8 +561,8 @@ function syncNow(manual){
  if(SYNCST==='ing')return;
  setST('ing');
 
- var snap={students:{},lessons:{},payments:{},cfg:PEND.cfg},jobs=[],cnt=0;
- ['students','lessons','payments'].forEach(function(col){
+ var snap={students:{},lessons:{},payments:{},expenses:{},cfg:PEND.cfg},jobs=[],cnt=0;
+ COLS.forEach(function(col){
   var rows=[];
   Object.keys(PEND[col]).forEach(function(id){
    var r=byId(DB[col],id);
@@ -580,7 +584,7 @@ function syncNow(manual){
    x.rows.forEach(function(r){if(r.ts>maxts)maxts=r.ts;});});
   mergeIn(recs);
   SINCE=maxts;save('since',SINCE);
-  ['students','lessons','payments'].forEach(function(col){
+  COLS.forEach(function(col){
    Object.keys(snap[col]).forEach(function(id){
     if(PEND[col][id]===snap[col][id])delete PEND[col][id];});});
   if(snap.cfg&&PEND.cfg===snap.cfg)PEND.cfg=0;
@@ -594,7 +598,7 @@ function syncNow(manual){
  });
 }
 function pushAll(){
- ['students','lessons','payments'].forEach(function(col){
+ COLS.forEach(function(col){
   DB[col].forEach(function(r){r.ts=Date.now();PEND[col][r.id]=r.ts;});});
  touchCfg();persistOnly();syncNow(true);
 }
@@ -764,7 +768,9 @@ function vSet(){
   return '<tr><td>'+c+'</td><td>'+mine.length+'</td><td>'+money(s('pay'))+'</td><td>'+money(s('admin'))+'</td><td><b>'+money(s('coach'))+'</b></td></tr>';
  }).join('');
  var tot=function(k){return ls.reduce(function(a,l){return a+amt(l,k);},0);};
- var fundLeft=tot('fund')-tot('admin');
+ var pnum=+(setP.match(/\d+/)||[1])[0],exl=expOfPer(pnum);
+ var exOut=expSum(exl,'支出'),exIn=expSum(exl,'收入');
+ var fundLeft=tot('fund')-tot('admin')-exOut+exIn;
  var pers=[];for(var i=1;i<=12;i++)pers.push('第'+i+'期');
  return '<h2>雙週結算</h2><div class="hint">依上課紀錄自動計算</div>'
  +'<div class="card"><label>結算期別</label><select id="per">'
@@ -775,6 +781,8 @@ function vSet(){
  +'<div class="sec-t">公積金</div><div class="card"><table>'
  +'<tr><td>公積金提撥</td><td><b>'+money(tot('fund'))+'</b></td></tr>'
  +'<tr><td>行政費（撥給行政）</td><td><b>'+money(tot('admin'))+'</b></td></tr>'
+ +(exOut?'<tr><td>其他支出（器材採購等）</td><td>'+money(exOut)+'</td></tr>':'')
+ +(exIn?'<tr><td>其他收入</td><td>'+money(exIn)+'</td></tr>':'')
  +'<tr><td>可運用餘額</td><td><b>'+money(fundLeft)+'</b></td></tr>'
  +'<tr><td>器材使用費（給風哥）</td><td>'+money(tot('gear'))+'</td></tr></table>'
  +'<div class="mini">可運用餘額尚未分配，用途由教練團討論決定。</div></div>'
@@ -787,10 +795,32 @@ function vSet(){
  +'<tr><td>6 人</td><td>'+money(150)+'</td><td>團班 6 人</td></tr></table>'
  +'<div class="mini">依 115.08.16 第四次會議決議。系統依<b>該堂實際登記的學員人數</b>計算，'
  +'團班報 5 人到 4 人、一對二臨時剩 1 人，行政費會跟著實際人數走，排課列表也會標出人數與方案不符的課。</div></div>'
+ +'<div class="sec-t">其他收支（器材採購等）</div><div class="card">'
+ +(function(){
+   var pn=+(setP.match(/\d+/)||[1])[0],ex=expOfPer(pn);
+   var out=expSum(ex,'支出'),inc=expSum(ex,'收入');
+   return '<button class="btn full" data-act="newbill">'+svg('plus',16)+' 新增收支紀錄</button>'
+   +'<div class="mini">器材採購、場地費、站場教練費等課程以外的金流登記在這裡，'
+   +'會直接從公積金餘額扣掉，並顯示在財報上。</div>'
+   +(ex.length?ex.map(function(x){
+     return '<div class="buy" data-edit="bill" data-id="'+x.id+'">'
+      +'<div><div class="l">'+esc(x.item||x.cat)+'</div>'
+      +'<div class="m">'+(x.date||'')+'　'+esc(x.cat||'')
+      +(x.payee?'　'+esc(x.payee):'')+(x.note?'　'+esc(x.note):'')+'</div></div>'
+      +'<div class="rr"><div class="num" style="font-size:15px;color:'
+      +(x.kind==='收入'?'var(--green)':'var(--red)')+'">'
+      +(x.kind==='收入'?'+':'−')+money(x.amount)+'</div></div></div>';}).join('')
+    :'<div class="mini" style="margin-top:10px">'+setP+'還沒有其他收支紀錄。</div>')
+   +(ex.length?'<table style="margin-top:12px">'
+     +'<tr><td>本期支出</td><td>'+money(out)+'</td></tr>'
+     +(inc?'<tr><td>本期其他收入</td><td>'+money(inc)+'</td></tr>':'')
+     +'</table>':'');
+ })()
+ +'</div>'
  +'<div class="sec-t">財務報表</div><div class="card">'
  +'<button class="btn full" data-act="repP">'+svg('set',16)+' 匯出本期財報（'+setP+'）</button>'
  +'<button class="btn nav full" data-act="repA" style="margin-top:9px">'+svg('set',16)+' 匯出累計財報（全部期別）</button>'
- +'<div class="mini">本期財報含財務總表、教練請款、教練薪資單、上課明細、報名收款五個分頁，'
+ +'<div class="mini">本期財報含財務總表、教練請款、教練薪資單、上課明細、其他收支、報名收款六個分頁，'
  +'薪資單會把每位教練的每一堂逐筆列出，發薪水時直接傳給教練核對。'
  +'累計財報把每一期的收入、教練鐘點費、器材費、行政費和公積金餘額整理在一起，附教練與學員彙總。</div></div>'
  +'<div class="sec-t">雲端同步</div><div class="card">'
@@ -983,6 +1013,30 @@ function fBook(sid){
  +calBlock()+'</div>'
  +'<div class="row" style="margin-top:18px">'
  +'<button class="btn" data-act="saveBook" data-id="'+sid+'">建立課程</button></div>');
+}
+
+/* ---- 其他收支 ---- */
+function fBill(id){
+ var x=id?byId(DB.expenses,id):{date:today(),kind:'支出',cat:'器材採購',item:'',
+  amount:'',payee:'',method:'轉帳',note:''};
+ var cats=x.kind==='收入'?INCCAT:EXPCAT;
+ openSheet(head(id?'編輯收支紀錄':'新增收支紀錄')
+ +'<div class="fbox"><div class="ttl">內容</div>'
+ +'<div class="grid2"><div><label>類型</label><select id="x_kind">'
+ +['支出','收入'].map(function(v){return '<option'+(x.kind===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div>'
+ +'<div><label>類別</label><select id="x_cat">'
+ +EXPCAT.concat(INCCAT).map(function(v){return '<option'+(x.cat===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div></div>'
+ +'<label>項目 *</label><input id="x_item" value="'+esc(x.item)+'" placeholder="例如 藥球 3 顆（2／4／6 kg）">'
+ +'<div class="grid2"><div><label>金額 *</label><input type="number" id="x_amt" value="'+(x.amount||'')+'"></div>'
+ +'<div><label>日期</label><input type="date" id="x_date" value="'+(x.date||today())+'"></div></div>'
+ +'<div class="grid2"><div><label>支付對象／來源</label><input id="x_payee" value="'+esc(x.payee)+'" placeholder="例如 露天賣家"></div>'
+ +'<div><label>付款方式</label><select id="x_method">'
+ +['轉帳','現金','刷卡','其他'].map(function(v){return '<option'+(x.method===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div></div>'
+ +'<label>備註</label><input id="x_note" value="'+esc(x.note)+'" placeholder="例如 已核銷、附收據">'
+ +'<div class="mini">支出會從公積金可運用餘額扣掉，收入則加回去，兩者都會列進財報。</div></div>'
+ +'<div class="row" style="margin-top:18px">'
+ +'<button class="btn" data-act="saveBill" data-id="'+(id||'')+'">儲存</button>'
+ +(id?'<button class="btn dan" data-act="delBill" data-id="'+id+'">刪除</button>':'')+'</div>');
 }
 
 /* ---- 整批換教練 ---- */
@@ -1436,10 +1490,12 @@ function payOfPer(n){
 function perStat(n){
  var ls=lesOfPer(n),r=perRange(n);
  var S=function(k){return ls.reduce(function(a,l){return a+amt(l,k);},0);};
+ var ex=expOfPer(n);
  var o={n:n,from:r.from,to:r.to,cnt:ls.length,
   pay:S('pay'),coach:S('coach'),gear:S('gear'),fund:S('fund'),admin:S('admin'),
-  cash:payOfPer(n).reduce(function(a,p){return a+(+p.due||0);},0),ls:ls};
- o.avail=o.fund-o.admin;
+  cash:payOfPer(n).reduce(function(a,p){return a+(+p.due||0);},0),ls:ls,
+  ex:ex,exOut:expSum(ex,'支出'),exIn:expSum(ex,'收入')};
+ o.avail=o.fund-o.admin-o.exOut+o.exIn;
  o.byCoach=COACHES.map(function(c){
   var mine=ls.filter(function(l){return l.coach===c;});
   return {c:c,cnt:mine.length,
@@ -1449,10 +1505,20 @@ function perStat(n){
  });
  return o;
 }
+var EXPCAT=['器材採購','教具耗材','場地費','站場教練費','行政雜支','其他支出'];
+var INCCAT=['贊助收入','其他收入'];
+function expOfPer(n){
+ return EXP().filter(function(x){return x.date&&perOfDate(x.date)===n;})
+  .sort(function(a,b){return (a.date||'')<(b.date||'')?-1:1;});
+}
+function expSum(list,kind){
+ return list.reduce(function(a,x){return a+(x.kind===kind?(+x.amount||0):0);},0);
+}
 function activePeriods(){
  var set={};
  LES().forEach(function(l){if(l.status!=='取消'){var n=perOfDate(l.date);if(n>0)set[n]=1;}});
  PAY().forEach(function(p){if(p.date){var n=perOfDate(p.date);if(n>0)set[n]=1;}});
+ EXP().forEach(function(x){if(x.date){var n=perOfDate(x.date);if(n>0)set[n]=1;}});
  return Object.keys(set).map(Number).sort(function(a,b){return a-b;});
 }
 
@@ -1514,7 +1580,7 @@ function xSave(wb,name){
 /* ---- 單期財報 ---- */
 function buildPeriod(wb,n){
  var s=perStat(n),sub=s.from.replace(/-/g,'/')+' – '+s.to.replace(/-/g,'/')+'　共 '+s.cnt+' 堂課';
- var out=s.coach+s.gear+s.admin;
+ var out=s.coach+s.gear+s.admin+s.exOut;
 
  /* 1. 財務總表 */
  var ws=wb.addWorksheet('第'+n+'期 財務總表');
@@ -1524,26 +1590,31 @@ function buildPeriod(wb,n){
  xSection(ws,r++,'一、收入（依本期上課堂數認列）',4);
  xHead(ws,r++,['項目','金額','','說明']);
  xRow(ws,r++,['課程收入（家長付費）',s.pay,'','本期 '+s.cnt+' 堂課的家長付費總額'],{money:[1]});
- xRow(ws,r++,['收入合計',s.pay,'',''],{money:[1],bold:true,top:true,fill:WARM});
+ if(s.exIn)xRow(ws,r++,['其他收入',s.exIn,'','贊助等課程以外的收入'],{money:[1]});
+ xRow(ws,r++,['收入合計',s.pay+s.exIn,'',''],{money:[1],bold:true,top:true,fill:WARM});
  r++;
  xSection(ws,r++,'二、支出',4);
  xHead(ws,r++,['項目','金額','','說明']);
  xRow(ws,r++,['教練鐘點費',s.coach,'','明細見「教練請款」分頁'],{money:[1]});
  xRow(ws,r++,['場地器材使用費',s.gear,'','支付予球隊（風哥）'],{money:[1]});
  xRow(ws,r++,['行政管理費',s.admin,'','自公積金提撥，支付予行政'],{money:[1]});
+ xRow(ws,r++,['其他支出（器材採購等）',s.exOut,'',
+  s.ex.length?'共 '+s.ex.filter(function(x){return x.kind==='支出';}).length+' 筆，明細見「其他收支」分頁':'本期無'],{money:[1]});
  xRow(ws,r++,['支出合計',out,'',''],{money:[1],bold:true,top:true,fill:WARM});
  r++;
  xSection(ws,r++,'三、本期結餘',4);
  xHead(ws,r++,['項目','金額','','說明']);
- xRow(ws,r++,['收入合計',s.pay,'',''],{money:[1]});
+ xRow(ws,r++,['收入合計',s.pay+s.exIn,'',''],{money:[1]});
  xRow(ws,r++,['減：支出合計',-out,'',''],{money:[1]});
- xRow(ws,r++,['本期結餘（＝公積金可運用餘額）',s.pay-out,'',
+ xRow(ws,r++,['本期結餘（＝公積金可運用餘額）',s.pay+s.exIn-out,'',
   '尚未分配，用途由教練團討論決定'],{money:[1],bold:true,top:true,fill:WARM});
  r++;
  xSection(ws,r++,'四、公積金明細',4);
  xHead(ws,r++,['項目','金額','','說明']);
  xRow(ws,r++,['本期提撥',s.fund,'','家長付費中撥入公積金的部分'],{money:[1]});
  xRow(ws,r++,['減：行政管理費',-s.admin,'','依該堂實際上課人數計算'],{money:[1]});
+ xRow(ws,r++,['減：其他支出',-s.exOut,'','器材採購、場地費、站場教練費等'],{money:[1]});
+ if(s.exIn)xRow(ws,r++,['加：其他收入',s.exIn,'',''],{money:[1]});
  xRow(ws,r++,['可運用餘額',s.avail,'','與「本期結餘」相同'],
   {money:[1],bold:true,top:true,fill:WARM});
  r++;
@@ -1617,7 +1688,24 @@ function buildPeriod(wb,n){
   {money:[6,7,8,9,10],center:[5],bold:true,top:true,fill:WARM});
  ws.views=[{state:'frozen',ySplit:5,xSplit:1}];
 
- /* 5. 報名收款 */
+ /* 5. 其他收支 */
+ ws=wb.addWorksheet('第'+n+'期 其他收支');
+ xWidths(ws,[12,8,14,30,14,18,12,24]);
+ xTitle(ws,'第 '+n+' 期 其他收支',sub+'　器材採購等課程以外的金流',8);
+ r=5;
+ xHead(ws,r++,['日期','類型','類別','項目','金額','支付對象／來源','付款方式','備註']);
+ if(s.ex.length){
+  s.ex.forEach(function(x){
+   xRow(ws,r++,[x.date,x.kind,x.cat,x.item,
+    (x.kind==='收入'?1:-1)*(+x.amount||0),x.payee,x.method,x.note],
+    {money:[4],center:[1,6]});});
+  xRow(ws,r++,['支出小計','','','',-s.exOut,'','',''],{money:[4],bold:true,top:true,fill:WARM});
+  if(s.exIn)xRow(ws,r++,['收入小計','','','',s.exIn,'','',''],{money:[4],bold:true,fill:WARM});
+  xRow(ws,r++,['淨額','','','',s.exIn-s.exOut,'','',''],{money:[4],bold:true,fill:'FFFFE9D6'});
+ }else xRow(ws,r++,['本期沒有其他收支紀錄'],{});
+ ws.views=[{state:'frozen',ySplit:5}];
+
+ /* 6. 報名收款 */
  var ps=payOfPer(n);
  ws=wb.addWorksheet('第'+n+'期 報名收款');
  xWidths(ws,[12,14,26,8,14,12,24]);
@@ -1655,29 +1743,32 @@ function repAll(){
 
   /* 1. 各期總覽 */
   var ws=wb.addWorksheet('各期總覽');
-  xWidths(ws,[10,12,12,8,14,14,14,12,14,14,14]);
-  xTitle(ws,'港湖特訓班　累計財務報表',sub,11);
+  xWidths(ws,[10,12,12,8,14,14,14,12,14,14,12,14,14]);
+  xTitle(ws,'港湖特訓班　累計財務報表',sub,13);
   var r=5,run=0;
   xHead(ws,r++,['期別','起','訖','堂數','課程收入','教練鐘點費','器材使用費',
-   '行政費','公積金提撥','本期可運用','累計餘額']);
-  var T={cnt:0,pay:0,coach:0,gear:0,admin:0,fund:0,avail:0};
+   '行政費','其他支出','其他收入','公積金提撥','本期可運用','累計餘額']);
+  var T={cnt:0,pay:0,coach:0,gear:0,admin:0,fund:0,avail:0,exOut:0,exIn:0};
   stats.forEach(function(s){
    run+=s.avail;
    T.cnt+=s.cnt;T.pay+=s.pay;T.coach+=s.coach;T.gear+=s.gear;
-   T.admin+=s.admin;T.fund+=s.fund;T.avail+=s.avail;
-   xRow(ws,r++,['第'+s.n+'期',s.from,s.to,s.cnt,s.pay,s.coach,s.gear,s.admin,s.fund,s.avail,run],
-    {money:[4,5,6,7,8,9,10],center:[0,1,2,3]});});
-  xRow(ws,r++,['合計','','',T.cnt,T.pay,T.coach,T.gear,T.admin,T.fund,T.avail,run],
-   {money:[4,5,6,7,8,9,10],center:[3],bold:true,top:true,fill:WARM});
+   T.admin+=s.admin;T.fund+=s.fund;T.avail+=s.avail;T.exOut+=s.exOut;T.exIn+=s.exIn;
+   xRow(ws,r++,['第'+s.n+'期',s.from,s.to,s.cnt,s.pay,s.coach,s.gear,s.admin,
+    s.exOut,s.exIn,s.fund,s.avail,run],
+    {money:[4,5,6,7,8,9,10,11,12],center:[0,1,2,3]});});
+  xRow(ws,r++,['合計','','',T.cnt,T.pay,T.coach,T.gear,T.admin,T.exOut,T.exIn,T.fund,T.avail,run],
+   {money:[4,5,6,7,8,9,10,11,12],center:[3],bold:true,top:true,fill:WARM});
   r++;
-  xSection(ws,r++,'目前財務狀況',11);
+  xSection(ws,r++,'目前財務狀況',13);
   xRow(ws,r++,['累計課程收入',T.pay],{money:[1]});
+  if(T.exIn)xRow(ws,r++,['累計其他收入',T.exIn],{money:[1]});
   xRow(ws,r++,['累計教練鐘點費',-T.coach],{money:[1]});
   xRow(ws,r++,['累計器材使用費',-T.gear],{money:[1]});
   xRow(ws,r++,['累計行政管理費',-T.admin],{money:[1]});
+  xRow(ws,r++,['累計其他支出（器材採購等）',-T.exOut],{money:[1]});
   xRow(ws,r++,['公積金累計可運用餘額',run],{money:[1],bold:true,top:true,fill:WARM});
   r++;
-  xRow(ws,r++,['說明：「本期可運用」＝公積金提撥 − 行政費。'],{});
+  xRow(ws,r++,['說明：「本期可運用」＝公積金提撥 − 行政費 − 其他支出 ＋ 其他收入。'],{});
   xRow(ws,r++,['　　　「累計餘額」為各期可運用金額累加，尚未分配；實際支出後請自行扣除。'],{});
   ws.views=[{state:'frozen',ySplit:5}];
 
@@ -1735,6 +1826,32 @@ function repAll(){
    xRow(ws,r++,[pp.date||'',pp.date?'第'+perOfDate(pp.date)+'期':'',pp.student,pp.plan,
     +pp.sessions||0,+pp.due||0,pp.method,pp.note],{money:[5],center:[1,4,6]});});
   xRow(ws,r++,['合計','','','',st,pt,'',''],{money:[5],center:[4],bold:true,top:true,fill:WARM});
+  ws.views=[{state:'frozen',ySplit:5}];
+
+  /* 4b. 其他收支 */
+  ws=wb.addWorksheet('其他收支');
+  xWidths(ws,[12,8,8,14,30,14,18,12,24]);
+  xTitle(ws,'全部其他收支',sub,9);
+  r=5;
+  xHead(ws,r++,['日期','期別','類型','類別','項目','金額','支付對象／來源','付款方式','備註']);
+  var ax=EXP().slice().sort(function(a,b){return (a.date||'')<(b.date||'')?-1:1;});
+  ax.forEach(function(x){
+   xRow(ws,r++,[x.date||'',x.date?'第'+perOfDate(x.date)+'期':'',x.kind,x.cat,x.item,
+    (x.kind==='收入'?1:-1)*(+x.amount||0),x.payee,x.method,x.note],
+    {money:[5],center:[1,2,7]});});
+  if(ax.length){
+   xRow(ws,r++,['支出合計','','','','',-T.exOut,'','',''],{money:[5],bold:true,top:true,fill:WARM});
+   if(T.exIn)xRow(ws,r++,['收入合計','','','','',T.exIn,'','',''],{money:[5],bold:true,fill:WARM});
+   xRow(ws,r++,['淨額','','','','',T.exIn-T.exOut,'','',''],{money:[5],bold:true,fill:'FFFFE9D6'});
+   r+=2;
+   xSection(ws,r++,'各類別小計',9);
+   xHead(ws,r++,['類別','筆數','金額']);
+   EXPCAT.concat(INCCAT).forEach(function(cat){
+    var hit=ax.filter(function(x){return x.cat===cat;});
+    if(!hit.length)return;
+    var sum=hit.reduce(function(a,x){return a+(x.kind==='收入'?1:-1)*(+x.amount||0);},0);
+    xRow(ws,r++,[cat,hit.length,sum],{money:[2],center:[1]});});
+  }else xRow(ws,r++,['目前沒有其他收支紀錄'],{});
   ws.views=[{state:'frozen',ySplit:5}];
 
   /* 5. 學員彙總 */
@@ -1808,6 +1925,21 @@ function bind(){
    if(a==='newbuy')return fBuy('',id);
    if(a==='newen')return fEnroll(id||'');
    if(a==='poster')return fPoster();
+   if(a==='newbill')return fBill('');
+   if(a==='saveBill'){
+    var it=val('x_item').trim(),am=+val('x_amt')||0;
+    if(!it)return alert('請填項目名稱');
+    if(!am)return alert('請填金額');
+    var o={date:val('x_date')||today(),kind:val('x_kind'),cat:val('x_cat'),item:it,
+      amount:am,payee:val('x_payee'),method:val('x_method'),note:val('x_note')};
+    if(id){var ee=byId(DB.expenses,id);if(ee){Object.assign(ee,o);touch('expenses',ee);}}
+    else{o.id=uid();o.del=0;DB.expenses.push(o);touch('expenses',o);}
+    persist();closeSheet();render();return;}
+   if(a==='delBill'){
+    var e3=byId(DB.expenses,id);
+    if(e3&&confirm('刪除「'+(e3.item||e3.cat)+'」這筆紀錄？')){
+     e3.del=1;touch('expenses',e3);persist();closeSheet();render();}
+    return;}
    if(a==='swap'){return fSwapCoach(b.dataset.nm);}
    if(a==='doSwap'){
     var nmS=b.dataset.nm,nc=val('f_newc');
@@ -2031,8 +2163,8 @@ function bind(){
    if(a==='csvP')return csvP();
    if(a==='csvB')return csvB();
    if(a==='repP'){var pn=+(setP.match(/\d+/)||[1])[0];
-    if(!lesOfPer(pn).length&&!payOfPer(pn).length)
-     return alert(setP+'沒有任何課程或收款紀錄，換一期試試。');
+    if(!lesOfPer(pn).length&&!payOfPer(pn).length&&!expOfPer(pn).length)
+     return alert(setP+'沒有任何課程、收款或收支紀錄，換一期試試。');
     b.textContent='產生中…';b.disabled=true;
     setTimeout(function(){repPeriod(pn);
      setTimeout(function(){render();},1200);},50);
@@ -2075,15 +2207,17 @@ function bind(){
     inp.onchange=function(){var f=inp.files[0];if(!f)return;var rd=new FileReader();
      rd.onload=function(){try{var dd=JSON.parse(rd.result);
       if(dd.students)DB.students=dd.students;if(dd.lessons)DB.lessons=dd.lessons;
-      if(dd.payments)DB.payments=dd.payments;if(dd.cfg)DB.cfg=dd.cfg;
-      ['students','lessons','payments'].forEach(function(c){
+      if(dd.payments)DB.payments=dd.payments;if(dd.expenses)DB.expenses=dd.expenses;
+      if(dd.cfg)DB.cfg=dd.cfg;
+      COLS.forEach(function(c){if(!DB[c])DB[c]=[];
        DB[c].forEach(function(r){if(r.del===undefined)r.del=0;if(!r.ts)r.ts=0;});});
       persistOnly();render();alert('已還原備份。若要同步到雲端，請按「全部上傳」。');}
       catch(e){alert('檔案格式不對，請確認選的是本系統匯出的 JSON。');}};
      rd.readAsText(f);};inp.click();return;}
    if(a==='wipe'){if(confirm('清除這支手機上的全部資料？無法復原，建議先備份。\n注意：雲端上的資料不會被刪除。')){
     DB.students=DEFSTU.map(function(n){return {id:uid(),name:n,parent:'',phone:'',ganghu:'是',coach:'',note:'',del:0,ts:0};});
-    DB.lessons=[];DB.payments=[];PEND={students:{},lessons:{},payments:{},cfg:0};
+    DB.lessons=[];DB.payments=[];DB.expenses=[];
+    PEND={students:{},lessons:{},payments:{},expenses:{},cfg:0};
     SINCE=0;save('since',0);persistOnly();render();}return;}
    if(a==='savecfg'){DB.cfg={start:val('cstart'),days:+val('cdays')||14};
     touchCfg();persist();render();alert('設定已儲存');return;}
@@ -2097,7 +2231,8 @@ function bind(){
    if(t==='stu')fStu(c.dataset.id);
    if(t==='les')fLes(c.dataset.id);
    if(t==='buy')fBuy(c.dataset.id);
-   if(t==='mv')fMove(c.dataset.id,c.dataset.nm);};
+   if(t==='mv')fMove(c.dataset.id,c.dataset.nm);
+   if(t==='bill')fBill(c.dataset.id);};
  });
  document.querySelectorAll('[data-f]').forEach(function(b){b.onclick=function(){lesF=b.dataset.f;render();};});
  document.querySelectorAll('[data-sf]').forEach(function(b){b.onclick=function(){stuF=b.dataset.sf;render();};});
@@ -2124,6 +2259,10 @@ function bind(){
  ['f_plan','f_stu'].forEach(function(k){var e=document.getElementById(k);
   if(e){e.onchange=upSplit;e.oninput=upSplit;}});
  /* 購課自動計價 */
+ var xk=document.getElementById('x_kind');
+ if(xk)xk.onchange=function(){
+  var sel=document.getElementById('x_cat'),list=xk.value==='收入'?INCCAT:EXPCAT;
+  sel.innerHTML=list.map(function(v){return '<option>'+v+'</option>';}).join('');};
  var bp=document.getElementById('b_plan');if(bp)bp.onchange=function(){upBuy(true);drawChips();};
  var bn=document.getElementById('b_n');if(bn)bn.oninput=function(){upBuyDue();drawChips();};
  if(document.getElementById('mc')){drawCal();drawChips();}
