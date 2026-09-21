@@ -273,7 +273,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.09.17';
+var APPVER='2026.09.21';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -493,6 +493,16 @@ function buysOf(name){return PAY().filter(function(p){return p.student===name;})
 function boughtOf(name){return buysOf(name).reduce(function(a,p){return a+(+p.sessions||0);},0);}
 function doneCount(name){var c=0;LES().forEach(function(l){if(l.status==='已完成'&&l.students.indexOf(name)>=0)c++;});return c;}
 function leftOf(name){return boughtOf(name)-doneCount(name);}
+/* 日期已過的「已排定」課程自動標記完成，堂數才不會一直掛著 */
+var AUTODONE=0;
+function autoComplete(){
+ var t=today(),n=0;
+ DB.lessons.forEach(function(l){
+  if(!l.del&&l.status==='已排定'&&l.date&&l.date<t){
+   l.status='已完成';touch('lessons',l);n++;}});
+ if(n){AUTODONE+=n;persistOnly();}
+ return n;
+}
 /* 已排定但還沒上的堂數 */
 function plannedOf(name){
  return LES().filter(function(l){
@@ -686,6 +696,7 @@ function syncNow(manual){
     if(PEND[col][id]===snap[col][id])delete PEND[col][id];});});
   if(snap.cfg&&PEND.cfg===snap.cfg)PEND.cfg=0;
   LASTSYNC=new Date().toTimeString().slice(0,5);save('lastsync',LASTSYNC);
+  autoComplete();
   persistOnly();SYNCMSG='';setST('ok');render();
   if(manual)alert('同步完成，'+(cnt?'送出 '+cnt+' 筆變更。':'沒有新的變更。'));
  })
@@ -732,7 +743,7 @@ function vHome(){
  var mpSum=mp.reduce(function(a,p){return a+(+p.due||0);},0);
  var low=STU().filter(function(s){return boughtOf(s.name)>0&&leftOf(s.name)<=1;});
  var unb=STU().filter(function(s){return openOf(s.name)>0;});
- var past=LES().filter(function(l){return l.status==='已排定'&&l.date<t0;})
+ var past=LES().filter(function(l){return l.status==='請假改期'&&l.date<t0;})
   .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;});
 
  return '<div class="board"><div class="cap"><b>'+ym.replace('-','／')+' 月結</b><span>'+ml.length+' 堂課</span></div>'
@@ -748,8 +759,10 @@ function vHome(){
  +'<div class="st or"><small>本月報名收款</small><b>'+money(mpSum)+'</b></div>'
  +'</div>'
  +(cl?'<div class="warnbar" style="margin-top:14px">有 '+cl+' 堂課和同一位教練的其他課撞時段，到「報名排課」看標紅的那幾筆。</div>':'')
- +(past.length?'<div class="sec-t">上過了嗎？這些課的日期已經過了</div>'
-   +'<div class="mini" style="margin:-2px 0 10px">按右邊的勾勾標記完成，堂數才會正確扣掉。</div>'
+ +(AUTODONE?'<div class="warnbar" style="margin-top:14px">已自動把 '+AUTODONE
+   +' 堂日期已過的課標記為完成。如果其中有課實際上沒上，到「報名排課 → 課程」點進去改成「取消」。</div>':'')
+ +(past.length?'<div class="sec-t">標記待改期、日期卻已經過了</div>'
+   +'<div class="mini" style="margin:-2px 0 10px">這些課還沒重新排日期，點進去改期或取消。</div>'
    +past.slice(0,12).map(function(l){
     return '<div class="item warn" data-edit="les" data-id="'+l.id+'"><div class="top">'
     +'<div><div class="nm">'+l.date.slice(5).replace('-','/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）'
@@ -1650,16 +1663,53 @@ function rr(x,a,b,w,h,r){
  x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();
 }
 function esc2(s){return s||'';}
+var POSTER=null;
+function posterName(){return '港湖特訓班週課表_'+calMon+'.png';}
+/* 手機用分享、電腦用下載；data: URL 在 iOS 上按了沒反應，所以改走 Blob */
+function savePoster(){
+ if(!POSTER)return;
+ var name=posterName();
+ var done=function(blob){
+  try{
+   var f=new File([blob],name,{type:'image/png'});
+   if(navigator.canShare&&navigator.canShare({files:[f]})){
+    navigator.share({files:[f],title:'港湖特訓班 本週課表'})
+     .catch(function(){dl2(blob,name);});
+    return;
+   }
+  }catch(e){}
+  dl2(blob,name);
+ };
+ if(POSTER.toBlob)POSTER.toBlob(function(b){b?done(b):alert('圖片產生失敗，請改用長按圖片儲存。');},'image/png');
+ else dlDataURL(POSTER.toDataURL('image/png'),name);
+}
+function dl2(blob,name){
+ var u=URL.createObjectURL(blob);
+ var a=document.createElement('a');
+ a.href=u;a.download=name;a.rel='noopener';
+ document.body.appendChild(a);a.click();
+ setTimeout(function(){
+  if(a.parentNode)document.body.removeChild(a);
+  URL.revokeObjectURL(u);},5000);
+}
+function dlDataURL(u,name){
+ var a=document.createElement('a');a.href=u;a.download=name;
+ document.body.appendChild(a);a.click();
+ setTimeout(function(){if(a.parentNode)document.body.removeChild(a);},3000);
+}
 function fPoster(){
- var c=makePoster();
- var url=c.toDataURL('image/png');
+ POSTER=makePoster();
+ var url=POSTER.toDataURL('image/png');
  openSheet(head('週課表圖片')
- +'<div class="mini" style="margin:0 0 4px">手機請<b>長按圖片</b>選「加入照片」或「儲存影像」，就能直接貼到 LINE 群組。'
- +'只會畫出有排課的時段，整週都沒課就不用匯出了。</div>'
+ +'<div class="mini" style="margin:0 0 4px">按下面的<b>存到相簿／分享</b>，手機會跳出分享選單，'
+ +'可以直接存進相簿或傳到 LINE 群組。也可以<b>長按圖片</b>選「加入照片」。'
+ +'只會畫出有排課的時段。</div>'
  +'<img class="poster" src="'+url+'">'
  +'<div class="row" style="margin-top:14px">'
- +'<a class="btn" style="text-decoration:none;display:inline-block" download="港湖特訓班週課表_'+calMon+'.png" href="'+url+'">下載圖片</a>'
- +'<button class="btn sec" data-act="close">關閉</button></div>');
+ +'<button class="btn" data-act="savePoster">存到相簿／分享</button>'
+ +'<button class="btn sec" data-act="openPoster">在新分頁開啟</button>'
+ +'<button class="btn sec" data-act="close">關閉</button></div>'
+ +'<div class="mini">如果按了沒反應，用「在新分頁開啟」再長按圖片儲存。</div>');
 }
 
 
@@ -2284,6 +2334,14 @@ function bind(){
    if(a==='newbuy')return fBuy('',id);
    if(a==='newen')return fEnroll(id||'');
    if(a==='poster')return fPoster();
+   if(a==='savePoster')return savePoster();
+   if(a==='openPoster'){
+    if(!POSTER)return;
+    if(POSTER.toBlob)POSTER.toBlob(function(bb){
+     if(!bb)return;
+     window.open(URL.createObjectURL(bb),'_blank');},'image/png');
+    else window.open(POSTER.toDataURL('image/png'),'_blank');
+    return;}
    if(a==='payok'){
     var pn2=b.dataset.p,kd=b.dataset.k,tg=b.dataset.t,am=+b.dataset.a||0;
     if(payoutOf(pn2,kd,tg))return;
@@ -2662,6 +2720,7 @@ document.getElementById('syncp').onclick=function(){
    x.classList.toggle('on',x.dataset.t==='set');});
   render();window.scrollTo(0,document.body.scrollHeight);return;}
  syncNow(true);};
+autoComplete();
 render();upPill();
 if(sbReady()&&authed())syncNow();
 </script></body></html>
