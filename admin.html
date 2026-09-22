@@ -273,7 +273,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.09.21';
+var APPVER='2026.09.22b';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -525,7 +525,9 @@ function fixGroupPlan(l){
 function moveLesson(l,name,d,s,e,solo,coach){
  coach=coach||l.coach;
  if(!solo||(l.students||[]).length<=1){
-  l.date=d;l.start=s;l.end=e;l.coach=coach;touch('lessons',l);return l;
+  l.date=d;l.start=s;l.end=e;l.coach=coach;
+  if(l.status==='請假改期'||l.status==='已完成')l.status=(d<today()?'請假改期':'已排定');
+  touch('lessons',l);return l;
  }
  l.students=l.students.filter(function(x){return x!==name;});
  fixGroupPlan(l);touch('lessons',l);
@@ -738,7 +740,7 @@ function vHome(){
  var t0=today(),t7=addD(t0,7);
  var wk=LES().filter(function(l){return l.date>=t0&&l.date<=t7&&l.status!=='取消';})
    .sort(function(a,b){return a.date+a.start<b.date+b.start?-1:1;});
- var cl=LES().filter(function(l){return l.date>=t0&&clash(l);}).length;
+ var cl=LES().filter(function(l){return clash(l);}).length;
  var mp=PAY().filter(function(p){return (p.date||'').slice(0,7)===ym;});
  var mpSum=mp.reduce(function(a,p){return a+(+p.due||0);},0);
  var low=STU().filter(function(s){return boughtOf(s.name)>0&&leftOf(s.name)<=1;});
@@ -758,7 +760,9 @@ function vHome(){
  +'<div class="st yl"><small>器材使用費</small><b>'+money(sum('gear'))+'</b></div>'
  +'<div class="st or"><small>本月報名收款</small><b>'+money(mpSum)+'</b></div>'
  +'</div>'
- +(cl?'<div class="warnbar" style="margin-top:14px">有 '+cl+' 堂課和同一位教練的其他課撞時段，到「報名排課」看標紅的那幾筆。</div>':'')
+ +(cl?'<div class="warnbar" style="margin-top:14px">有 '+cl+' 堂課和同一位教練的其他課撞時段，'
+   +'通常是同一個團班被拆成兩筆。'
+   +'<div class="row" style="margin-top:8px"><button class="btn sm" data-act="mergeAll">一鍵合併成同一堂</button></div></div>':'')
  +(AUTODONE?'<div class="warnbar" style="margin-top:14px">已自動把 '+AUTODONE
    +' 堂日期已過的課標記為完成。如果其中有課實際上沒上，到「報名排課 → 課程」點進去改成「取消」。</div>':'')
  +(past.length?'<div class="sec-t">標記待改期、日期卻已經過了</div>'
@@ -859,7 +863,8 @@ function lesRow(l){
  +(l.rid?' <span class="tag t">重複</span>':'')+'</div>'
  +'<div class="meta">'+esc(l.coach)+'教練　'+esc(l.students.join('、')||'未填學員')+'</div>'
  +'<div class="meta">'+esc(l.plan)+(r?'　'+money(r.pay):'')+'　行政費 '+money(adminFee(l))+'</div>'
- +(ck?'<div class="meta warnline">和同教練的其他課撞時段</div>':'')
+ +(ck?'<div class="meta warnline">和同教練的其他課撞時段　'
+   +'<button class="btn sm" data-act="mergeOne" data-id="'+l.id+'" style="margin-left:6px">合併</button></div>':'')
  +(mm?'<div class="meta warnline">學員 '+l.students.length+' 人與方案（'+planHead(l.plan)+' 人）不符，行政費已依實際人數算</div>':'')
  +'</div><div class="acts"><span class="tag '+stag+'">'+esc(l.status)+'</span>'
  +'<button class="ico'+(l.status==='已完成'?' on':'')+'" data-act="done" data-id="'+l.id+'" title="標記已完成">'+svg('check')+'</button>'
@@ -1191,9 +1196,90 @@ function stuLessons(name){
     +'<button class="btn sec sm" data-act="dly14" data-nm="'+esc(name)+'">延後兩週</button></div>'
     +'<div class="mini">整批延後只會動「只有這位學員」的課，團班和一對二要個別處理。</div>'
    :'')
- +(done.length?'<div class="mini" style="margin-top:12px">已完成 '+done.length+' 堂。</div>':'')
- +'</div>';
+ +(function(){
+   var fin=done.filter(function(l){return l.status==='已完成';});
+   if(!fin.length)return '';
+   var t=today();
+   var fut=fin.filter(function(l){return l.date>=t;});
+   return '<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">'
+    +(fut.length?'<div class="warnbar" style="margin-bottom:10px">有 '+fut.length
+      +' 堂日期還沒到，卻已經標成「已完成」，可能是按錯了。'
+      +'<div class="row" style="margin-top:8px"><button class="btn sm" data-act="undoFuture" data-nm="'
+      +esc(name)+'">全部改回未上（'+fut.length+' 堂）</button></div></div>':'')
+    +'<details'+(fut.length?' open':'')+'><summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--ink2)">'
+    +'已完成 '+fin.length+' 堂（點開可以改回）</summary>'
+    +fin.map(function(l){
+      var isFut=l.date>=t;
+      return '<div class="buy" style="cursor:default">'
+       +'<div><div class="l">'+l.date.replace(/-/g,'/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）'
+       +esc(l.start)+'–'+esc(l.end)+'</div>'
+       +'<div class="m">'+esc(l.coach)+'教練'+(isFut?'　<span class="warnline">日期還沒到</span>':'')+'</div></div>'
+       +'<div class="rr"><button class="btn sec sm" data-act="undoDone" data-id="'+l.id+'" data-nm="'
+       +esc(name)+'">'+(isFut?'改回未上':'改回並改期')+'</button></div></div>';}).join('')
+    +'<div class="mini">日期還沒到的會直接改回「已排定」；日期已過的會改成「待改期」並打開改期畫面，選好新日期就是順延。</div>'
+    +'</details></div>';
+ })()
+ +'</div>'
+ +(function(){
+   var ms=missedOf(name);
+   if(!ms.length||openOf(name)<=0)return '';
+   return '<div class="sec-t">可能漏登的上課紀錄</div><div class="card" style="margin-bottom:0">'
+    +'<div class="mini" style="margin:0 0 10px">這些是同一班、日期已經過的課，名單裡卻沒有 '+esc(name)
+    +'。如果他有上，按「補回」就會算進已上堂數。</div>'
+    +ms.map(function(l){
+     return '<div class="buy"><div><div class="l">'+l.date.replace(/-/g,'/')+'（'
+      +DAYN[dowOf(l.date)].slice(1)+'）'+esc(l.start)+'–'+esc(l.end)+'</div>'
+      +'<div class="m">'+esc(l.coach)+'教練　目前名單：'+esc((l.students||[]).join('、'))+'</div></div>'
+      +'<div class="rr"><button class="btn sm" data-act="addBack" data-id="'+l.id+'" data-nm="'
+      +esc(name)+'">補回</button></div></div>';}).join('')
+    +(ms.length>1?'<button class="btn sec sm" data-act="addBackAll" data-nm="'+esc(name)
+      +'" style="margin-top:10px">全部補回（'+Math.min(ms.length,openOf(name))+' 堂）</button>':'')
+    +'</div>';
+ })();
 }
+/* ---- 修復工具 ---- */
+/* 同教練、同日、同時段的課程分組（撞時段） */
+function clashGroups(){
+ var map={};
+ LES().forEach(function(l){
+  if(l.status==='取消')return;
+  var k=l.coach+'|'+l.date+'|'+l.start;
+  (map[k]=map[k]||[]).push(l);});
+ return Object.keys(map).map(function(k){return map[k];})
+  .filter(function(g){return g.length>1;});
+}
+/* 把一組撞時段的課合併成一堂：以團班那堂為主，名單合在一起 */
+function mergeGroup(g){
+ g.sort(function(a,b){
+  var fa=planFam(a.plan)==='g'?0:(planFam(a.plan)==='d'?1:2);
+  var fb=planFam(b.plan)==='g'?0:(planFam(b.plan)==='d'?1:2);
+  if(fa!==fb)return fa-fb;
+  return (b.students||[]).length-(a.students||[]).length;});
+ var t=g[0];
+ t.students=(t.students||[]).slice();
+ g.slice(1).forEach(function(x){
+  (x.students||[]).forEach(function(n){if(t.students.indexOf(n)<0)t.students.push(n);});
+  if(x.status==='已完成')t.status='已完成';
+  x.del=1;touch('lessons',x);});
+ if(t.students.length>2&&planFam(t.plan)!=='g')t.plan='團班4人';
+ fixGroupPlan(t);
+ touch('lessons',t);
+ return t;
+}
+/* 這位學員可能漏登的課：同教練、同星期、同時段的團班／一對二，日期已過，名單裡沒有他 */
+function missedOf(name){
+ var mine=lessonsOf(name).filter(function(l){return planFam(l.plan)!=='s';});
+ if(!mine.length)return [];
+ var keys={};
+ mine.forEach(function(l){keys[l.coach+'|'+dowOf(l.date)+'|'+l.start]=1;});
+ var t=today();
+ return LES().filter(function(l){
+  return l.status==='已完成'&&l.date<t&&planFam(l.plan)!=='s'
+   &&keys[l.coach+'|'+dowOf(l.date)+'|'+l.start]
+   &&(l.students||[]).indexOf(name)<0;})
+  .sort(function(a,b){return a.date<b.date?-1:1;});
+}
+
 /* ---- 用剩餘堂數排課（取消或改期後重新預約用）---- */
 function lastPlanOf(name){
  var ls=lessonsOf(name);
@@ -2385,6 +2471,39 @@ function bind(){
     var sS=STU().filter(function(x){return x.name===nmS;})[0];if(sS)fStu(sS.id);
     alert('已更換 '+list.length+' 堂課的教練。');
     return;}
+   if(a==='mergeAll'){
+    var gs=clashGroups();
+    if(!gs.length)return alert('目前沒有撞時段的課。');
+    var desc=gs.slice(0,5).map(function(g){
+     return g[0].date.slice(5).replace('-','/')+' '+g[0].start+' '+g[0].coach+'（'+g.length+' 筆）';}).join('\n');
+    if(!confirm('要把下面這些撞時段的課各自合併成一堂嗎？名單會合在一起。\n\n'+desc
+      +(gs.length>5?'\n…共 '+gs.length+' 組':'')))return;
+    gs.forEach(mergeGroup);
+    persist();render();
+    alert('已合併 '+gs.length+' 組。');
+    return;}
+   if(a==='mergeOne'){
+    var lo=byId(DB.lessons,id);if(!lo)return;
+    var g1=LES().filter(function(x){return x.status!=='取消'&&x.coach===lo.coach
+     &&x.date===lo.date&&x.start===lo.start;});
+    if(g1.length<2)return;
+    if(!confirm('把 '+lo.date+' '+lo.start+' '+lo.coach+' 的 '+g1.length+' 筆合併成一堂？'))return;
+    mergeGroup(g1);persist();render();return;}
+   if(a==='addBack'){
+    var la=byId(DB.lessons,id),nmA=b.dataset.nm;
+    if(la&&la.students.indexOf(nmA)<0){
+     la.students.push(nmA);fixGroupPlan(la);touch('lessons',la);persist();}
+    closeSheet();render();
+    var sa=STU().filter(function(x){return x.name===nmA;})[0];if(sa)fStu(sa.id);
+    return;}
+   if(a==='addBackAll'){
+    var nmB=b.dataset.nm,ms=missedOf(nmB).slice(0,Math.max(0,openOf(nmB)));
+    if(!ms.length)return;
+    if(!confirm('把 '+nmB+' 補回這 '+ms.length+' 堂課的名單？'))return;
+    ms.forEach(function(l){l.students.push(nmB);fixGroupPlan(l);touch('lessons',l);});
+    persist();closeSheet();render();
+    var sb2=STU().filter(function(x){return x.name===nmB;})[0];if(sb2)fStu(sb2.id);
+    return;}
    if(a==='book'){
     var sb=STU().filter(function(x){return x.name===b.dataset.nm;})[0];
     if(sb)fBook(sb.id);
@@ -2458,7 +2577,9 @@ function bind(){
     if(!mine.length)return alert('沒有可以整批延後的課。團班和一對二請個別改期。');
     if(!confirm('把 '+nm2+' 的 '+mine.length+' 堂課全部往後延 '+step+' 天？'
       +(skip?'\n（'+skip+' 堂是團班或一對二，不會動到）':'')))return;
-    mine.forEach(function(l){l.date=addD(l.date,step);touch('lessons',l);});
+    mine.forEach(function(l){l.date=addD(l.date,step);
+     if(l.status==='請假改期'&&l.date>=today())l.status='已排定';
+     touch('lessons',l);});
     persist();closeSheet();render();
     var s4=STU().filter(function(x){return x.name===nm2;})[0];if(s4)fStu(s4.id);
     return;}
@@ -2593,12 +2714,35 @@ function bind(){
      LES().forEach(function(l){if(l.rid===b2.rid){l.del=1;touch('lessons',l);}});
      persist();closeSheet();render();}
     return;}
+   if(a==='undoDone'){
+    var lu=byId(DB.lessons,id),nmU=b.dataset.nm;if(!lu)return;
+    var pastU=lu.date<today();
+    lu.status=pastU?'請假改期':'已排定';
+    touch('lessons',lu);persist();closeSheet();render();
+    if(pastU)fMove(lu.id,nmU);
+    else{var su=STU().filter(function(x){return x.name===nmU;})[0];if(su)fStu(su.id);}
+    return;}
+   if(a==='undoFuture'){
+    var nmF=b.dataset.nm,tF=today();
+    var lf=lessonsOf(nmF).filter(function(l){return l.status==='已完成'&&l.date>=tF;});
+    if(!lf.length)return;
+    if(!confirm('把 '+nmF+' 這 '+lf.length+' 堂日期還沒到的課改回「已排定」？'))return;
+    lf.forEach(function(l){l.status='已排定';touch('lessons',l);});
+    persist();closeSheet();render();
+    var sf=STU().filter(function(x){return x.name===nmF;})[0];if(sf)fStu(sf.id);
+    alert('已改回 '+lf.length+' 堂。');
+    return;}
    if(a==='doneStu'){var ls2=byId(DB.lessons,id);
+    if(ls2&&ls2.date>today()&&!confirm('這堂是 '+ls2.date.replace(/-/g,'/')
+      +'，日期還沒到。\n確定已經上完了嗎？\n\n（要順延請點這一堂改日期，不是按勾勾）'))return;
     if(ls2){ls2.status='已完成';touch('lessons',ls2);persist();closeSheet();render();
      var sd=STU().filter(function(x){return x.name===b.dataset.nm;})[0];if(sd)fStu(sd.id);}
     return;}
    if(a==='done'){var lt=byId(DB.lessons,id);
-    if(lt){lt.status=(lt.status==='已完成'?'已排定':'已完成');touch('lessons',lt);persist();render();}
+    if(lt&&lt.status!=='已完成'&&lt.date>today()&&!confirm('這堂是 '+lt.date.replace(/-/g,'/')
+      +'，日期還沒到。\n確定已經上完了嗎？'))return;
+    if(lt){lt.status=(lt.status==='已完成'?(lt.date<today()?'請假改期':'已排定'):'已完成');
+     touch('lessons',lt);persist();render();}
     return;}
 
    if(a==='csvS')return csvS();
