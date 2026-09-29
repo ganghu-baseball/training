@@ -33,7 +33,7 @@ t = np.arange(N) / SR
 music = np.zeros((N, 2), dtype=np.float32)
 def env_adsr(n, a, r):
     e = np.ones(n, dtype=np.float32)
-    na, nr = int(a * SR), int(r * SR)
+    na, nr = min(int(a * SR), n // 2), min(int(r * SR), n // 2)   # 最後一段很短時避免超出範圍
     if na: e[:na] = np.linspace(0, 1, na) ** 1.5
     if nr: e[-nr:] *= np.linspace(1, 0, nr) ** 1.5
     return e
