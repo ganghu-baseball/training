@@ -216,6 +216,8 @@ window.renderAt = (t) => {
     current = sc;
   } else {
     for (const a of actors) { a.root.visible = false; a.used = false; a.ball.visible = false; if (a.medball) a.medball.visible = false; if (a.waterbag) a.waterbag.visible = false; }
+    // 染色每格重設：場景只在某一段染紅（錯誤示範）時，不會殘留到後面，分段渲染的結果也一致
+    for (const a of actors) a.pitcher.tint('#ffffff', 0);
   }
   const def = SCENES[sc.id] || SCENES._default;
   const lt = t - sc.t0;
