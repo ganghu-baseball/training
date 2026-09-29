@@ -3,12 +3,13 @@ import sys, subprocess, imageio_ffmpeg, os, tempfile
 from PIL import Image, ImageDraw, ImageFont
 FF = imageio_ffmpeg.get_ffmpeg_exe()
 out, specs = sys.argv[1], sys.argv[2:]
+DIR = os.environ.get('CHUNKS', 'build/chunks_master_video'); CL = float(os.environ.get('CHUNK_SEC', '45'))
 tmp = tempfile.mkdtemp(dir='/tmp/claude-0')
 ims, labs = [], []
 for sp in specs:
     c, t = sp.split(':'); f = os.path.join(tmp, f'{c}_{t}.png')
-    subprocess.run([FF, '-y', '-loglevel', 'error', '-ss', t, '-i', f'build/chunks_master_video/{c}.mp4', '-frames:v', '1', '-vf', 'scale=640:-1', f], check=True)
-    ims.append(Image.open(f)); labs.append(f'{c} +{t}s (T={int(c[1:]) * 45 + float(t):.0f}s)')
+    subprocess.run([FF, '-y', '-loglevel', 'error', '-ss', t, '-i', f'{DIR}/{c}.mp4', '-frames:v', '1', '-vf', 'scale=640:-1', f], check=True)
+    ims.append(Image.open(f)); labs.append(f'{c} +{t}s (T={int(c[1:]) * CL + float(t):.0f}s)')
 w, h = ims[0].size; cols = 3; rows = (len(ims) + cols - 1) // cols
 sheet = Image.new('RGB', (cols * w, rows * h)); font = ImageFont.truetype('/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc', 16)
 for i, (im, lab) in enumerate(zip(ims, labs)):
