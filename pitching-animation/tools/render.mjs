@@ -29,15 +29,27 @@ const srv = await serve(path.resolve('.'), port);
 const chrome = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const t0 = Date.now();
 let doneFrames = chunks.filter(c => fs.existsSync(c.file + '.done')).reduce((s, c) => s + (c.f1 - c.f0), 0);
+const done0 = doneFrames;
 
 async function openPage() {
   const browser = await chromium.launch({ executablePath: chrome, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-gpu-compositing'] });
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
   page.on('pageerror', e => console.log('PAGEERR', e.message));
   await page.goto(`http://localhost:${port}/engine/index.html`);
-  await page.waitForFunction(() => window.ready === true, null, { timeout: 180000 });
+  await waitReady(page);
   const cdp = await page.context().newCDPSession(page);
   return { browser, page, cdp };
+}
+
+// 每段開始前重新載入頁面：渲染途中修改的場景程式，會套用到之後才開始的分段
+async function waitReady(page) {
+  await page.waitForFunction(() => window.ready === true, null, { timeout: 180000 });
+  const miss = await page.evaluate(() => window.__missing || []);
+  if (miss.length) throw new Error('missing scenes: ' + miss.join(','));
+}
+async function reloadPage(ctx) {
+  await ctx.page.reload();
+  await waitReady(ctx.page);
 }
 
 async function renderChunk(ctx, c) {
@@ -52,7 +64,7 @@ async function renderChunk(ctx, c) {
     if (!ff.stdin.write(Buffer.from(r.data, 'base64'))) await new Promise(res => ff.stdin.once('drain', res));
     doneFrames++;
     if (f % 450 === 0) {
-      const el = (Date.now() - t0) / 1000, fpsNow = (doneFrames - (nFrames - todo.reduce((s, x) => s + x.f1 - x.f0, 0))) / el;
+      const el = (Date.now() - t0) / 1000, fpsNow = (doneFrames - done0) / el;
       console.log(`[chunk ${c.i}] frame ${f}/${nFrames}  overall ${(doneFrames / nFrames * 100).toFixed(1)}%  ${fpsNow.toFixed(2)} fps  eta ${((nFrames - doneFrames) / Math.max(fpsNow, 0.01) / 60).toFixed(0)} min`);
     }
   }
@@ -64,11 +76,11 @@ async function renderChunk(ctx, c) {
 }
 
 async function worker(k) {
-  let ctx = await openPage();
+  let ctx = await openPage(), first = true;
   while (todo.length) {
     const c = todo.shift();
     for (let attempt = 0; attempt < 3; attempt++) {
-      try { await renderChunk(ctx, c); break; }
+      try { if (!first) await reloadPage(ctx); first = false; await renderChunk(ctx, c); break; }
       catch (e) {
         console.log(`[w${k}] chunk ${c.i} failed (${e.message}); retry`);
         try { await ctx.browser.close(); } catch (_) {}

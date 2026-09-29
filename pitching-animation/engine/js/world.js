@@ -139,7 +139,9 @@ export function createWorld(canvasW = 1920, canvasH = 1080) {
   camera.position.set(0.8, 1.2, 7.5);
   camera.lookAt(0.8, 0.95, 0);
 
-  const render = () => renderer.render(scene, camera);
+  // three.js r170 在陰影貼圖階段也會標記「這一格已更新幾何」，下一次 render() 就會跳過上傳，
+  // 導致每格更新頂點的軀幹落後一格。每次 render 前先把計數加一，確保幾何一定是最新的。
+  const render = () => { renderer.info.render.frame++; renderer.render(scene, camera); };
   return { renderer, scene, camera, key, rim, hemi, ground, mound, rubber, plate, target, sky, render };
 }
 

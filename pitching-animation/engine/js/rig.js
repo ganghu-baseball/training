@@ -480,7 +480,9 @@ export class Pitcher {
   setOpacity(a) {
     this.opacity = a;
     for (const m of this.mats) {
-      m.transparent = a < 0.999;
+      const tr = a < 0.999;
+      // 切換透明與否會改變 shader（不透明時 alpha 固定為 1），必須標記重新編譯
+      if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; }
       m.opacity = a;
       m.depthWrite = a > 0.6;
     }

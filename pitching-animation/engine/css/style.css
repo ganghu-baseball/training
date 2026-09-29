@@ -70,6 +70,8 @@ body { font-family: 'Noto Sans TC', sans-serif; color: var(--paper); -webkit-fon
 .bigmark.no { background: var(--red); color: #fff; }
 .cap { position: absolute; transform: translateX(-50%); font-size: 38px; font-weight: 900; text-align: center; white-space: nowrap; letter-spacing: 1px; }
 .cap small { display: block; font-size: 27px; font-weight: 700; color: var(--muted); margin-top: 4px; letter-spacing: 0; }
+.cap.bg { background: rgba(10, 21, 29, 0.8); padding: 12px 30px 14px; border-radius: 20px; }
+.cap.bg small { color: #C9D3D9; }
 
 /* 標題型大字 */
 .hero { position: absolute; left: 0; right: 0; text-align: center; }

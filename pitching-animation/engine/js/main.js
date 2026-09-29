@@ -196,6 +196,7 @@ function renderViews() {
     });
     r.setViewport(x * RS, (1080 - y - h) * RS, w * RS, h * RS);
     r.setScissor(x * RS, (1080 - y - h) * RS, w * RS, h * RS);
+    r.info.render.frame++;    // 同 world.render：避免軀幹幾何沿用上一格
     r.render(world.scene, viewCams[i]);
   });
   r.setScissorTest(false);
@@ -238,6 +239,7 @@ window.renderAt = (t) => {
   return true;
 };
 window.timeline = timeline;
+window.__missing = timeline.scenes.map(s => s.id).filter(id => !SCENES[id]);
 window.__world = world; window.__actors = actors;
 await document.fonts.ready;
 // 預熱：讓字型、貼圖、shader 都先載入
