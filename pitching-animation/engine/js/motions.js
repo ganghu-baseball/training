@@ -183,7 +183,10 @@ export function addIkArmKeys(channels, keys) {
   for (const k of keys) {
     const pose = poseAt(tmp, k.t);
     const S = solveSkeleton(pose);
-    const ang = armAnglesFromTarget(S, k.side === 'r' ? 1 : -1, localToWorld(S, k.target), localDir(S, k.pole));
+    // target/pole：胸口座標 [前, 上, 右]；world/wpole：世界座標（例如雙手抱住膝蓋）
+    const tgt = k.world ? new THREE.Vector3(...k.world) : localToWorld(S, k.target);
+    const pole = k.wpole ? new THREE.Vector3(...k.wpole).normalize() : localDir(S, k.pole);
+    const ang = armAnglesFromTarget(S, k.side === 'r' ? 1 : -1, tgt, pole);
     const pre = k.side === 'r' ? 'ra.' : 'la.';
     for (const n of ['abd', 'hz', 'er', 'ef']) channels[pre + n] = setKey(channels[pre + n] || [], k.t, ang[n]);
     if (k.pro !== undefined) channels[pre + 'pro'] = setKey(channels[pre + 'pro'] || [], k.t, k.pro);
@@ -218,7 +221,7 @@ export function poseAt(m, t) {
   const g = (n, d = 0) => m.get(n, t, d);
   const br = g('breath');
   return {
-    pel: { x: g('pel.x'), y: g('pel.y') + 0.004 * br * Math.sin(t * 2.4), z: g('pel.z'), yaw: g('pel.yaw'), tilt: g('pel.tilt'), roll: g('pel.roll') },
+    pel: { x: g('pel.x'), y: g('pel.y') + 0.004 * br * Math.sin(t * 2.4), z: g('pel.z'), yaw: g('pel.yaw'), tilt: g('pel.tilt'), roll: g('pel.roll'), spin: g('pel.spin') },
     tr: { twist: g('tr.twist'), flex: g('tr.flex') + 1.2 * br * Math.sin(t * 2.4), bend: g('tr.bend') },
     ra: { abd: g('ra.abd', 20), hz: g('ra.hz', 40), er: g('ra.er'), ef: g('ra.ef', 90), pro: g('ra.pro'), wf: g('ra.wf') },
     la: { abd: g('la.abd', 20), hz: g('la.hz', 40), er: g('la.er'), ef: g('la.ef', 90), pro: g('la.pro'), wf: g('la.wf') },
@@ -226,7 +229,7 @@ export function poseAt(m, t) {
     lf: { x: g('lf.x'), y: g('lf.y'), z: g('lf.z'), yaw: g('lf.yaw', -90), pitch: g('lf.pitch') },
     rk: { yaw: g('rk.yaw'), up: g('rk.up') },
     lk: { yaw: g('lk.yaw'), up: g('lk.up') },
-    head: { look: m.props.look || [18.4, 0.95, 0], lookChest: !!m.props.lookChest, yawOff: g('head.yaw'), pitchOff: g('head.pitch') },
+    head: { look: m.props.look || [18.4, 0.95, 0], lookChest: !!m.props.lookChest, rel: !!m.props.headRel, yawOff: g('head.yaw'), pitchOff: g('head.pitch') },
     ground: m.props.ground || MOUND,
   };
 }

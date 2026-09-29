@@ -74,14 +74,21 @@ def lowpass(x, fc):
     y = np.empty_like(x); acc = 0.0
     # 分塊向量化的一階濾波（用 scipy 以外的方法）：遞迴太慢，改用 FFT 頻域衰減
     return x
-spec = np.fft.rfft(music, axis=0)
-freqs = np.fft.rfftfreq(N, 1 / SR)
-spec *= (1 / np.sqrt(1 + (freqs / 2600) ** 4))[:, None]
-music = np.fft.irfft(spec, n=N, axis=0).astype(np.float32)
+# 逐聲道做頻域低通（影片變長後整段一起做會用光記憶體）
+gain = (1 / np.sqrt(1 + (np.fft.rfftfreq(N, 1 / SR) / 2600) ** 4)).astype(np.float32)
+for ch in range(2):
+    spec = np.fft.rfft(music[:, ch]); spec *= gain
+    music[:, ch] = np.fft.irfft(spec, n=N).astype(np.float32)
+    del spec
+del gain
 # 閃避：旁白時降低配樂音量
 from numpy.lib.stride_tricks import sliding_window_view
 win = int(0.35 * SR)
-act = np.convolve(active, np.ones(win) / win, mode='same')
+# 移動平均（累積和，O(N)；結果等同 np.convolve(..., mode='same')）
+cs = np.concatenate([[0.0], np.cumsum(active, dtype=np.float64)])
+lo = np.clip(np.arange(N) - win // 2, 0, N); hi = np.clip(np.arange(N) - win // 2 + win, 0, N)
+act = ((cs[hi] - cs[lo]) / win).astype(np.float32)
+del cs, lo, hi
 duck = 1 - 0.55 * np.clip(act, 0, 1)
 mrms = np.sqrt(np.mean(music ** 2))
 music *= (10 ** (-27 / 20)) / max(mrms, 1e-6)

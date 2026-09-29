@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#152632;overflow:hidden}canvas{display:block}</style></head>
+<body><script type="module">
+// 訓練動作預覽：window.show('makeHipSupine', {}, t, {pos, look, fov}) → 畫出該時刻的姿勢
+import { createWorld } from './js/world.js';
+import { Pitcher } from './js/rig.js';
+import { poseAt } from './js/motions.js';
+import * as H from './js/hipdrills.js';
+const W = +(new URLSearchParams(location.search).get('w') || 960), H9 = Math.round(W * 9 / 16);
+const world = createWorld(W, H9);
+document.body.appendChild(world.renderer.domElement);
+for (const k of ['mound', 'rubber', 'plate', 'target']) world[k].visible = false;
+const pitcher = new Pitcher();
+world.scene.add(pitcher.group);
+pitcher.setGlove(false);
+const cache = {};
+window.show = (name, opts, t, cam) => {
+  const key = name + JSON.stringify(opts || {});
+  const m = cache[key] || (cache[key] = H[name](opts || {}));
+  const S = pitcher.update(poseAt(m, t));
+  world.camera.fov = cam.fov || 30; world.camera.updateProjectionMatrix();
+  world.camera.position.set(...cam.pos); world.camera.up.set(0, 1, 0); world.camera.lookAt(...cam.look);
+  world.renderer.render(world.scene, world.camera);
+  const r = v => v.toArray().map(x => +x.toFixed(3));
+  return { end: m.events && m.events.end, rKnee: +S.rLeg.kneeAng.toFixed(1), lKnee: +S.lLeg.kneeAng.toFixed(1), rReach: S.rLeg.reach, lReach: S.lLeg.reach,
+    rAnkle: r(S.rLeg.ankle), lAnkle: r(S.lLeg.ankle), head: r(S.head), P3: r(S.P3), rHand: r(S.rArm.hand), lHand: r(S.lArm.hand) };
+};
+window.ready = true;
+</script></body></html>

@@ -22,7 +22,7 @@ for (const sc of script) {
   });
   t += sc.post ?? 0.6;
   if (m.minDur && t - t0 < m.minDur) t = t0 + m.minDur;
-  scenes.push({ id: sc.id, chapter: sc.chapter || null, t0: +t0.toFixed(3), t1: +t.toFixed(3), lines: L, transition: m.transition || 'dip' });
+  scenes.push({ id: sc.id, chapter: sc.chapter || null, part: sc.part || null, t0: +t0.toFixed(3), t1: +t.toFixed(3), lines: L, transition: m.transition || 'dip' });
 }
 // 讓相鄰字幕之間不重疊，並把很短的空檔補起來（字幕不閃爍）
 subtitles.sort((a, b) => a.t0 - b.t0);

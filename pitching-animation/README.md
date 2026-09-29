@@ -12,6 +12,7 @@
 | `engine/js/rig.js` | 3D 投手骨架與外型（1.83 m 人體比例；腳用 IK 固定、不會滑步；軀幹是會扭轉的連續曲面） |
 | `engine/js/motions.js` | 投球動作關鍵影格（前腳落地 = 0 秒）與錯誤示範的變化版本 |
 | `engine/js/drills.js` | 藥球側拋、胸前旋轉、水袋、反向跳／蹲踞跳 |
+| `engine/js/hipdrills.js` | 髖關節訓練：仰躺髖旋轉、單腳抬膝接前傾、收尾轉回抬膝、單腳飛機（手放頭後／彈力帶） |
 | `engine/js/terrain.js` | 依正式規格建立的投手丘（投手板高 10 吋、每呎下降 1 吋） |
 | `engine/js/world.js` | 場景、燈光、道具（棒球、藥球、牆、水袋） |
 | `engine/js/main.js` | `renderAt(t)`：任一時間點都能決定性地畫出完整畫面（可平行渲染） |
@@ -40,7 +41,7 @@ python3 tools/asr_check.py                                # （選用）用語�
 node tools/build_timeline.mjs                             # 依旁白長度排時間軸、輸出字幕 SRT
 python3 tools/mix_audio.py                                # 旁白 + 程式生成的配樂 + 音效
 node tools/render.mjs --out build/master_video.mp4        # 平行渲染（分段、可中斷後續跑）
-python3 tools/finalize.py                                 # 合成 1080p、無配樂版、720p（另切成三段 <30 MB）
+python3 tools/finalize.py                                 # 合成 1080p、無配樂版、720p（另依入門／進階／訓練切成三段）
 node tools/make_script_doc.mjs                            # 輸出含章節時間的旁白腳本
 ```
 
@@ -49,6 +50,7 @@ node tools/make_script_doc.mjs                            # 輸出含章節時�
 ```bash
 node tools/stills.mjs out.png "intro@5,medball@L2+4" 3 640   # 指定場景與時間的靜態畫面對照圖
 node tools/diag.mjs '{"variant":{}}'                          # 檢查投球動作的膝角與腳是否搆得到地
+# engine/drill-preview.html：window.show('makeAirplane', {mode:'band'}, 4.1, {pos, look, fov}) 單獨預覽訓練動作
 ```
 
 `medball@L2+4` 代表「medball 場景第 3 句旁白開始後 4 秒」。

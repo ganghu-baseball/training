@@ -25,7 +25,7 @@ export const DEFAULT_COLORS = {
 
 // ───────────────────────── 向量小工具 ─────────────────────────
 const tmpQ = new THREE.Quaternion();
-function quatYZX(x, y, z) { return new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z, 'YZX')); }
+export function quatYZX(x, y, z) { return new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z, 'YZX')); }
 function rotAround(v, axis, ang) { return v.clone().applyAxisAngle(axis, ang); }
 
 // 由姿勢參數求出所有關節位置與軀幹座標系
@@ -33,6 +33,8 @@ export function solveSkeleton(p) {
   const S = {};
   // 骨盆：yaw 繞世界 Y；tilt 前傾；roll 向手套側（左）側傾為正
   const qP = quatYZX(-(p.pel.roll || 0) * DEG, p.pel.yaw * DEG, -(p.pel.tilt || 0) * DEG);
+  // spin：繞骨盆自己的脊椎軸轉（身體前傾成 T 字時，骨盆「打開／關起來」用）
+  if (p.pel.spin) qP.multiply(new THREE.Quaternion().setFromAxisAngle(Y_UP, p.pel.spin * DEG));
   const P0 = V(p.pel.x, p.pel.y, p.pel.z);
   // 腰椎、胸椎分配軀幹相對骨盆的扭轉/前屈/側彎
   const tw = (p.tr.twist || 0) * DEG, fl = (p.tr.flex || 0) * DEG, bd = (p.tr.bend || 0) * DEG;
@@ -60,6 +62,13 @@ export function solveSkeleton(p) {
   // ── 頭：看向目標（本壘好球帶），轉動角度有生理限制 ──
   const N0 = P3.clone().add(U.clone().multiplyScalar(0.015));
   const N1 = N0.clone().add(V(0.025, DIM.neck, 0).applyQuaternion(qC));
+  // 頭跟著胸口（躺下、身體前傾時用）：只在胸口座標系內加上偏轉
+  if (p.head && p.head.rel) {
+    const qH = qC.clone().multiply(quatYZX(0, (p.head.yawOff || 0) * DEG, (p.head.pitchOff || 0) * DEG));
+    S.qH = qH; S.N0 = N0; S.N1 = N1;
+    S.head = N1.clone().add(V(0.012, 0.10, 0).applyQuaternion(qH));
+    return S;
+  }
   let look = p.head && p.head.look ? V(...p.head.look) : V(18.4, 0.9, 0);
   if (p.head && p.head.lookChest) look = P3.clone().add(V(F.x, 0, F.z).normalize().multiplyScalar(5)).setY(P3.y + 0.05);
   let d = look.clone().sub(N1).normalize();

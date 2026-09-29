@@ -7,9 +7,16 @@ V = 'build/master_video.mp4'
 # 章節標記（播放器可直接跳章）
 import json
 tl = json.load(open('build/timeline.json', encoding='utf-8'))
-NAMES = {1: '投球是一場接力賽', 2: '力量大，不等於會用力量', 3: '看懂四個關鍵時刻', 4: '後腳和髖部的蓄力', 5: '跨步和前腳煞車', 6: '骨盆帶動胸口',
-         7: '手臂和出手', 8: '收尾與減速', 9: '節奏', 10: '藥球和水袋', 11: '好的提示與學習方法', 12: '怎麼判斷進步', 13: '保護手臂的好習慣'}
-marks = [(0.0, '開場')] + [(s['t0'], f"{s['chapter']:02d} {NAMES[s['chapter']]}") for s in tl['scenes'] if s.get('chapter')]
+NAMES = {1: '投球是一場接力賽', 2: '力量大，不等於會用力量', 3: '看懂四個關鍵時刻', 4: '節奏', 5: '好的提示與學習方法', 6: '保護手臂的好習慣',
+         7: '第一棒：後腳和髖部的蓄力', 8: '第二棒：跨步和前腳煞車', 9: '第三棒：骨盆帶動胸口', 10: '最後一棒：手臂和出手', 11: '收尾與減速',
+         12: '髖關節訓練', 13: '藥球和水袋', 14: '怎麼判斷進步'}
+PARTS = {1: '入門篇', 2: '進階篇', 3: '訓練篇'}
+# 哪些場景是「部分」標題卡（寫在腳本裡）
+part_of = {s['id']: s['part'] for s in json.load(open('build/script.json', encoding='utf-8')) if s.get('part')}
+marks = [(0.0, '開場')]
+for s in tl['scenes']:
+    if s['id'] in part_of: marks.append((s['t0'], f"PART {part_of[s['id']]}｜{PARTS[part_of[s['id']]]}"))
+    if s.get('chapter'): marks.append((s['t0'], f"{s['chapter']:02d} {NAMES[s['chapter']]}"))
 marks.append((next(s['t0'] for s in tl['scenes'] if s['id'] == 'summary'), '總結'))
 meta = [';FFMETADATA1', 'title=投球原理：從腳到手的力量接力']
 for i, (t0, name) in enumerate(marks):
@@ -29,11 +36,14 @@ run(['-i', V, '-i', 'build/voice.wav', '-i', 'build/chapters.ffmeta', '-map', '0
 kf = ','.join(f'{t0:.3f}' for t0, _ in marks[1:])
 run(['-i', 'dist/投球原理動畫_1080p.mp4', '-map_chapters', '0', '-vf', 'scale=1280:720:flags=lanczos', '-c:v', 'libx264', '-preset', 'slow', '-crf', '24',
      '-force_key_frames', kf, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', 'dist/投球原理動畫_720p.mp4'])
-# 分成三段（每段 < 30 MB，方便用通訊軟體傳送）：開場～第 5 章、第 6～10 章、第 11 章～結尾
-cuts = [next(s['t0'] for s in tl['scenes'] if s.get('chapter') == c) for c in (6, 11)]
-parts = [(0.0, cuts[0], '第1部_開場到第5章'), (cuts[0], cuts[1], '第2部_第6到10章'), (cuts[1], tl['duration'], '第3部_第11章到結尾')]
+# 分成三段（入門篇／進階篇／訓練篇，每段 < 30 MB，方便用通訊軟體傳送）
+starts = {part_of[s['id']]: s['t0'] for s in tl['scenes'] if s['id'] in part_of}
+cuts = [starts[2], starts[3]]
+parts = [(0.0, cuts[0], '1_入門篇'), (cuts[0], cuts[1], '2_進階篇'), (cuts[1], tl['duration'], '3_訓練篇')]
 import math
 kfAt = lambda t: math.ceil(t * 30 - 1e-6) / 30      # 強制關鍵影格落在時間點之後的第一格
+for f in os.listdir('dist'):
+    if f.startswith('投球原理動畫_720p_') and f.endswith('.mp4'): os.remove('dist/' + f)
 for t0, t1, name in parts:
     a, b = (kfAt(t0) + 0.001 if t0 > 0 else 0.0), (kfAt(t1) if t1 < tl['duration'] else tl['duration'])
     run(['-ss', f'{a:.3f}', '-to', f'{b:.3f}', '-i', 'dist/投球原理動畫_720p.mp4', '-map', '0:v', '-map', '0:a', '-c', 'copy',

@@ -7,6 +7,7 @@ import { pchip, smooth, clamp, easeInOut, easeOut, easeIn, lerp } from './interp
 import { MOUND, FLAT } from './terrain.js';
 import { solveSkeleton } from './rig.js';
 import * as DR from './drills.js';
+import * as HD from './hipdrills.js';
 
 const W = 1920, H = 1080;
 const qs = new URLSearchParams(location.search);
@@ -24,7 +25,8 @@ const ICON_NAMES = ['anchor', 'bow-arrow', 'footprints', 'hand', 'activity', 'za
   'message-circle-question', 'megaphone', 'ear', 'music', 'clock', 'hourglass', 'flame', 'sprout', 'cog', 'wrench', 'fuel', 'octagon-x', 'siren', 'bed',
   'rotate-cw', 'rotate-ccw', 'move-right', 'trending-up', 'trending-down', 'chart-line', 'chart-bar', 'lightbulb', 'sparkles', 'play', 'pause', 'sun',
   'crosshair', 'scan-eye', 'hand-heart', 'layers', 'refresh-cw', 'camera', 'video', 'ruler', 'weight', 'biceps-flexed', 'stethoscope', 'hospital',
-  'glass-water', 'shirt', 'circle-dot', 'mountain', 'workflow', 'dices', 'signal', 'anvil', 'bone', 'coffee', 'apple', 'volume-2', 'traffic-cone', 'construction'];
+  'glass-water', 'shirt', 'circle-dot', 'mountain', 'workflow', 'dices', 'signal', 'anvil', 'bone', 'coffee', 'apple', 'volume-2', 'traffic-cone', 'construction',
+  'door-open', 'plane', 'graduation-cap', 'book-open', 'flag', 'list-checks', 'bed-single', 'undo', 'redo', 'scale', 'brick-wall', 'hand-grab', 'stretch-horizontal', 'accessibility'];
 const ICONS = {};
 await Promise.all(ICON_NAMES.map(async n => { try { ICONS[n] = await (await fetch(`../node_modules/lucide-static/icons/${n}.svg`)).text(); } catch (e) { ICONS[n] = ''; } }));
 function icon(name, size = 48, color = 'currentColor', sw = 2) {
@@ -53,7 +55,7 @@ const tracked = [];
 const wall = makeWall(); wall.visible = false; world.scene.add(wall);
 const motionCache = new Map();
 const ctx = {
-  THREE, world, scene: world.scene, camera: world.camera, PALETTE, MO, DR, MOUND, FLAT,
+  THREE, world, scene: world.scene, camera: world.camera, PALETTE, MO, DR, HD, MOUND, FLAT,
   solve(m, t) { return solveSkeleton(MO.poseAt(m, t)); },
   smooth, clamp, easeInOut, easeOut, easeIn, lerp, pchip,
   wall,

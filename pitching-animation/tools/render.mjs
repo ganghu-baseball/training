@@ -1,5 +1,5 @@
 // 平行渲染影格並編碼成影片（分段、可續跑）
-// 用法：node tools/render.mjs --out build/master.mp4 [--from 0 --to 1290 --chunk 60 --workers 4 --crf 20 --preset slow]
+// 用法：node tools/render.mjs --out build/master.mp4 [--from 0 --to 1290 --chunk 60 --workers 4 --crf 20 --preset slow --first 22,23]
 import { chromium } from 'playwright-core';
 import { spawn, execFileSync } from 'child_process';
 import fs from 'fs'; import path from 'path';
@@ -23,6 +23,8 @@ const perChunk = Math.round(chunkSec * fps);
 const chunks = [];
 for (let f0 = 0, i = 0; f0 < nFrames; f0 += perChunk, i++) chunks.push({ i, f0, f1: Math.min(nFrames, f0 + perChunk), file: path.join(chunkDir, `c${String(i).padStart(3, '0')}.mp4`) });
 const todo = chunks.filter(c => !fs.existsSync(c.file + '.done'));
+// --first 22,23,24：先算指定的分段（例如先做出某一章的預覽）
+if (args.first) { const pri = args.first.split(',').map(Number); todo.sort((a, b) => (pri.includes(b.i) - pri.includes(a.i)) || a.i - b.i); }
 console.log(`${nFrames} frames, ${chunks.length} chunks, ${todo.length} to render`);
 
 const srv = await serve(path.resolve('.'), port);
