@@ -19,8 +19,8 @@ export const DIM = {
 
 export const DEFAULT_COLORS = {
   jersey: '#F3EFE7', trim: '#FE7F2D', pants: '#D9D4CA', belt: '#233D4D',
-  sock: '#FE7F2D', shoe: '#1D2A34', sole: '#EDEDED', skin: '#D8A27C',
-  cap: '#233D4D', brim: '#1A2D3A', glove: '#8A5630', gloveLace: '#5E3A1F',
+  sock: '#FE7F2D', shoe: '#1D2A34', sole: '#4B545B', skin: '#D8A27C',
+  cap: '#233D4D', brim: '#1A2D3A', glove: '#8A5630', gloveDark: '#6A4023', gloveLace: '#4A2C16',
 };
 
 // ───────────────────────── 向量小工具 ─────────────────────────
@@ -153,24 +153,42 @@ export function armAnglesFromTarget(S, side, target, pole) {
 }
 
 function solveLeg(hip, f, k, ground) {
-  const yaw = (f.yaw || 0) * DEG, pitch = (f.pitch || 0) * DEG;
+  const yaw = (f.yaw || 0) * DEG;
+  let pitch = (f.pitch || 0) * DEG;
   const fw0 = V(Math.cos(yaw), 0, -Math.sin(yaw));
-  const fw = fw0.clone().multiplyScalar(Math.cos(pitch)).add(V(0, -Math.sin(pitch), 0));
-  const up = V(0, Math.cos(pitch), 0).add(fw0.clone().multiplyScalar(Math.sin(pitch)));
   const gy = ground(f.x, f.z);
   const ball = V(f.x, (f.y || 0) + gy, f.z);
+  const ankleAt = pc => ball.clone().add(fw0.clone().multiplyScalar(-DIM.ballFwd * Math.cos(pc) + DIM.ankleH * Math.sin(pc))).add(V(0, DIM.ballFwd * Math.sin(pc) + DIM.ankleH * Math.cos(pc), 0));
+  // 腿打直還搆不到腳踝時，先把腳跟墊起來（繞前腳掌轉），讓小腿和鞋子不會分開
+  // 差 2.5 cm 以內交給下面的微幅拉長（看不出來），超過才墊腳跟，兩者銜接連續、不會跳動
+  const Lmax = DIM.thigh + DIM.shank + 0.025;
+  if (ankleAt(pitch).distanceTo(hip) > Lmax) {
+    // 找腳跟墊多高時腳踝最靠近髖部；搆得到就二分法找剛好搆到的角度，搆不到就停在最近的角度
+    let best = pitch, bestD = 1e9;
+    for (let i = 0; i <= 40; i++) { const pc = pitch + i * 2 * DEG, dd = ankleAt(pc).distanceTo(hip); if (dd < bestD) { bestD = dd; best = pc; } }
+    if (bestD <= Lmax) {
+      let lo = pitch, hi = best;
+      for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (ankleAt(mid).distanceTo(hip) > Lmax) lo = mid; else hi = mid; }
+      pitch = hi;
+    } else pitch = best;
+  }
+  const fw = fw0.clone().multiplyScalar(Math.cos(pitch)).add(V(0, -Math.sin(pitch), 0));
+  const up = V(0, Math.cos(pitch), 0).add(fw0.clone().multiplyScalar(Math.sin(pitch)));
   let ankle = ball.clone().sub(fw.clone().multiplyScalar(DIM.ballFwd)).add(up.clone().multiplyScalar(DIM.ankleH));
   // 膝蓋方向：腳尖方向 + 內外角度（kneeYaw>0 表示膝蓋往身體內側倒）
   const kyaw = (k.yaw || 0) * DEG, kup = (k.up || 0) * DEG;
   let horiz = rotAround(fw0, Y_UP, kyaw);
   let pole = horiz.clone().multiplyScalar(Math.cos(kup)).add(V(0, Math.sin(kup), 0)).normalize();
   if (k.pole) pole = V(...k.pole).normalize();
-  const L1 = DIM.thigh, L2 = DIM.shank;
+  let L1 = DIM.thigh, L2 = DIM.shank;
   const toA = ankle.clone().sub(hip);
   let d = toA.length();
   const dn = toA.clone().normalize();
   let reach = true;
-  if (d > L1 + L2 - 1e-4) { d = L1 + L2 - 1e-4; reach = false; }
+  // 只差一點點（< 3.5 cm）時把腿微微拉長，腳踝仍接在鞋子上；差太多才真的搆不到
+  const over = d - (L1 + L2 - 1e-4);
+  if (over > 0 && over < 0.035) { const sc = (d + 1e-4) / (L1 + L2); L1 *= sc; L2 *= sc; }
+  else if (over > 0) { d = L1 + L2 - 1e-4; reach = false; }
   d = Math.max(d, 0.12);
   const aa = (L1 * L1 - L2 * L2 + d * d) / (2 * d);
   const hh = Math.sqrt(Math.max(0, L1 * L1 - aa * aa));
@@ -179,7 +197,9 @@ function solveLeg(hip, f, k, ground) {
   if (!reach) ankle = hip.clone().add(dn.clone().multiplyScalar(d));
   // 腳趾：著地時平貼地面
   const grounded = Math.max(0, Math.min(1, 1 - ((f.y || 0) - 0.004) / 0.03));
-  const tw = fw.clone().lerp(fw0, grounded).normalize();
+  const gToe = ground(f.x + fw0.x * DIM.toeLen, f.z + fw0.z * DIM.toeLen);
+  const twG = fw0.clone().multiplyScalar(DIM.toeLen).add(V(0, gToe - gy, 0)).normalize();
+  const tw = fw.clone().lerp(twG, grounded).normalize();
   const toe = ball.clone().add(tw.clone().multiplyScalar(DIM.toeLen));
   const heel = ball.clone().sub(fw.clone().multiplyScalar(DIM.ballFwd + DIM.heelBack)).add(up.clone().multiplyScalar(0.012));
   const kneeAng = Math.acos(Math.max(-1, Math.min(1, knee.clone().sub(hip).normalize().dot(ankle.clone().sub(knee).normalize())))) / DEG;
@@ -187,14 +207,75 @@ function solveLeg(hip, f, k, ground) {
 }
 
 // ───────────────────────── 外型 ─────────────────────────
-function latheLimb(profile, segs = 20) {
+function latheLimb(profile, segs = 32) {
   // profile: [[s(0..1), r], ...]
   const pts = profile.map(([s, r]) => new THREE.Vector2(r, s));
   const g = new THREE.LatheGeometry(pts, segs);
   return g;
 }
 
-const UNIT_SPHERE = new THREE.SphereGeometry(1, 24, 16);
+const UNIT_SPHERE = new THREE.SphereGeometry(1, 32, 22);
+
+// ───────────────────────── 鞋子外型 ─────────────────────────
+// 以前腳掌著地點為原點：x 往腳尖、y 往上、z 側向。依序為 x、半寬、鞋面高、鞋底離地（腳跟與鞋頭微翹）
+const SHOE = [
+  [-0.229, 0.012, 0.040, 0.016], [-0.224, 0.024, 0.058, 0.008], [-0.214, 0.032, 0.071, 0.003], [-0.195, 0.037, 0.080, 0.0],
+  [-0.160, 0.039, 0.086, 0.0], [-0.120, 0.038, 0.083, 0.0], [-0.080, 0.039, 0.071, 0.0], [-0.040, 0.044, 0.059, 0.0],
+  [-0.008, 0.047, 0.051, 0.0], [0.020, 0.046, 0.046, 0.0], [0.043, 0.042, 0.041, 0.001], [0.061, 0.035, 0.036, 0.003],
+  [0.074, 0.025, 0.030, 0.006], [0.082, 0.013, 0.024, 0.010], [0.086, 0.004, 0.019, 0.013],
+];
+const smooth01 = u => { const s = Math.max(0, Math.min(1, u)); return s * s * (3 - 2 * s); };
+const spow = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
+function shoeSample(u) {
+  // Catmull-Rom 內插（u: 0..SHOE.length-1）
+  const n = SHOE.length, i = Math.min(n - 2, Math.floor(u)), t = u - i;
+  const g = k => SHOE[Math.max(0, Math.min(n - 1, k))];
+  const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2);
+  return p1.map((_, j) => 0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t * t + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t * t * t));
+}
+function shoeGeometry(isSole) {
+  const nR = 43, nS = 28, SOLE_T = 0.017;
+  const pos = [], idx = [];
+  const rings = [];
+  for (let i = 0; i < nR; i++) {
+    const [x, w, h, b] = shoeSample((i / (nR - 1)) * (SHOE.length - 1));
+    const ring = [];
+    for (let j = 0; j < nS; j++) {
+      const th = (j / nS) * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th);
+      let y, z;
+      if (isSole) {
+        // 薄鞋底：略寬於鞋面、邊緣圓角
+        z = (w + 0.0035) * spow(c, 2 / 5);
+        y = b + SOLE_T * 0.5 + SOLE_T * 0.5 * spow(sn, 2 / 5);
+      } else {
+        const e = sn < 0 ? 2 / 4 : 2 / 2.3;
+        z = w * spow(c, e);
+        y = (b + 0.006 + h) / 2 + (h - b - 0.006) / 2 * spow(sn, e);
+      }
+      ring.push(pos.length / 3); pos.push(x, y, z);
+    }
+    rings.push({ ring, x, b, h, w });
+  }
+  for (let i = 0; i < nR - 1; i++) for (let j = 0; j < nS; j++) {
+    const a = rings[i].ring[j], bb = rings[i].ring[(j + 1) % nS], c2 = rings[i + 1].ring[j], d = rings[i + 1].ring[(j + 1) % nS];
+    idx.push(a, c2, bb, bb, c2, d);
+  }
+  // 兩端封口
+  for (const [ri, dir] of [[0, -1], [nR - 1, 1]]) {
+    const r = rings[ri];
+    const cy = isSole ? r.b + SOLE_T * 0.5 : (r.b + r.h) / 2;
+    const ci = pos.length / 3; pos.push(r.x + dir * 0.002, cy, 0);
+    for (let j = 0; j < nS; j++) {
+      const a = r.ring[j], bb = r.ring[(j + 1) % nS];
+      if (dir < 0) idx.push(ci, a, bb); else idx.push(ci, bb, a);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
 
 export class Pitcher {
   constructor(opts = {}) {
@@ -219,7 +300,8 @@ export class Pitcher {
       sockR: M(c.sock, 'legR'), sockL: M(c.sock, 'legL'),
       shoeR: M(c.shoe, 'footR', { rough: 0.45 }), shoeL: M(c.shoe, 'footL', { rough: 0.45 }),
       sole: M(c.sole, 'feet'), cap: M(c.cap, 'head', { rough: 0.5 }), brim: M(c.brim, 'head', { rough: 0.5 }),
-      glove: M(c.glove, 'glove', { rough: 0.7 }), belt: M(c.belt, 'pelvis'), trim: M(c.trim, 'trunk'),
+      glove: M(c.glove, 'glove', { rough: 0.7 }), gloveDark: M(c.gloveDark, 'glove'), gloveLace: M(c.gloveLace, 'glove'), glovePatch: M(c.trim, 'glove'),
+      belt: M(c.belt, 'pelvis'), trim: M(c.trim, 'trunk'),
     };
     const mk = (geo, mat, part) => {
       const mesh = new THREE.Mesh(geo, mat);
@@ -229,11 +311,12 @@ export class Pitcher {
       return mesh;
     };
     // 四肢（lathe 讓肌肉輪廓自然）
-    const thighP = [[0, 0.083], [0.15, 0.086], [0.5, 0.074], [0.85, 0.062], [1, 0.058]];
-    const shankP = [[0, 0.056], [0.2, 0.06], [0.35, 0.061], [0.7, 0.046], [1, 0.038]];
+    // 兩端略為收窄，讓關節球乾淨地包住接縫（避免鋸齒狀的交界）
+    const thighP = [[0, 0.074], [0.07, 0.083], [0.17, 0.086], [0.5, 0.074], [0.85, 0.062], [0.95, 0.058], [1, 0.050]];
+    const shankP = [[0, 0.049], [0.06, 0.057], [0.2, 0.06], [0.35, 0.061], [0.7, 0.046], [1, 0.038]];
     const sockP = [[0, 0.047], [0.5, 0.042], [1, 0.037]];
-    const uArmP = [[0, 0.052], [0.3, 0.05], [0.7, 0.043], [1, 0.04]];
-    const fArmP = [[0, 0.039], [0.25, 0.042], [0.6, 0.034], [1, 0.027]];
+    const uArmP = [[0, 0.052], [0.3, 0.05], [0.7, 0.043], [0.92, 0.040], [1, 0.033]];
+    const fArmP = [[0, 0.032], [0.08, 0.040], [0.25, 0.042], [0.6, 0.034], [0.93, 0.027], [1, 0.022]];
     const sleeveP = [[0, 0.058], [0.55, 0.054], [1, 0.05]];
     this.limbs = {
       thighR: mk(latheLimb(thighP), this.M.pantsR, 'legR'), thighL: mk(latheLimb(thighP), this.M.pantsL, 'legL'),
@@ -247,14 +330,14 @@ export class Pitcher {
     this.joints = {};
     const J = (name, r, mat, part) => { const m = mk(UNIT_SPHERE, mat, part); m.scale.setScalar(r); this.joints[name] = m; };
     J('kneeR', 0.059, this.M.pantsR, 'legR'); J('kneeL', 0.059, this.M.pantsL, 'legL');
-    J('ankleR', 0.04, this.M.sockR, 'legR'); J('ankleL', 0.04, this.M.sockL, 'legL');
+    J('ankleR', 0.036, this.M.sockR, 'legR'); J('ankleL', 0.036, this.M.sockL, 'legL');
     J('elbowR', 0.041, this.M.skinR, 'armR'); J('elbowL', 0.041, this.M.skinL, 'armL');
     J('wristR', 0.028, this.M.skinR, 'armR'); J('wristL', 0.028, this.M.skinL, 'armL');
     J('shR', 0.058, this.M.jerseyArmR, 'armR'); J('shL', 0.058, this.M.jerseyArmL, 'armL');
-    J('hipR', 0.084, this.M.pantsR, 'legR'); J('hipL', 0.084, this.M.pantsL, 'legL');
+    J('hipR', 0.077, this.M.pantsR, 'legR'); J('hipL', 0.077, this.M.pantsL, 'legL');
     // 手（右手握球、左手手套）
-    this.handR = mk(UNIT_SPHERE, this.M.skinR, 'armR'); this.handR.scale.set(0.045, 0.028, 0.038);
-    this.handL = mk(UNIT_SPHERE, this.M.skinL, 'armL'); this.handL.scale.set(0.045, 0.028, 0.038); this.handL.visible = false;
+    this.handR = this.makeHand(this.M.skinR, 'armR', +1);
+    this.handL = this.makeHand(this.M.skinL, 'armL', -1); this.handL.visible = false;
     this.gloveMesh = this.makeGlove(mk);
     // 鞋子
     this.shoes = { R: this.makeShoe(mk, this.M.shoeR, 'footR'), L: this.makeShoe(mk, this.M.shoeL, 'footL') };
@@ -276,34 +359,129 @@ export class Pitcher {
     this.pose = null;
   }
 
-  makeGlove(mk) {
-    const g = new THREE.Group();
-    const palm = new THREE.Mesh(UNIT_SPHERE, this.M.glove); palm.scale.set(0.105, 0.042, 0.082);
-    const fingers = new THREE.Mesh(UNIT_SPHERE, this.M.glove); fingers.scale.set(0.085, 0.036, 0.075); fingers.position.set(0.1, 0.004, 0);
-    const thumb = new THREE.Mesh(UNIT_SPHERE, this.M.glove); thumb.scale.set(0.055, 0.03, 0.032); thumb.position.set(0.03, 0.01, 0.075); thumb.rotation.y = -0.5;
-    for (const m of [palm, fingers, thumb]) { m.castShadow = this.castShadow; g.add(m); }
+  makeHand(mat, part, side) {
+    // 手掌 + 微彎的四指 + 大拇指（局部：x 手指方向、y 掌心方向、z = x×y；右手大拇指在 +z）
+    const g = new THREE.Group(), meshes = [];
+    const add = (geo, pos, scale, quat) => {
+      const m = new THREE.Mesh(geo, mat); m.position.copy(pos); if (scale) m.scale.copy(scale); if (quat) m.quaternion.copy(quat);
+      m.castShadow = this.castShadow; g.add(m); meshes.push(m); return m;
+    };
+    add(UNIT_SPHERE, V(-0.006, 0, 0), V(0.04, 0.02, 0.037));
+    add(UNIT_SPHERE, V(0.036, 0.009, -side * 0.003), V(0.032, 0.017, 0.035), new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), 0.55));
+    const a = V(-0.018, 0.008, side * 0.03), b = V(0.018, 0.022, side * 0.043);
+    const d = b.clone().sub(a);
+    add(new THREE.CapsuleGeometry(0.0115, d.length(), 4, 10), a.clone().add(b).multiplyScalar(0.5), null, new THREE.Quaternion().setFromUnitVectors(Y_UP, d.normalize()));
     this.group.add(g);
-    (this.parts.armL = this.parts.armL || []).push(palm, fingers, thumb);
+    (this.parts[part] = this.parts[part] || []).push(...meshes);
+    return g;
+  }
+
+  makeGlove(mk) {
+    // 棒球手套（左手）：局部座標 x = 手指方向、y = 掌心（手套口袋）方向、z = 小指側；大拇指在 -z 側
+    const g = new THREE.Group();
+    const M = this.M, meshes = [];
+    const add = (geo, mat, pos, quat, scale) => {
+      const m = new THREE.Mesh(geo, mat);
+      if (pos) m.position.copy(pos); if (quat) m.quaternion.copy(quat); if (scale) m.scale.copy(scale);
+      m.castShadow = this.castShadow; g.add(m); meshes.push(m); return m;
+    };
+    const blob = (mat, pos, scale, rot) => add(UNIT_SPHERE, mat, pos, rot ? new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)) : null, scale);
+    const capGeo = {};
+    const seg = (a, b, r, mat) => {
+      const d = b.clone().sub(a), len = d.length();
+      const key = r.toFixed(4) + '_' + len.toFixed(4);
+      const geo = capGeo[key] || (capGeo[key] = new THREE.CapsuleGeometry(r, len, 6, 14));
+      return add(geo, mat, a.clone().add(b).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(Y_UP, d.normalize()));
+    };
+    // 手指：兩節，往口袋方向微彎
+    const curl = (dir, deg) => dir.clone().applyAxisAngle(V(0, 0, 1), deg * DEG).normalize();
+    const finger = (base, dir, L1, L2, r, c1, c2) => {
+      const d1 = curl(dir, c1), j = base.clone().add(d1.multiplyScalar(L1));
+      const d2 = curl(dir, c2), tip = j.clone().add(d2.multiplyScalar(L2));
+      seg(base, j, r, M.glove); seg(j, tip, r * 0.96, M.glove);
+      return tip;
+    };
+    // 手背主體與掌心
+    blob(M.glove, V(-0.006, -0.004, 0.002), V(0.09, 0.036, 0.08));
+    // 口袋（較深的皮革）
+    blob(M.gloveDark, V(0.022, 0.021, -0.01), V(0.062, 0.013, 0.056));
+    // 手套根部的厚墊
+    blob(M.glove, V(-0.068, 0.006, 0.004), V(0.032, 0.032, 0.074));
+    // 手背的腕帶 + 橘色小標
+    blob(M.gloveDark, V(-0.05, -0.024, 0.006), V(0.018, 0.017, 0.062));
+    blob(M.glovePatch, V(-0.05, -0.04, 0.012), V(0.01, 0.0035, 0.018));
+    // 四根手指（食指靠大拇指）
+    const tips = [];
+    // 手套的手指很粗、彼此縫在一起，整體像一把張開的扇子
+    const FZ = [-0.045, -0.0155, 0.0135, 0.041], L1 = [0.08, 0.086, 0.08, 0.068], L2 = [0.058, 0.064, 0.058, 0.05], FR = [0.0225, 0.023, 0.0225, 0.0215];
+    for (let i = 0; i < 4; i++) {
+      const dir = V(1, 0, (i - 1.5) * 0.04).normalize();
+      tips.push(finger(V(0.035, 0.0, FZ[i]), dir, L1[i], L2[i], FR[i], 4, 16));
+    }
+    // 大拇指：斜向外張、往口袋彎
+    const thumbTip = finger(V(-0.035, 0.004, -0.064), V(0.9, 0, -0.43).normalize(), 0.075, 0.056, 0.0215, 8, 24);
+    // 網子：大拇指與食指之間（淺色皮革 + 深色橫條）
+    // 網子：填滿大拇指與食指之間，上緣接近指尖高度
+    const webC = V(0.105, 0.02, -0.088);
+    blob(M.glove, webC, V(0.075, 0.011, 0.036), [0, -0.38, 0.18]);
+    for (let k = -1; k <= 1; k++) {
+      const c = webC.clone().add(V(k * 0.036, 0.008, k * 0.016));
+      blob(M.gloveLace, c, V(0.006, 0.004, 0.03), [0, -0.42, 0.16]);
+    }
+    // 指尖之間的綁繩
+    const lacePts = [thumbTip.clone(), ...tips].map(p => p.clone().add(V(0.004, 0.004, 0)));
+    const laceGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(lacePts.slice(1)), 24, 0.0035, 6, false);
+    add(laceGeo, M.gloveLace);
+    for (const t of tips) blob(M.gloveLace, t.clone().add(V(0.012, 0.002, 0)), V(0.006, 0.006, 0.012));
+    // 根部綁繩
+    for (let k = 0; k < 5; k++) blob(M.gloveLace, V(-0.09, 0.012, -0.04 + k * 0.022), V(0.004, 0.005, 0.008));
+    this.group.add(g);
+    (this.parts.armL = this.parts.armL || []).push(...meshes);
     return g;
   }
 
   makeShoe(mk, mat, part) {
-    const g = new THREE.Group();
-    const upper = new THREE.Mesh(UNIT_SPHERE, mat); upper.scale.set(0.125, 0.052, 0.048); upper.position.set(0.02, 0.045, 0);
-    const sole = new THREE.Mesh(new THREE.BoxGeometry(0.255, 0.018, 0.092), this.M.sole); sole.position.set(0.005, 0.009, 0);
-    const toe = new THREE.Mesh(UNIT_SPHERE, mat); toe.scale.set(0.06, 0.036, 0.046);
-    const toeSole = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.016, 0.085), this.M.sole);
-    for (const m of [upper, sole, toe, toeSole]) { m.castShadow = this.castShadow; m.receiveShadow = false; }
-    g.add(upper, sole); this.group.add(g, toe, toeSole);
-    (this.parts[part] = this.parts[part] || []).push(upper, sole, toe, toeSole);
-    return { g, toe, toeSole };
+    // 一整隻鞋（鞋面 + 薄鞋底）。頂點每格依「後腳掌／腳趾」兩段座標系變形，在前腳掌處自然彎折
+    const upper = new THREE.Mesh(shoeGeometry(false), mat);
+    const sole = new THREE.Mesh(shoeGeometry(true), this.M.sole);
+    for (const m of [upper, sole]) {
+      m.castShadow = this.castShadow; m.receiveShadow = false; m.frustumCulled = false;
+      m.userData.rest = Float32Array.from(m.geometry.attributes.position.array);
+      this.group.add(m);
+    }
+    (this.parts[part] = this.parts[part] || []).push(upper, sole);
+    return { upper, sole };
+  }
+
+  skinShoe(sh, leg) {
+    const lat = leg.fw.clone().cross(leg.up).normalize();
+    let tup = leg.tw.clone().cross(leg.fw0.clone().cross(Y_UP)).normalize().negate();
+    if (tup.y < 0) tup.negate();
+    const lat2 = leg.tw.clone().cross(tup).normalize();
+    const b = leg.ball, fw = leg.fw, up = leg.up, tw = leg.tw;
+    for (const m of [sh.upper, sh.sole]) {
+      const R = m.userData.rest, P = m.geometry.attributes.position.array;
+      for (let i = 0; i < R.length; i += 3) {
+        const x = R[i], y = R[i + 1], z = R[i + 2];
+        const w = smooth01((x + 0.022) / 0.034);
+        const ax = b.x + fw.x * x + up.x * y + lat.x * z, ay = b.y + fw.y * x + up.y * y + lat.y * z, az = b.z + fw.z * x + up.z * y + lat.z * z;
+        const bx = b.x + tw.x * x + tup.x * y + lat2.x * z, by = b.y + tw.y * x + tup.y * y + lat2.y * z, bz = b.z + tw.z * x + tup.z * y + lat2.z * z;
+        P[i] = ax + (bx - ax) * w; P[i + 1] = ay + (by - ay) * w; P[i + 2] = az + (bz - az) * w;
+      }
+      m.geometry.attributes.position.needsUpdate = true;
+      m.geometry.computeVertexNormals();
+    }
   }
 
   makeTorso(mk) {
     // 橫切面（半寬 a：左右，半深 b：前後，前後偏移 off），沿脊椎由下而上
     this.rings = [
-      { s: -0.075, a: 0.150, b: 0.105, off: -0.012 },
-      { s: 0.00, a: 0.172, b: 0.118, off: -0.01 },
+      { s: -0.118, a: 0.050, b: 0.050, off: -0.02 },
+      { s: -0.102, a: 0.088, b: 0.066, off: -0.022 },
+      { s: -0.08, a: 0.114, b: 0.082, off: -0.02 },
+      { s: -0.055, a: 0.134, b: 0.098, off: -0.016 },
+      { s: -0.03, a: 0.150, b: 0.108, off: -0.013 },
+      { s: 0.00, a: 0.170, b: 0.118, off: -0.01 },
       { s: 0.068, a: 0.164, b: 0.110, off: -0.006, col: 'pants' },
       { s: 0.074, a: 0.166, b: 0.112, off: -0.006, col: 'belt' },
       { s: 0.106, a: 0.160, b: 0.107, off: -0.004, col: 'belt' },
@@ -316,7 +494,7 @@ export class Pitcher {
       { s: 0.525, a: 0.15, b: 0.085, off: -0.004 },
       { s: 0.545, a: 0.07, b: 0.058, off: 0.0 },
     ];
-    this.ringN = 28;
+    this.ringN = 56;
     const nR = this.rings.length, nS = this.ringN;
     const pos = new Float32Array((nR * nS + 2) * 3);
     const idx = [];
@@ -371,20 +549,8 @@ export class Pitcher {
       J['knee' + side].position.copy(leg.knee);
       J['ankle' + side].position.copy(leg.ankle);
       J['hip' + side].position.copy(leg.hip);
-      // 鞋：後腳掌段 + 腳趾段
-      const sh = this.shoes[side];
-      const mid = leg.ball.clone().sub(leg.fw.clone().multiplyScalar(0.095));
-      const base = mid.clone().sub(leg.up.clone().multiplyScalar(0.0));
-      sh.g.position.copy(base);
-      const m = new THREE.Matrix4().makeBasis(leg.fw, leg.up, leg.fw.clone().cross(leg.up).normalize());
-      sh.g.quaternion.setFromRotationMatrix(m);
-      const tup = leg.tw.clone().cross(leg.fw0.clone().cross(Y_UP)).normalize().negate();
-      const tupV = tup.y < 0 ? tup.negate() : tup;
-      const m2 = new THREE.Matrix4().makeBasis(leg.tw, tupV, leg.tw.clone().cross(tupV).normalize());
-      sh.toe.quaternion.setFromRotationMatrix(m2);
-      sh.toe.position.copy(leg.ball.clone().add(leg.tw.clone().multiplyScalar(0.035)).add(tupV.clone().multiplyScalar(0.03)));
-      sh.toeSole.quaternion.copy(sh.toe.quaternion);
-      sh.toeSole.position.copy(leg.ball.clone().add(leg.tw.clone().multiplyScalar(0.035)).add(tupV.clone().multiplyScalar(0.008)));
+      // 鞋：整隻鞋依腳掌、腳趾兩段變形
+      this.skinShoe(this.shoes[side], leg);
     }
     // 手臂
     for (const [side, arm] of [['R', S.rArm], ['L', S.lArm]]) {

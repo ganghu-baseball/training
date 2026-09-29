@@ -36,7 +36,13 @@ fs.writeFileSync('build/timeline.json', JSON.stringify(out, null, 1));
 fs.mkdirSync('dist', { recursive: true });
 const fmt = s => { const ms = Math.round(s * 1000); const h = Math.floor(ms / 3600000), mi = Math.floor(ms / 60000) % 60, se = Math.floor(ms / 1000) % 60, mm = ms % 1000;
   return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}:${String(se).padStart(2, '0')},${String(mm).padStart(3, '0')}`; };
-fs.writeFileSync('dist/投球原理動畫_字幕.srt', subtitles.map((s, i) => `${i + 1}\n${fmt(s.t0)} --> ${fmt(s.t1)}\n${s.text}\n`).join('\n'));
+// 主課程與額外課程是兩支影片：字幕各自從 0 開始
+const bonus = scenes.find(s => s.part === 3);
+const T = bonus ? bonus.t0 : out.duration;
+const srt = (list, off) => list.map((s, i) => `${i + 1}\n${fmt(s.t0 - off)} --> ${fmt(s.t1 - off)}\n${s.text}\n`).join('\n');
+for (const f of fs.readdirSync('dist')) if (f.endsWith('.srt')) fs.unlinkSync('dist/' + f);
+fs.writeFileSync('dist/投球原理_主課程_字幕.srt', srt(subtitles.filter(s => s.t0 < T), 0));
+if (bonus) fs.writeFileSync('dist/投球原理_額外課程_字幕.srt', srt(subtitles.filter(s => s.t0 >= T), T));
 const mins = Math.floor(t / 60), secs = Math.round(t % 60);
 console.log(`scenes ${scenes.length}, subtitles ${subtitles.length}, duration ${t.toFixed(1)}s (${mins}m${secs}s)`);
 // 章節時間表
