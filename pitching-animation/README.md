@@ -40,7 +40,7 @@ python3 tools/asr_check.py                                # （選用）用語�
 node tools/build_timeline.mjs                             # 依旁白長度排時間軸、輸出字幕 SRT
 python3 tools/mix_audio.py                                # 旁白 + 程式生成的配樂 + 音效
 node tools/render.mjs --out build/master_video.mp4        # 平行渲染（分段、可中斷後續跑）
-python3 tools/finalize.py                                 # 合成 1080p、無配樂版、720p
+python3 tools/finalize.py                                 # 合成 1080p、無配樂版、720p（另切成三段 <30 MB）
 node tools/make_script_doc.mjs                            # 輸出含章節時間的旁白腳本
 ```
 

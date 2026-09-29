@@ -25,6 +25,17 @@ run(['-i', V, '-i', 'build/mix.wav', '-i', 'build/chapters.ffmeta', '-map', '0:v
 run(['-i', V, '-i', 'build/voice.wav', '-i', 'build/chapters.ffmeta', '-map', '0:v', '-map', '1:a', '-map_metadata', '2', '-map_chapters', '2',
      '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', 'dist/投球原理動畫_1080p_無配樂.mp4'])
 # 720p（檔案較小，手機觀看）
+# 每個章節開頭強制關鍵影格，章節跳轉準確，也能在章節交界無損切段
+kf = ','.join(f'{t0:.3f}' for t0, _ in marks[1:])
 run(['-i', 'dist/投球原理動畫_1080p.mp4', '-map_chapters', '0', '-vf', 'scale=1280:720:flags=lanczos', '-c:v', 'libx264', '-preset', 'slow', '-crf', '24',
-     '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', 'dist/投球原理動畫_720p.mp4'])
+     '-force_key_frames', kf, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', 'dist/投球原理動畫_720p.mp4'])
+# 分成三段（每段 < 30 MB，方便用通訊軟體傳送）：開場～第 5 章、第 6～10 章、第 11 章～結尾
+cuts = [next(s['t0'] for s in tl['scenes'] if s.get('chapter') == c) for c in (6, 11)]
+parts = [(0.0, cuts[0], '第1部_開場到第5章'), (cuts[0], cuts[1], '第2部_第6到10章'), (cuts[1], tl['duration'], '第3部_第11章到結尾')]
+import math
+kfAt = lambda t: math.ceil(t * 30 - 1e-6) / 30      # 強制關鍵影格落在時間點之後的第一格
+for t0, t1, name in parts:
+    a, b = (kfAt(t0) + 0.001 if t0 > 0 else 0.0), (kfAt(t1) if t1 < tl['duration'] else tl['duration'])
+    run(['-ss', f'{a:.3f}', '-to', f'{b:.3f}', '-i', 'dist/投球原理動畫_720p.mp4', '-map', '0:v', '-map', '0:a', '-c', 'copy',
+         '-avoid_negative_ts', 'make_zero', '-movflags', '+faststart', f'dist/投球原理動畫_720p_{name}.mp4'])
 for f in sorted(os.listdir('dist')): print(f, round(os.path.getsize('dist/' + f) / 1e6, 1), 'MB')
