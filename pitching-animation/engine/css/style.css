@@ -1,0 +1,92 @@
+/* 投球原理動畫｜畫面設計系統：深藍底 + 橘色重點 */
+:root {
+  --navy: #233D4D; --navy2: #2C4B5E; --ink: #152632; --deep: #0E1B24;
+  --or: #FE7F2D; --or-l: #FF9A52; --or-d: #C2560D; --yellow: #FCCA46;
+  --sage: #A1C181; --teal: #619B8A; --paper: #F7F6F0; --red: #F25C54; --muted: #A9BCC8;
+  --panel: rgba(12, 24, 33, 0.80);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0E1B24; }
+body { font-family: 'Noto Sans TC', sans-serif; color: var(--paper); -webkit-font-smoothing: antialiased; }
+#stage { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; }
+#gl { position: absolute; inset: 0; }
+#gl canvas { display: block; }
+#ov { position: absolute; inset: 0; pointer-events: none; }
+.scene { position: absolute; inset: 0; display: none; }
+.scene.on { display: block; }
+.abs { position: absolute; }
+.num { font-family: 'Barlow Condensed', 'Noto Sans TC', sans-serif; font-weight: 700; }
+
+/* 暗角 */
+#vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(4,10,15,0.55) 100%); }
+#curtain { position: absolute; inset: 0; background: #0E1B24; opacity: 0; }
+
+/* 字幕 */
+#subs { position: absolute; left: 0; right: 0; bottom: 46px; display: flex; justify-content: center; }
+#subs .sub {
+  max-width: 1560px; padding: 12px 34px 14px; border-radius: 16px;
+  background: rgba(8, 17, 24, 0.66); color: #fff; font-size: 46px; font-weight: 700; line-height: 1.38;
+  letter-spacing: 1.5px; text-align: center; text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  border-bottom: 3px solid rgba(254,127,45,0.85);
+}
+#subs .sub em { font-style: normal; color: var(--or-l); }
+
+/* 面板（重點條列） */
+.panel {
+  position: absolute; background: var(--panel); border-radius: 26px; padding: 34px 40px 36px;
+  border: 1px solid rgba(255,255,255,0.09); box-shadow: 0 24px 70px rgba(0,0,0,0.38);
+  border-left: 8px solid var(--or);
+}
+.panel h3 { font-size: 50px; font-weight: 900; line-height: 1.25; margin-bottom: 20px; letter-spacing: 1px; }
+.panel h3 small { display: block; font-size: 26px; font-weight: 700; color: var(--or-l); letter-spacing: 4px; margin-bottom: 6px; }
+.panel .items { display: flex; flex-direction: column; gap: 18px; }
+.item { display: flex; align-items: flex-start; gap: 18px; font-size: 36px; font-weight: 700; line-height: 1.35; }
+.item .ic { flex: 0 0 auto; width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 30px; font-weight: 900; margin-top: 0px; }
+.ic.ok { background: var(--sage); color: #17301f; }
+.ic.no { background: var(--red); color: #3a0d0b; }
+.ic.dot { background: var(--or); color: #3a1604; }
+.ic.n { background: rgba(255,255,255,0.12); color: var(--or-l); font-family: 'Barlow Condensed', sans-serif; font-size: 34px; }
+.item .sub2 { display: block; font-size: 27px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+
+/* 章節卡 */
+.chapter { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.chapter .box { text-align: left; display: flex; align-items: center; gap: 56px; }
+.chapter .no { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 300px; line-height: 0.8; color: var(--or); letter-spacing: -6px; }
+.chapter .tt { font-size: 96px; font-weight: 900; line-height: 1.15; letter-spacing: 3px; }
+.chapter .tt small { display: block; font-size: 34px; font-weight: 700; color: var(--or-l); letter-spacing: 12px; margin-bottom: 18px; }
+.chapter .bar { height: 8px; width: 220px; background: var(--or); border-radius: 4px; margin-top: 26px; }
+
+/* 3D 標籤 */
+.tag { position: absolute; transform: translate(-50%, -50%); padding: 8px 22px 10px; border-radius: 40px; font-size: 32px; font-weight: 900;
+  white-space: nowrap; background: var(--or); color: #1b0d04; box-shadow: 0 8px 22px rgba(0,0,0,0.35); letter-spacing: 1px; }
+.tag.light { background: var(--paper); color: var(--ink); }
+.tag.ok { background: var(--sage); color: #14301c; }
+.tag.no { background: var(--red); color: #fff; }
+.tag.dark { background: rgba(12,24,33,0.85); color: #fff; border: 2px solid var(--or); }
+.bigmark { position: absolute; transform: translate(-50%, -50%); width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 64px; font-weight: 900; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+.bigmark.ok { background: var(--sage); color: #14301c; }
+.bigmark.no { background: var(--red); color: #fff; }
+.cap { position: absolute; transform: translateX(-50%); font-size: 38px; font-weight: 900; text-align: center; white-space: nowrap; letter-spacing: 1px; }
+.cap small { display: block; font-size: 27px; font-weight: 700; color: var(--muted); margin-top: 4px; letter-spacing: 0; }
+.cap.bg { background: rgba(10, 21, 29, 0.8); padding: 12px 30px 14px; border-radius: 20px; }
+.cap.bg small { color: #C9D3D9; }
+
+/* 標題型大字 */
+.hero { position: absolute; left: 0; right: 0; text-align: center; }
+.hero h1 { font-size: 118px; font-weight: 900; letter-spacing: 8px; line-height: 1.12; text-shadow: 0 10px 40px rgba(0,0,0,0.45); }
+.hero h1 em { font-style: normal; color: var(--or); }
+.hero p { font-size: 42px; font-weight: 700; color: var(--muted); letter-spacing: 6px; margin-top: 22px; }
+.kicker { font-size: 30px; font-weight: 900; letter-spacing: 14px; color: var(--or-l); }
+
+/* 通用卡片 */
+.card { position: absolute; background: var(--panel); border-radius: 24px; border: 1px solid rgba(255,255,255,0.09);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35); padding: 26px 30px; }
+.card h4 { font-size: 40px; font-weight: 900; margin-bottom: 10px; }
+.card p { font-size: 30px; font-weight: 500; color: #dfe8ee; line-height: 1.45; }
+.pill { display: inline-block; padding: 6px 18px; border-radius: 30px; font-size: 26px; font-weight: 900; background: var(--or); color: #1b0d04; }
+.hl { color: var(--or-l); }
+.okc { color: var(--sage); }
+.noc { color: var(--red); }
+svg text { font-family: 'Noto Sans TC', sans-serif; }
