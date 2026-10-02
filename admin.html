@@ -273,7 +273,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.09.24';
+var APPVER='2026.09.26';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -839,9 +839,12 @@ function stuRow(s){
 function vStu(){
  return '<h2>報名排課</h2><div class="hint">報名時一次登記學員、繳費與上課日期，不用分兩次做。</div>'
  +'<div class="card"><button class="btn full" data-act="newen">'+svg('plus',16)+' 新增報名（含繳費與排課）</button>'
+ +'<button class="btn nav full" data-act="newgrp" style="margin-top:9px">'+svg('plus',16)
+ +' 團班整班報名／續購（一次處理多人）</button>'
  +'<div class="row" style="margin-top:9px">'
- +'<button class="btn sec sm" data-act="newstuonly">只建立學員</button></div>'
- +'<div class="mini">既有學員要加課或續購，點下面清單裡他的名字。</div></div>'
+ +'<button class="btn sec sm" data-act="newstuonly">只建立學員</button>'
+ +'<button class="btn sec sm" data-act="handover">教練交接（整批換教練）</button></div>'
+ +'<div class="mini">單一學員要加課或續購，點下面清單裡他的名字。</div></div>'
  +'<div class="seg">'+['學員','課程'].map(function(c){
    return '<button data-seg="'+c+'" class="'+(stuSeg===c?'on':'')+'">'+c+'</button>';}).join('')+'</div>'
  +(stuSeg==='學員'?vStuList():vLes());
@@ -1254,6 +1257,94 @@ function stuLessons(name){
     +'</div>';
  })();
 }
+/* ---- 團班整班報名／續購 ---- */
+/* 現有的多人課程系列，供「帶入名單」用 */
+function groupSeries(){
+ var map={};
+ LES().forEach(function(l){
+  if(l.status==='取消'||planFam(l.plan)==='s')return;
+  if((l.students||[]).length<2)return;
+  var k=seriesKey(l);
+  if(!map[k]||l.date>map[k].date)map[k]=l;});
+ return Object.keys(map).map(function(k){return map[k];})
+  .sort(function(a,b){return a.date<b.date?1:-1;});
+}
+function fGroupEn(seedId){
+ var seed=seedId?byId(DB.lessons,seedId):null;
+ var names=seed?(seed.students||[]).join('、'):'';
+ var series=groupSeries();
+ calInit([]);
+ openSheet(head('團班整班報名／續購')
+ +'<div class="fbox"><div class="ttl">學員名單</div>'
+ +(series.length?'<label>帶入現有團班</label><select id="g_seed">'
+   +'<option value="">自己打名單</option>'
+   +series.map(function(l){
+     return '<option value="'+l.id+'"'+(seed&&seed.id===l.id?' selected':'')+'>'
+      +esc(l.coach)+'　'+DAYN[dowOf(l.date)]+' '+esc(l.start)+'　'
+      +esc((l.students||[]).join('、'))+'</option>';}).join('')
+   +'</select>':'')
+ +'<label>學員姓名（用「、」分隔）</label>'
+ +'<input id="g_names" value="'+esc(names)+'" placeholder="例如 洪子硯、林禹學、官彧辰">'
+ +'<div class="mini" id="g_cnt">不在名單裡的名字，儲存後會自動建立學員。</div></div>'
+ +'<div class="fbox"><div class="ttl">繳費（每人）</div>'
+ +'<div class="mini" style="margin:6px 0 0">選好方案會自動帶出堂數與金額，下面的金額是<b>每一位</b>要繳的。'
+ +'全部留白就只排課、不記帳。</div>'
+ +buyBlock(null,'b_')+'</div>'
+ +'<div class="fbox"><div class="ttl">排課</div>'
+ +'<label>教練</label><select id="f_coach"><option value="">先不排課</option>'
+ +COACHES.map(function(c){return '<option'+(seed&&seed.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select>'
+ +'<div class="grid2"><div><label>開始時間</label><select id="f_start">'
+ +timeOpts(seed?seed.start:'18:00')+'</select></div>'
+ +'<div><label>每堂時間</label><select id="f_dur">'
+ +[[60,'60 分鐘'],[90,'90 分鐘'],[120,'120 分鐘']].map(function(o){
+   var dur=seed?Math.max(30,t2m(seed.end)-t2m(seed.start)):60;
+   return '<option value="'+o[0]+'"'+(o[0]===dur?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></div></div>'
+ +'<label>每次上課幾堂</label><select id="f_per">'
+ +[[1,'1 堂'],[2,'2 堂連上'],[3,'3 堂連上']].map(function(o){
+   return '<option value="'+o[0]+'"'+(o[0]===1?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'
+ +'<label>場地</label><select id="f_venue">'
+ +['彩虹少棒場','打擊籠','麥帥二橋下'].map(function(v){
+   return '<option'+(seed&&seed.venue===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select>'
+ +'<label>上課日期</label>'
+ +'<div class="mini" style="margin:0 0 2px">點那天就加入。點第一天之後按「每週同一天排滿」，'
+ +'會照上面填的堂數排好，整班每個人都會一起排進去。</div>'
+ +calBlock()+'</div>'
+ +'<div class="row" style="margin-top:18px">'
+ +'<button class="btn" data-act="saveGrp">完成整班報名</button></div>');
+}
+
+/* ---- 教練交接 ---- */
+function fHandover(from){
+ var t=today();
+ var cnt=function(c){return LES().filter(function(l){
+  return l.coach===c&&l.status!=='取消'&&l.status!=='已完成';}).length;};
+ var list=from?LES().filter(function(l){
+  return l.coach===from&&l.status!=='取消'&&l.status!=='已完成';})
+  .sort(function(a,b){return a.date<b.date?-1:1;}):[];
+ openSheet(head('教練交接')
+ +'<div class="fbox"><div class="ttl">把課程整批換給另一位教練</div>'
+ +'<label>原教練</label><select id="h_from"><option value="">請選擇</option>'
+ +COACHES.map(function(c){
+   return '<option'+(from===c?' selected':'')+'>'+c+'（還有 '+cnt(c)+' 堂）</option>';}).join('')+'</select>'
+ +(from?'<div class="mini">'+from+' 目前還有 <b>'+list.length+'</b> 堂還沒上的課'
+   +(list.length?'，'+list[0].date.replace(/-/g,'/')+' ～ '+list[list.length-1].date.replace(/-/g,'/'):'')
+   +'。</div>':'<div class="mini">先選原教練，下面才會顯示要轉移的課。</div>')
+ +'<label>交給哪位教練</label><select id="h_to"><option value="">請選擇</option>'
+ +COACHES.filter(function(c){return c!==from;}).map(function(c){
+   return '<option>'+c+'</option>';}).join('')+'</select>'
+ +'<label>從哪一天之後的課開始轉</label><input type="date" id="h_since" value="'+t+'">'
+ +'<div class="mini">預設從今天起。已經上完的課不會動到。</div></div>'
+ +(list.length?'<div class="card" style="margin-bottom:0;max-height:220px;overflow:auto">'
+   +list.map(function(l){
+    return '<div class="m" style="padding:4px 0;border-bottom:1px solid var(--line2)">'
+     +l.date.replace(/-/g,'/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）'+esc(l.start)
+     +'　'+esc((l.students||[]).join('、')||'未填學員')+'</div>';}).join('')
+   +'</div>':'')
+ +'<div class="row" style="margin-top:18px">'
+ +'<button class="btn" data-act="saveHand">確認交接</button>'
+ +'<button class="btn sec" data-act="close">取消</button></div>');
+}
+
 /* ---- 退費 ---- */
 function unitPriceOf(name){
  var bs=buysOf(name);
@@ -2550,6 +2641,83 @@ function bind(){
     if(e3&&confirm('刪除「'+(e3.item||e3.cat)+'」這筆紀錄？')){
      e3.del=1;touch('expenses',e3);persist();closeSheet();render();}
     return;}
+   if(a==='newgrp')return fGroupEn('');
+   if(a==='handover')return fHandover('');
+   if(a==='saveHand'){
+    var hf=val('h_from').replace(/（.*$/,''),ht=val('h_to'),hs=val('h_since')||today();
+    if(!hf||!ht)return alert('請選原教練和要交接的教練');
+    if(hf===ht)return alert('兩位是同一人');
+    var mv=LES().filter(function(l){
+     return l.coach===hf&&l.status!=='取消'&&l.status!=='已完成'&&l.date>=hs;});
+    if(!mv.length)return alert(hf+' 在 '+hs.replace(/-/g,'/')+' 之後沒有要轉移的課。');
+    var off=mv.filter(function(l){return !inAvail(ht,l.date,l.start,l.end);}).length;
+    var stu={};mv.forEach(function(l){(l.students||[]).forEach(function(n){stu[n]=1;});});
+    if(!confirm('把 '+hf+' 從 '+hs.replace(/-/g,'/')+' 起的 '+mv.length+' 堂課全部交給 '+ht+' 嗎？\n'
+      +'影響 '+Object.keys(stu).length+' 位學員，日期時間都不變。'
+      +(off?'\n\n注意：其中 '+off+' 堂不在 '+ht+' 的可排時段內。':'')))return;
+    mv.forEach(function(l){l.coach=ht;touch('lessons',l);});
+    STU().forEach(function(s){
+     if(stu[s.name]&&(s.coach===hf||!s.coach)){s.coach=ht;touch('students',s);}});
+    persist();closeSheet();render();
+    alert('已把 '+mv.length+' 堂課交接給 '+ht+'。');
+    return;}
+   if(a==='saveGrp'){
+    var gn=(val('g_names')||'').split(/[、,，\s]+/)
+      .map(function(x){return x.trim();}).filter(Boolean);
+    if(!gn.length)return alert('請填學員姓名');
+    var uniq=[];gn.forEach(function(n){if(uniq.indexOf(n)<0)uniq.push(n);});
+    if(uniq.length>6&&!confirm('名單有 '+uniq.length+' 人，超過團班上限 6 人，'
+      +'系統會自動拆成兩堂。確定嗎？'))return;
+    var bp2=buyPlan(val('b_plan'));
+    var lesplan=(bp2&&bp2.les)||'團班4人';
+    var ses=+val('b_n')||0,due=+val('b_due')||0;
+    var dts=CALSEL.slice();
+    if(val('f_coach')&&dts.length){
+     var dupG=[];
+     uniq.forEach(function(n){
+      dts.forEach(function(o){
+       if(LES().some(function(x){return x.status!=='取消'&&x.date===o.d&&x.start===o.s
+        &&(x.students||[]).indexOf(n)>=0;}))dupG.push(n+' '+o.d.slice(5));});});
+     if(dupG.length&&!confirm('這幾位在該時段已經有課了：\n'+dupG.slice(0,6).join('、')
+       +'\n\n還是要繼續嗎？（重複的不會再排一次）'))return;
+     var warnG=offHours(val('f_coach'),dts);
+     if(warnG&&!confirm(warnG))return;
+    }
+    if(!confirm('確認幫這 '+uniq.length+' 位辦理：'
+      +(ses||due?'\n每人 '+ses+' 堂、'+money(due):'\n（不記帳）')
+      +(dts.length?'\n排課 '+dts.length+' 堂（'+dts[0].d.replace(/-/g,'/')
+        +' ～ '+dts[dts.length-1].d.replace(/-/g,'/')+'）':'\n（不排課）')))return;
+    var made=0;
+    uniq.forEach(function(n){
+     var st3=STU().filter(function(x){return x.name===n;})[0];
+     if(!st3){
+      st3={id:uid(),del:0,name:n,parent:'',phone:'',ganghu:'是',
+        coach:val('f_coach'),note:''};
+      DB.students.push(st3);touch('students',st3);
+     }else if(!st3.coach&&val('f_coach')){
+      st3.coach=val('f_coach');touch('students',st3);
+     }
+     if(ses||due){
+      var pay3={id:uid(),del:0,student:n,plan:val('b_plan'),sessions:ses,
+        due:due,paid:due,method:val('b_method'),date:val('b_date')||today(),
+        note:val('b_note')};
+      DB.payments.push(pay3);touch('payments',pay3);
+     }
+    });
+    if(val('f_coach')&&dts.length){
+     dts.forEach(function(o){
+      uniq.forEach(function(n){
+       if(LES().some(function(x){return x.status!=='取消'&&x.date===o.d&&x.start===o.s
+        &&(x.students||[]).indexOf(n)>=0;}))return;
+       joinOrCreate({date:o.d,start:o.s,end:o.e,coach:val('f_coach'),plan:lesplan,
+         venue:val('f_venue'),status:'已排定',note:''},n);
+       });
+      made++;});
+    }
+    persist();closeSheet();render();
+    alert('完成：'+uniq.length+' 位學員'+(ses?'，每人 '+ses+' 堂':'')
+      +(made?'，已排 '+made+' 天的課':''));
+    return;}
    if(a==='refund'){return fRefund(b.dataset.nm);}
    if(a==='saveRefund'){
     var nmR=b.dataset.nm,rn=+val('r_n')||0,ra=+val('r_amt')||0;
@@ -3002,6 +3170,20 @@ function bind(){
  ['f_plan','f_stu'].forEach(function(k){var e=document.getElementById(k);
   if(e){e.onchange=upSplit;e.oninput=upSplit;}});
  /* 購課自動計價 */
+ var gs=document.getElementById('g_seed');
+ if(gs)gs.onchange=function(){fGroupEn(gs.value);};
+ var gnm=document.getElementById('g_names');
+ if(gnm)gnm.oninput=function(){
+  var c=document.getElementById('g_cnt');if(!c)return;
+  var arr=(gnm.value||'').split(/[、,，\s]+/).filter(Boolean);
+  var known=STU().map(function(s){return s.name;});
+  var neo=arr.filter(function(x){return known.indexOf(x)<0;});
+  c.innerHTML='共 <b>'+arr.length+'</b> 位'
+   +(neo.length?'　<span class="warnline">'+neo.join('、')+' 不在名單，儲存後會自動建立</span>'
+     :'　都在學員名單裡');
+ };
+ var hf2=document.getElementById('h_from');
+ if(hf2)hf2.onchange=function(){fHandover(hf2.value.replace(/（.*$/,''));};
  var xk=document.getElementById('x_kind');
  if(xk)xk.onchange=function(){
   var sel=document.getElementById('x_cat'),list=xk.value==='收入'?INCCAT:EXPCAT;
