@@ -113,9 +113,20 @@ def chime():
     n = int(1.6 * SR); tt = np.arange(n) / SR
     return sum(np.sin(2 * np.pi * fr * tt) * np.exp(-tt * d) * g for fr, d, g in [(1175, 2.2, 0.22), (1760, 3.0, 0.12), (2350, 4.0, 0.06)]).astype(np.float32)
 scenes = {s['id']: s for s in tl['scenes']}
-add(scenes['intro']['t0'] + 3.105, pop(), 0.9)        # 開場真實速度那一球進捕手手套
-mb = scenes['medball']['t0']
-add(mb + 0.6 + (2.10 - 0.35) + 0.40, thud(), 0.7)     # 藥球（原速）撞牆
+def crack():
+    # 木棒擊球的清脆聲：短促的寬頻噪音 + 高頻共振
+    n = int(0.18 * SR); tt = np.arange(n) / SR
+    noise = rng.standard_normal(n).astype(np.float32) * np.exp(-tt * 90)
+    ring = sum(np.sin(2 * np.pi * fr * tt) * np.exp(-tt * d) * g for fr, d, g in [(1850, 45, 0.5), (2900, 60, 0.3), (950, 30, 0.35)])
+    return ((noise * 0.6 + ring) * 0.8).astype(np.float32)
+if 'medball' in scenes:
+    add(scenes['intro']['t0'] + 3.105, pop(), 0.9)        # 開場真實速度那一球進捕手手套
+    mb = scenes['medball']['t0']
+    add(mb + 0.6 + (2.10 - 0.35) + 0.40, thud(), 0.7)     # 藥球（原速）撞牆
+else:
+    # 打擊課程開場：第一球揮空進手套、第二球平飛安打
+    add(scenes['intro']['t0'] + 1.30, pop(), 0.9)
+    add(scenes['intro']['t0'] + 2.3 + 1.25, crack(), 1.0)
 for s in tl['scenes']:
     if s.get('chapter'): add(s['t0'] + 0.15, chime(), 0.35)
 sfx *= 10 ** (-6 / 20)
