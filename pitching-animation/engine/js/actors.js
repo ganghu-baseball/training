@@ -3,12 +3,16 @@ import * as THREE from '../vendor/three.module.js';
 import { Pitcher, solveSkeleton, armAnglesFromTarget } from './rig.js';
 import { poseAt, ballFlight } from './motions.js';
 import { makeBaseball, makeMedball, makeWaterBag } from './world.js';
+import { Chibi, CHIBI_K, CHIBI_KL, xformSkeleton, invXformUpper } from './chibi.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 
 export class Actor {
   constructor(scene, opts = {}) {
-    this.pitcher = new Pitcher({ colors: opts.colors, castShadow: opts.castShadow });
+    this.chibi = !!opts.chibi;
+    this.pitcher = this.chibi ? new Chibi({ colors: opts.colors, castShadow: opts.castShadow, headR: opts.headR, number: opts.number }) : new Pitcher({ colors: opts.colors, castShadow: opts.castShadow });
+    // Q 版：以投手板（或指定錨點）為中心等比縮放
+    if (this.chibi) this.T = { A: opts.anchor ? V(...opts.anchor) : V(0, 0.254, 0), k: opts.k || CHIBI_K, kL: opts.kL || CHIBI_KL, off: V() };
     this.root = new THREE.Group();
     this.root.add(this.pitcher.group);
     scene.add(this.root);
@@ -31,12 +35,20 @@ export class Actor {
     const pose = poseAt(m, t);
     const kind = m.props.kind;
     if (kind === 'medball' || kind === 'waterbag' || kind === 'chest') this.applyHoldIK(pose, m, t);
-    pose.pel.x += this.offset.x; pose.pel.z += this.offset.z;
-    for (const f of [pose.rf, pose.lf]) { f.x += this.offset.x; f.z += this.offset.z; }
-    if (pose.head && pose.head.look) pose.head.look = [pose.head.look[0] + (m.props.lookFollow ? this.offset.x : 0), pose.head.look[1], pose.head.look[2] + this.offset.z];
-    const ground = pose.ground;
-    if (this.offset.x || this.offset.z) pose.ground = (x, z) => ground(x - this.offset.x, z - this.offset.z);
-    const S = this.pitcher.update(pose);
+    let S;
+    if (this.chibi) {
+      this.T.off = this.offset.clone();
+      if (o.look) pose.head.look = o.look;
+      if (pose.head && pose.head.look) pose.head.look = invXformUpper(new THREE.Vector3(...pose.head.look), new THREE.Vector3(pose.pel.x, pose.pel.y, pose.pel.z), this.T).toArray();
+      S = this.pitcher.update(pose, this.T);
+    } else {
+      pose.pel.x += this.offset.x; pose.pel.z += this.offset.z;
+      for (const f of [pose.rf, pose.lf]) { f.x += this.offset.x; f.z += this.offset.z; }
+      if (pose.head && pose.head.look) pose.head.look = [pose.head.look[0] + (m.props.lookFollow ? this.offset.x : 0), pose.head.look[1], pose.head.look[2] + this.offset.z];
+      const ground = pose.ground;
+      if (this.offset.x || this.offset.z) pose.ground = (x, z) => ground(x - this.offset.x, z - this.offset.z);
+      S = this.pitcher.update(pose);
+    }
     this.pitcher.setGlove(kind === 'pitch');
     this.S = S;
     this.updateProps(t, S, o);
@@ -90,7 +102,7 @@ export class Actor {
           const pose = poseAt(m, rel);
           pose.pel.x += this.offset.x; pose.pel.z += this.offset.z;
           for (const f of [pose.rf, pose.lf]) { f.x += this.offset.x; f.z += this.offset.z; }
-          rp = solveSkeleton(pose).rArm.ball.clone();
+          rp = this.chibi ? xformSkeleton(solveSkeleton(poseAt(m, rel)), this.T).rArm.ball.clone() : solveSkeleton(pose).rArm.ball.clone();
           this.relPos.set(key, rp);
         }
         const tgt = m.props.target ? V(...m.props.target) : V(18.3, 0.82, 0.05);
@@ -101,6 +113,10 @@ export class Actor {
         else this.ball.position.copy(tgt);  // 進手套
       }
       this.ball.rotation.x = t * 40; this.ball.rotation.z = t * 25;
+    } else if (kind === 'toss') {
+      // 低手拋球：出手前球在手上
+      this.ball.visible = o.showBall !== false && t < m.props.release;
+      this.ball.position.copy(S.rArm.ball);
     } else {
       this.ball.visible = false;
     }

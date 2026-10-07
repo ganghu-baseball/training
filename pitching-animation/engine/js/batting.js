@@ -7,6 +7,7 @@ import { Pitcher, solveSkeleton, armAnglesFromTarget } from './rig.js';
 import { poseAt, makePitch, EV } from './motions.js';
 import { makeBaseball } from './world.js';
 import { FLAT } from './terrain.js';
+import { Chibi, CHIBI_K, CHIBI_KL, xformUpper, invXformUpper, toonMat, addOutlines } from './chibi.js';
 
 const DEG = Math.PI / 180;
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -209,12 +210,58 @@ export function swingChannels(o = {}) {
   }
   if (o.style === 'noBrace') {
     // 前腳沒撐住：身體一直往前滑、前膝彎下去，頭跟著往前衝
-    c['pel.x'] = K([-2.2, 18.30], [-1.15, 18.30], [-0.50, 18.36], [-0.38, 18.375], [-0.25, 18.33], [-0.15, 18.24], [-0.08, 18.17], [0, 18.10], [0.15, 18.02], [0.5, 17.98], [1.0, 17.98]);
-    c['pel.y'] = K([-2.2, 0.875], [-1.15, 0.875], [-0.45, 0.865], [-0.25, 0.855], [-0.15, 0.835], [0, 0.815], [0.2, 0.81], [0.6, 0.83], [1.0, 0.83]);
+    c['pel.x'] = K([-2.2, 18.30], [-1.15, 18.30], [-0.50, 18.36], [-0.38, 18.375], [-0.25, 18.33], [-0.15, 18.24], [-0.08, 18.17], [0, 18.10], [0.15, 18.02], [0.5, 17.98], [1.0, 17.98]).map(([t, v]) => [remap(t), v]);
+    c['pel.y'] = K([-2.2, 0.875], [-1.15, 0.875], [-0.45, 0.865], [-0.25, 0.855], [-0.15, 0.835], [0, 0.815], [0.2, 0.81], [0.6, 0.83], [1.0, 0.83]).map(([t, v]) => [remap(t), v]);
     c['pel.yaw'] = mapKeys(c['pel.yaw'], -0.05, 1.0, v => v - 12);
     c['tr.flex'] = mapKeys(c['tr.flex'], -0.05, 1.0, v => v + 8);
     c['k.x'] = mapKeys(c['k.x'], 0.0, 1.0, v => v - 0.06);
     speed = 25;
+  }
+
+  // 跨步大小：small 小跨步、large 大跨步、none 不跨步（腳尖輕點）
+  if (o.stride && o.stride !== 'normal') {
+    const f = { small: 0.45, large: 1.7, none: 0.05 }[o.stride] ?? 1;
+    c['lf.x'] = c['lf.x'].map(([t, v]) => [t, 17.98 + (v - 17.98) * f]);
+    c['lf.y'] = c['lf.y'].map(([t, v]) => [t, v * Math.min(1, 0.3 + f * 0.7)]);
+    c['pel.x'] = c['pel.x'].map(([t, v]) => [t, t > -0.5 ? v + (1 - f) * 0.045 * Math.min(1, (t + 0.5) / 0.35) : v]);
+    if (o.stride === 'large') c['pel.y'] = c['pel.y'].map(([t, v]) => [t, t > -0.3 ? v - 0.035 * Math.min(1, (t + 0.3) / 0.15) : v]);
+  }
+  // 手的走法：bring 跨步時把手一起帶向投手；push 手往外推（提早與身體分開）
+  if (o.hands === 'bring') {
+    c['k.x'] = dropKeys(c['k.x'], -1.2, -0.09); c['k.x'].push([-1.2, 18.42], [-0.6, 18.38], [-0.35, 18.30], [-0.16, 18.25], [-0.11, 18.22]);
+    c['k.x'].sort((a, b) => a[0] - b[0]);
+    c['tr.twist'] = mapKeys(c['tr.twist'], -0.6, -0.05, v => v * 0.45);
+    speed = 24;
+  }
+  if (o.hands === 'push') {
+    c['k.z'] = mapKeys(c['k.z'], -0.5, -0.02, (v, t) => v - 0.2 * Math.sin(Math.PI * Math.min(1, (t + 0.5) / 0.5)));
+    c['k.x'] = mapKeys(c['k.x'], -0.5, -0.08, (v, t) => v - 0.08 * Math.min(1, (t + 0.5) / 0.3));
+    c['b.yaw'] = setKey(setKey(c['b.yaw'], -0.10, 22), -0.06, 48);
+    speed = 22; attack = 2;
+  }
+  // 刻意扭很大：前肩、骨盆收很多，接著趕不上球（場景用較晚的擊球時間表現）
+  if (o.style === 'overtwist') {
+    c['tr.twist'] = mapKeys(c['tr.twist'], -1.2, -0.05, v => v * 1.9);
+    c['pel.yaw'] = mapKeys(c['pel.yaw'], -1.2, -0.12, v => 90 + (v - 90) * 1.8);
+    c['k.x'] = mapKeys(c['k.x'], -0.9, -0.12, v => v + 0.06);
+    c['k.z'] = mapKeys(c['k.z'], -0.9, -0.12, v => v + 0.05);
+  }
+  // 不揮棒：一樣準備、跨步，但球不好就把球棒留住、放掉這一球
+  if (o.take) {
+    const tm = new Motion(c);
+    const hold = (name, keys) => { const v0 = tm.get(name, -0.15); c[name] = dropKeys(c[name], -0.149, 99).concat(keys.map(([t, v]) => [t, typeof v === 'function' ? v(v0) : v])); };
+    hold('pel.yaw', [[-0.06, v => v + 2], [0.15, v => v + 4], [0.7, 92], [1.0, 91]]);
+    hold('tr.twist', [[-0.06, v => v], [0.3, -10], [0.8, -3], [1.0, -2]]);
+    hold('tr.bend', [[0.2, -2], [1.0, 0]]);
+    hold('pel.x', [[0.0, v => v], [0.5, v => v + 0.02], [1.0, v => v + 0.03]]);
+    hold('pel.y', [[0.0, v => v + 0.01], [0.6, 0.865], [1.0, 0.87]]);
+    hold('rf.yaw', [[1.0, 93]]); hold('rf.pitch', [[1.0, 0]]); hold('rk.yaw', [[1.0, 0]]);
+    hold('lf.yaw', [[1.0, 84]]);
+    for (const n of ['k.x', 'k.y', 'k.z']) hold(n, [[-0.05, v => v], [0.25, v => v], [0.9, v => v + (n === 'k.y' ? -0.03 : n === 'k.x' ? -0.06 : -0.03)], [1.0, v => v + (n === 'k.y' ? -0.03 : n === 'k.x' ? -0.07 : -0.03)]]);
+    hold('b.yaw', [[0.0, v => v + 2], [0.4, 14], [1.0, 20]]);
+    hold('b.el', [[0.0, v => v + 2], [0.4, 50], [1.0, 55]]);
+    ct.ball = null;
+    return { c, ct, attack, speed, take: true };
   }
 
   // 擊球瞬間附近：由甜蜜點的位置、速度與仰角（攻擊角）反推握把位置，讓甜蜜點剛好通過擊球點
@@ -237,10 +284,10 @@ export function swingChannels(o = {}) {
 }
 
 export function makeSwing(o = {}) {
-  const { c, ct, attack, speed } = swingChannels(o);
+  const { c, ct, attack, speed, take } = swingChannels(o);
   return new Motion(c, {
     events: { LOAD: -1.6, STRIDE: -0.75, PLANT: -0.15, CONTACT: 0 },
-    props: { kind: 'swing', contact: ct, attack, speed, headLim: 112, ground: FLAT, style: o.style || 'good', loc: o.loc || 'middle' },
+    props: { kind: 'swing', contact: ct, attack, speed, headLim: 112, ground: FLAT, style: o.style || 'good', loc: o.loc || 'middle', take: !!take },
   });
 }
 
@@ -254,25 +301,37 @@ export function releasePoint() {
 // ─────────────────────────── 打者演員 ───────────────────────────
 export class Batter {
   constructor(scene, opts = {}) {
-    this.pitcher = new Pitcher({ colors: opts.colors, castShadow: opts.castShadow });
+    this.chibi = !!opts.chibi;
+    this.pitcher = this.chibi ? new Chibi({ colors: opts.colors, castShadow: opts.castShadow, headR: opts.headR, number: opts.number }) : new Pitcher({ colors: opts.colors, castShadow: opts.castShadow });
     this.root = new THREE.Group();
     this.root.add(this.pitcher.group);
     scene.add(this.root);
     const P = this.pitcher;
     const M = (color, part) => {
-      const m = new THREE.MeshLambertMaterial({ color });
+      const m = this.chibi ? toonMat(color, part) : new THREE.MeshLambertMaterial({ color });
       m.userData.part = part; m.userData.baseEmissive = new THREE.Color(0, 0, 0);
       P.mats.push(m); return m;
     };
-    this.batMats = { wood: M(opts.batColor || '#C9995E', 'bat'), tape: M('#2A2F33', 'bat'), stripe: M('#FE7F2D', 'bat') };
+    this.batMats = { wood: M(opts.batColor || (this.chibi ? '#D9A86A' : '#C9995E'), 'bat'), tape: M('#2A2F33', 'bat'), stripe: M('#FE7F2D', 'bat') };
     this.bat = makeBat(this.batMats);
     P.group.add(this.bat);
     this.fistR = makeFist(P.M.skinR, +1); this.fistL = makeFist(P.M.skinL, -1);
     P.group.add(this.fistR, this.fistL);
     (P.parts.armR = P.parts.armR || []).push(...this.fistR.children);
     (P.parts.armL = P.parts.armL || []).push(...this.fistL.children);
-    this.helmet = makeHelmet({ shell: M(opts.helmetColor || '#233D4D', 'head'), dark: M('#0c151c', 'head'), logo: M('#FE7F2D', 'head') });
-    P.group.add(this.helmet);
+    if (this.chibi) {
+      // Q 版：骨架以錨點縮放成小朋友，再往本壘板靠一點，讓甜蜜點仍在本壘板上方
+      this.T = { A: V(18.30, 0, 0.82), k: opts.k || CHIBI_K, kL: opts.kL || CHIBI_KL, tr: opts.tr ? V(...opts.tr) : V(-0.11, 0, -0.25), off: V() };
+      this.batScale = { r: this.T.k * 1.5 * (opts.batR || 1), l: this.T.k * 1.12 * (opts.batL || 1) };
+      this.bat.scale.set(this.batScale.r, this.batScale.l, this.batScale.r);
+      P.group.remove(this.fistR, this.fistL);
+      this.fistR = P.makeMitt(+1); this.fistL = P.makeMitt(-1);
+      addOutlines(this.bat, P.outlines);
+      this.helmet = P.makeHelmet(opts.helmetColor || '#233D4D');
+    } else {
+      this.helmet = makeHelmet({ shell: M(opts.helmetColor || '#233D4D', 'head'), dark: M('#0c151c', 'head'), logo: M('#FE7F2D', 'head') });
+      P.group.add(this.helmet);
+    }
     P.capGroup.visible = false;
     P.handR.visible = false; P.handL.visible = false; P.gloveMesh.visible = false;
     P.setGlove = () => {};    // 打者不戴手套
@@ -283,7 +342,10 @@ export class Batter {
     this.motion = null;
     this.offset = V(0, 0, 0);
     this.pitch = null;
+    this.mirror = false;
   }
+  // 左打：整個人以 z = 0（本壘板中線）鏡像
+  setMirror(on) { this.mirror = !!on; this.root.scale.z = on ? -1 : 1; }
   setMotion(m) { this.motion = m; }
   // 投球：{ rel:[x,y,z] 出手點, tRel 出手時間（揮棒時間）, cross:[x,y,z] 球經過的點, tCross, hit:{ev,la,spray} 或 null }
   setPitch(p) {
@@ -292,12 +354,33 @@ export class Batter {
     this.battedCache = null;
   }
 
-  batAt(t) {
+  // 一般比例的球棒（給手臂 IK 用；Q 版時不含位移）
+  batAdult(t) {
     const m = this.motion;
-    const k = V(m.get('k.x', t), m.get('k.y', t), m.get('k.z', t)).add(this.offset);
+    const k = V(m.get('k.x', t), m.get('k.y', t), m.get('k.z', t));
+    if (!this.chibi) k.add(this.offset);
     const D = batDir(m.get('b.yaw', t), m.get('b.el', t));
-    return { knob: k, D, sweet: k.clone().add(D.clone().multiplyScalar(BAT.sweet)), tip: k.clone().add(D.clone().multiplyScalar(BAT.len)),
-      gL: k.clone().add(D.clone().multiplyScalar(BAT.gripLow)), gR: k.clone().add(D.clone().multiplyScalar(BAT.gripHigh)) };
+    return { knob: k, D, gL: k.clone().add(D.clone().multiplyScalar(BAT.gripLow)), gR: k.clone().add(D.clone().multiplyScalar(BAT.gripHigh)) };
+  }
+  // 畫面上的球棒（Q 版時已縮放、含位移）
+  batAt(t, noOffset = false) {
+    const m = this.motion;
+    const D = batDir(m.get('b.yaw', t), m.get('b.el', t));
+    let k, L = BAT.len, S = BAT.sweet, g1 = BAT.gripLow, g2 = BAT.gripHigh;
+    if (this.chibi) {
+      const T = { ...this.T, off: this.T.tr.clone().add(noOffset ? V() : this.offset) };
+      k = xformUpper(V(m.get('k.x', t), m.get('k.y', t), m.get('k.z', t)), V(m.get('pel.x', t), m.get('pel.y', t), m.get('pel.z', t)), T);
+      L *= this.batScale.l; S *= this.batScale.l; g1 *= this.T.k; g2 *= this.T.k;
+    } else k = V(m.get('k.x', t), m.get('k.y', t), m.get('k.z', t)).add(noOffset ? V() : this.offset);
+    return { knob: k, D, sweet: k.clone().add(D.clone().multiplyScalar(S)), tip: k.clone().add(D.clone().multiplyScalar(L)),
+      gL: k.clone().add(D.clone().multiplyScalar(g1)), gR: k.clone().add(D.clone().multiplyScalar(g2)) };
+  }
+  // 某一瞬間甜蜜點前方的球心位置（擊球點；不含位移）
+  contactBall(t = 0, up = 0) {
+    const a = this.batAt(t, true), b = this.batAt(t + 0.004, true);
+    const dir = b.sweet.clone().sub(a.sweet).normalize();
+    const r = 0.0366 + 0.034 * (this.chibi ? this.batScale.r : 1);
+    return a.sweet.clone().add(dir.multiplyScalar(r)).add(V(0, up, 0));
   }
 
   // 由球棒位置反求兩隻手臂（上手 = 右手、下手 = 左手）
@@ -405,14 +488,25 @@ export class Batter {
     const m = this.motion;
     if (!m) return null;
     const pose = poseAt(m, t);
-    for (const f of [pose.rf, pose.lf]) { f.x += this.offset.x; f.z += this.offset.z; }
-    pose.pel.x += this.offset.x; pose.pel.z += this.offset.z;
-    const ground = pose.ground;
-    if (this.offset.x || this.offset.z) pose.ground = (x, z) => ground(x - this.offset.x, z - this.offset.z);
-    pose.head.look = (o.look || this.lookTarget(t)).toArray ? (o.look || this.lookTarget(t)).toArray() : o.look;
-    const bat = this.batAt(t);
-    this.armIK(pose, bat);
-    const S = this.pitcher.update(pose);
+    let look = o.look || this.lookTarget(t);
+    if (!look.isVector3) look = V(...look);
+    let S, bat;
+    if (this.chibi) {
+      this.T.off = this.T.tr.clone().add(this.offset);
+      pose.head.look = invXformUpper(look, V(pose.pel.x, pose.pel.y, pose.pel.z), this.T).toArray();
+      this.armIK(pose, this.batAdult(t));
+      S = this.pitcher.update(pose, this.T);
+      bat = this.batAt(t);
+    } else {
+      for (const f of [pose.rf, pose.lf]) { f.x += this.offset.x; f.z += this.offset.z; }
+      pose.pel.x += this.offset.x; pose.pel.z += this.offset.z;
+      const ground = pose.ground;
+      if (this.offset.x || this.offset.z) pose.ground = (x, z) => ground(x - this.offset.x, z - this.offset.z);
+      pose.head.look = look.toArray();
+      bat = this.batAt(t);
+      this.armIK(pose, bat);
+      S = this.pitcher.update(pose);
+    }
     this.S = S; this.batNow = bat;
     // 球棒
     this.bat.position.copy(bat.knob);
@@ -429,11 +523,11 @@ export class Batter {
     }
     this.pitcher.handR.visible = o.showBat === false; this.pitcher.handL.visible = o.showBat === false;
     // 頭盔
-    this.helmet.position.copy(S.head); this.helmet.quaternion.copy(S.qH);
+    if (!this.chibi) { this.helmet.position.copy(S.head); this.helmet.quaternion.copy(S.qH); }
     // 球
     const bp = o.showBall === false ? null : this.ballAt(t);
     this.ball.visible = !!bp && (!this.pitch.hideAfter || t < this.pitch.hideAfter);
-    if (bp) { this.ball.position.copy(bp); this.ball.rotation.set(t * 50, 0, t * 30); }
+    if (bp) { this.ball.position.copy(bp); this.ball.rotation.set(t * 50, 0, t * 30); if (this.mirror) this.ball.position.z *= -1; }
     return S;
   }
 }

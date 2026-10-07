@@ -9,6 +9,8 @@ import { solveSkeleton } from './rig.js';
 import * as DR from './drills.js';
 import * as HD from './hipdrills.js';
 import * as BT from './batting.js';
+import * as CH from './chibi.js';
+import * as YO from './youth.js';
 
 const W = 1920, H = 1080;
 const qs = new URLSearchParams(location.search);
@@ -60,7 +62,7 @@ const tracked = [];
 const wall = makeWall(); wall.visible = false; world.scene.add(wall);
 const motionCache = new Map();
 const ctx = {
-  THREE, world, scene: world.scene, camera: world.camera, PALETTE, MO, DR, HD, BT, MOUND, FLAT,
+  THREE, world, scene: world.scene, camera: world.camera, PALETTE, MO, DR, HD, BT, CH, YO, MOUND, FLAT,
   solve(m, t) { return solveSkeleton(MO.poseAt(m, t)); },
   smooth, clamp, easeInOut, easeOut, easeIn, lerp, pchip,
   wall,

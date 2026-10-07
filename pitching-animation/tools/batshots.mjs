@@ -11,6 +11,14 @@ const CAMS = {
   back: { pos: [18.2, 1.3, 4.2], look: [18.2, 1.0, 0.6], fov: 36 },
   top: { pos: [18.2, 6.5, 0.5], look: [18.2, 0, 0.5], up: [-1, 0, 0], fov: 34 },
   hands: { pos: [17.6, 1.3, -1.0], look: [18.1, 1.05, 0.5], fov: 24 },
+  face: { pos: [16.6, 0.95, 0.3], look: [18.12, 0.9, 0.5], fov: 12 },
+  face2: { pos: [17.4, 0.92, -0.9], look: [18.12, 0.9, 0.5], fov: 14 },
+  pside: { pos: [0.9, 0.95, 4.2], look: [0.9, 0.75, 0], fov: 32 },
+  pfront: { pos: [4.5, 1.0, 0.0], look: [0.6, 0.75, 0], fov: 28 },
+  cfront: { pos: [17.9, 0.85, -2.6], look: [18.05, 0.62, 0.3], fov: 34 },
+  cface: { pos: [17.2, 0.95, -0.9], look: [18.2, 0.85, 0.35], fov: 22 },
+  cback: { pos: [18.3, 0.95, 3.2], look: [18.1, 0.65, 0.3], fov: 34 },
+  cpitch: { pos: [12.5, 1.1, -0.6], look: [18.1, 0.65, 0.3], fov: 18 },
 };
 const specs = JSON.parse(specJson);
 const srv = await serve(process.cwd(), 8796);
@@ -18,7 +26,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 const page = await browser.newPage({ viewport: { width: +w, height: Math.round(+w * 9 / 16) } });
 page.on('pageerror', e => console.log('PAGEERR', e.message));
 page.on('console', m => { if (m.type() === 'error') console.log('CONSOLE', m.text()); });
-await page.goto(`http://localhost:8796/engine/batter-preview.html?w=${w}`);
+await page.goto(`http://localhost:8796/engine/batter-preview.html?w=${w}${process.env.CHIBI ? '&chibi=1' : ''}`);
 await page.waitForFunction(() => window.ready === true, null, { timeout: 60000 });
 const dir = '/tmp/claude-0/bshots'; fs.mkdirSync(dir, { recursive: true });
 const files = [];

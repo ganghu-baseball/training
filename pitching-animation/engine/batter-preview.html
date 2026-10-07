@@ -3,20 +3,26 @@
 // 打者預覽：window.show(swingOpts, t, cam, extra)
 import { createWorld } from './js/world.js';
 import { Batter, makeSwing, releasePoint, HOME } from './js/batting.js';
+import { Actor } from './js/actors.js';
+import { makePitch } from './js/motions.js';
 const W = +(new URLSearchParams(location.search).get('w') || 960), H9 = Math.round(W * 9 / 16);
 const world = createWorld(W, H9);
 document.body.appendChild(world.renderer.domElement);
 world.plate.rotation.z = 0; world.plate.position.x = HOME.front;
 world.mound.visible = world.rubber.visible = world.target.visible = false;
-const b = new Batter(world.scene);
+const CH = new URLSearchParams(location.search).get('chibi') !== null;
+const b = new Batter(world.scene, { chibi: CH });
 const cache = {};
+const pa = new Actor(world.scene, { chibi: CH }); pa.setMotion(makePitch()); pa.root.visible = false;
 window.show = (opts, t, cam, extra = {}) => {
   const key = JSON.stringify(opts || {});
   const m = cache[key] || (cache[key] = makeSwing(opts || {}));
   b.setMotion(m);
-  if (extra.pitch) { const p = { rel: releasePoint().toArray(), tRel: -0.45, cross: m.props.contact.ball, tCross: 0, hit: extra.hit || null }; if (!b.pitch || JSON.stringify(b.pitch) !== JSON.stringify(p)) b.setPitch(p); }
+  if (extra.pitch) { const p = { rel: releasePoint().toArray(), tRel: -0.45, cross: b.contactBall(0).toArray(), tCross: 0, hit: extra.hit || null }; if (!b.pitch || JSON.stringify(b.pitch) !== JSON.stringify(p)) b.setPitch(p); }
   else b.pitch = null;
   const S = b.update(t, { showBall: !!extra.pitch });
+  if (extra.pt !== undefined) { pa.root.visible = true; world.mound.visible = world.rubber.visible = true; pa.update(extra.pt); } else { pa.root.visible = false; pa.ball.visible = false; }
+  if (extra.hideBatter) b.root.visible = false; else b.root.visible = true;
   world.camera.fov = cam.fov || 30; world.camera.updateProjectionMatrix();
   world.camera.position.set(...cam.pos); world.camera.up.set(...(cam.up || [0, 1, 0])); world.camera.lookAt(...cam.look);
   world.renderer.info.render.frame++;
