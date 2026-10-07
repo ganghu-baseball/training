@@ -14,7 +14,7 @@
 html, body { background: #d8ecf0; }
 body { font-family: 'Chiron GoRound TC', 'Noto Sans TC', sans-serif; }
 svg text { font-family: 'Chiron GoRound TC', 'Noto Sans TC', sans-serif; paint-order: stroke; stroke: #2b2219; stroke-width: 5px; stroke-linejoin: round; }
-.scene { text-shadow: 0 0 2px #2b2219, 0 0 2px #2b2219, 0 0 3px #2b2219, 0 3px 6px rgba(34, 28, 20, 0.55), 0 0 16px rgba(34, 28, 20, 0.35); }
+.scene { text-shadow: 0 0 2px #2b2219, 0 0 3px #2b2219, 0 3px 8px rgba(34, 28, 20, 0.6); }
 
 /* 柔和的暖色暗角、奶油色轉場 */
 #vignette { background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 58%, rgba(70, 48, 26, 0.28) 100%); }

@@ -4,7 +4,7 @@ import * as THREE from '../vendor/three.module.js';
 
 const rng = seed => { let s = (seed >>> 0) % 2147483647 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; };
 const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; };
-const mkTex = c => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
+const mkTex = c => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const CENTER = new THREE.Vector3(9.2, 0, 0);
 export const SUN_DIR = new THREE.Vector3(0.42, 0.78, 0.46).normalize();
@@ -205,7 +205,6 @@ function addShade(m, { haze = false, patches = false } = {}) {
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D shadeTex;\nuniform vec2 shadeOff;\nvarying vec2 vWXZ;' + (haze ? '\nuniform vec3 hazeColor;\nvarying float vHaze;' : ''))
       .replace('#include <opaque_fragment>', `
         float cs = texture2D(shadeTex, vWXZ * 0.011 + shadeOff).r;
-        ${patches ? 'outgoingLight *= 0.92 + 0.16 * texture2D(shadeTex, vWXZ * 0.023 + vec2(0.37, 0.11)).g;' : ''}
         outgoingLight = mix(outgoingLight, outgoingLight * vec3(0.74, 0.8, 0.93), smoothstep(0.25, 0.6, cs) * 0.8);
         ${haze ? 'outgoingLight = mix(outgoingLight, hazeColor, vHaze);' : ''}
         #include <opaque_fragment>`);
@@ -224,14 +223,16 @@ export function paintWorld(world) {
   world.key.color.set('#fff1da'); world.key.intensity = 2.2;
   world.rim.color.set('#ffe9c7'); world.rim.intensity = 0.9;
   const sc = world.key.shadow.camera; sc.near = 1; sc.far = 40;
-  world.key.shadow.mapSize.set(1536, 1536);
+  world.key.shadow.mapSize.set(1024, 1024);
 
   // 地面：筆觸草地 + 遠方空氣感
   const gg = world.ground.geometry, pos = gg.attributes.position;
   const col = gg.attributes.color, hz = new Float32Array(pos.count);
+  const pr = rng(43), blobs = Array.from({ length: 60 }, () => [CENTER.x + (pr() - 0.5) * 220, (pr() - 0.5) * 220, 12 + pr() * 30, (pr() - 0.5) * 0.2]);
   for (let i = 0; i < pos.count; i++) {
-    const d = Math.hypot(pos.getX(i) - CENTER.x, pos.getY(i));
-    col.setXYZ(i, 1, 1, 1);
+    const x = pos.getX(i), z = pos.getY(i), d = Math.hypot(x - CENTER.x, z);
+    let v = 1; for (const [bx, bz, br, a] of blobs) v += a * Math.exp(-((x - bx) ** 2 + (z - bz) ** 2) / (br * br));   // 大片的深淺草色
+    col.setXYZ(i, v, v * 1.01, v * 0.98);
     hz[i] = ss(25, 115, d) * 0.85;
   }
   col.needsUpdate = true; gg.setAttribute('haze', new THREE.BufferAttribute(hz, 1));
@@ -244,15 +245,40 @@ export function paintWorld(world) {
     m.material = addShade(new THREE.MeshLambertMaterial({ map: dt, transparent: true }));
   }
 
-  // 遠山兩層 + 中景樹 + 雲
+  // 遠山兩層、雲：直接畫在天空圓頂上（一個著色器合成三層貼圖，比一堆透明面片快很多）
   const props = new THREE.Group(); scene.add(props);
-  const band = (R, H, kind, y0) => {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 160, 1, true),
-      new THREE.MeshBasicMaterial({ map: hillTexture(kind), transparent: true, side: THREE.BackSide, depthWrite: false, fog: false }));
-    m.position.set(CENTER.x, y0 + H / 2, CENTER.z); props.add(m); return m;
-  };
-  band(128, 34, 'far', -4).renderOrder = -3;
-  band(104, 20, 'near', -3).renderOrder = -2;
+  const cloudBand = (() => {
+    const W = 8192, H = 512, [c, g] = mkCanvas(W, H), cr = rng(3);
+    const px = deg => deg / 360 * W, py = el => H - el / 25 * H;
+    for (let i = 0; i < 14; i++) {
+      const w = 60 + cr() * 60, h = w * (0.5 + cr() * 0.2), yb = 6 + cr() * 18, az = (i / 14) * 360 + cr() * 17;
+      const wd = 2 * Math.atan(w / 2 / 138) * 180 / Math.PI, e0 = Math.atan(yb / 138) * 180 / Math.PI, e1 = Math.atan((yb + h) / 138) * 180 / Math.PI;
+      const img = cloudTexture(100 + i * 7).image;
+      for (const dx of [-W, 0, W]) g.drawImage(img, px(az - wd / 2) + dx, py(e1), px(wd), py(e0) - py(e1));
+    }
+    return c;
+  })();
+  const bandTex = (cv, rep) => { const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping;
+    t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.repeat.x = rep; return t; };
+  const farT = hillTexture('far'), nearT = hillTexture('near');
+  const skyU = { cloudTex: { value: bandTex(cloudBand, 1) }, farTex: { value: bandTex(farT.image, 2) }, nearTex: { value: bandTex(nearT.image, 2) }, cloudOff: { value: 0 } };
+  world.sky.material = new THREE.ShaderMaterial({
+    uniforms: skyU, vertexColors: true, side: THREE.BackSide, depthWrite: false,
+    vertexShader: `varying vec3 vDir; varying vec3 vCol;
+      void main() { vDir = position; vCol = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform sampler2D cloudTex, farTex, nearTex; uniform float cloudOff; varying vec3 vDir; varying vec3 vCol;
+      void main() {
+        vec3 d = normalize(vDir);
+        float az = atan(d.z, d.x) / 6.2831853 + 0.5;
+        float el = degrees(asin(clamp(d.y, -1.0, 1.0)));
+        vec3 c = vCol;
+        if (el > -0.5 && el < 25.0) { vec4 k = texture2D(cloudTex, vec2(az + cloudOff, el / 25.0)); c = mix(c, k.rgb, k.a); }
+        if (el > -2.5 && el < 10.0) { vec4 h = texture2D(farTex, vec2(az * 2.0, (el + 2.5) / 12.5)); c = mix(c, h.rgb, h.a); }
+        if (el > -2.5 && el < 6.0) { vec4 h = texture2D(nearTex, vec2(az * 2.0 + 0.37, (el + 2.5) / 8.5)); c = mix(c, h.rgb, h.a); }
+        gl_FragColor = vec4(c, 1.0);
+        #include <colorspace_fragment>
+      }`,
+  });
   // 樹叢：幾個樹林，每個樹林混合不同的樹
   const trees = [], r = rng(5);
   const kinds = ['round', 'round', 'poplar', 'bush'];
@@ -271,15 +297,6 @@ export function paintWorld(world) {
       props.add(m); trees.push(m);
     }
   }
-  const clouds = [], cr = rng(3);
-  for (let i = 0; i < 14; i++) {
-    const w = 60 + cr() * 60, h = w * (0.5 + cr() * 0.2);
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: cloudTexture(100 + i * 7), transparent: true, depthWrite: false, fog: false }));
-    m.scale.set(w, h, 1); m.renderOrder = -4;
-    m.userData = { a0: (i / 14) * Math.PI * 2 + cr() * 0.3, y: 6 + cr() * 18 + h / 2, D: 138 };
-    props.add(m); clouds.push(m);
-  }
-
   // 小鳥：幾群 V 字形的鳥，拍著翅膀飛過天空
   const birdMat = new THREE.MeshBasicMaterial({ color: '#3f4a5a', side: THREE.DoubleSide, fog: false });
   const flocks = [], br = rng(17);
@@ -333,11 +350,7 @@ export function paintWorld(world) {
       s.sp.position.set(14.2 + x, 0.25 + s.b.y * Hh + Math.sin(t * 0.9 + s.ph) * 0.12, -3.5 + z + Math.sin(t * 0.6 + s.ph) * 0.15);
       s.sp.material.opacity = seedsOn ? ss(1.0, 2.0, s.sp.position.distanceTo(cam.position)) : 0;   // 太靠近鏡頭的種子會變成一大團白，淡掉
     }
-    for (const m of clouds) {
-      const a = m.userData.a0 + t * 0.0009;
-      m.position.set(CENTER.x + Math.cos(a) * m.userData.D, m.userData.y, CENTER.z + Math.sin(a) * m.userData.D);
-      m.lookAt(CENTER.x, m.userData.y, CENTER.z);
-    }
+    skyU.cloudOff.value = t * 0.0009 / (Math.PI * 2);
     // 陰影跟著鏡頭看的地方走（打者、投手都有影子）
     cam.getWorldDirection(fwd);
     let s = fwd.y < -0.03 ? (cam.position.y - 0.4) / -fwd.y : 7;
@@ -349,7 +362,7 @@ export function paintWorld(world) {
     k.target.updateMatrixWorld();
     if (c.right !== half) { c.left = -half; c.right = half; c.top = half; c.bottom = -half; c.updateProjectionMatrix(); }
   }
-  return { update, clouds, trees, props };
+  return { update, trees, props };
 }
 
 // 紙張質感（疊在畫面最上層，multiply）

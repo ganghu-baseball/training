@@ -47,7 +47,7 @@ const RETHEME = [];
 if (THEME === 'painted') {
   const P = await import('./painted.js');
   painter = P.paintWorld(world);
-  P.paperOverlay(document.getElementById('stage'));
+  if (qs.get('paper') !== null) P.paperOverlay(document.getElementById('stage'));   // 紙張紋理（軟體算圖時很花時間，預設關閉）
   CH.setChibiTheme({ gradient: [150, 255], outline: '#4a3528', width: 0.0075, face: 'soft' });
   const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = 'css/painted.css';
   await new Promise(res => { link.onload = res; link.onerror = res; document.head.appendChild(link); });
