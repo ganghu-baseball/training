@@ -1,6 +1,7 @@
 // 輸出旁白腳本（含章節時間）給使用者：dist/投球原理_旁白腳本.md（教學內容，不進公開 repo）
 import fs from 'fs';
-import { SCRIPT } from '../content/script.js';
+import path from 'path'; import { pathToFileURL } from 'url';
+const { SCRIPT } = await import(pathToFileURL(path.resolve('content/script.js')).href);
 const tl = JSON.parse(fs.readFileSync('build/timeline.json', 'utf8'));
 const mmss = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const chapterNames = { 1: '投球是一場接力賽', 2: '力量大，不等於會用力量', 3: '看懂投球的四個關鍵時刻', 4: '節奏', 5: '好的提示與學習方法', 6: '保護手臂的好習慣',

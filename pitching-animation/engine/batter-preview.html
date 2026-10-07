@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#152632;overflow:hidden}canvas{display:block}</style></head>
+<body><script type="module">
+// 打者預覽：window.show(swingOpts, t, cam, extra)
+import { createWorld } from './js/world.js';
+import { Batter, makeSwing, releasePoint, HOME } from './js/batting.js';
+const W = +(new URLSearchParams(location.search).get('w') || 960), H9 = Math.round(W * 9 / 16);
+const world = createWorld(W, H9);
+document.body.appendChild(world.renderer.domElement);
+world.plate.rotation.z = 0; world.plate.position.x = HOME.front;
+world.mound.visible = world.rubber.visible = world.target.visible = false;
+const b = new Batter(world.scene);
+const cache = {};
+window.show = (opts, t, cam, extra = {}) => {
+  const key = JSON.stringify(opts || {});
+  const m = cache[key] || (cache[key] = makeSwing(opts || {}));
+  b.setMotion(m);
+  if (extra.pitch) { const p = { rel: releasePoint().toArray(), tRel: -0.45, cross: m.props.contact.ball, tCross: 0, hit: extra.hit || null }; if (!b.pitch || JSON.stringify(b.pitch) !== JSON.stringify(p)) b.setPitch(p); }
+  else b.pitch = null;
+  const S = b.update(t, { showBall: !!extra.pitch });
+  world.camera.fov = cam.fov || 30; world.camera.updateProjectionMatrix();
+  world.camera.position.set(...cam.pos); world.camera.up.set(...(cam.up || [0, 1, 0])); world.camera.lookAt(...cam.look);
+  world.renderer.info.render.frame++;
+  world.renderer.render(world.scene, world.camera);
+  const r = v => v.toArray().map(x => +x.toFixed(3));
+  return { sweet: r(b.batNow.sweet), head: r(S.head) };
+};
+window.ready = true;
+</script></body></html>

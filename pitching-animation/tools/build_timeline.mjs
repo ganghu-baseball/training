@@ -1,9 +1,11 @@
 // 依旁白實際長度排出整支影片的時間軸，並輸出字幕檔（SRT）
-import fs from 'fs';
+import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url';
 const script = JSON.parse(fs.readFileSync('build/script.json', 'utf8'));
 const tts = JSON.parse(fs.readFileSync('build/audio/tts.json', 'utf8'));
 let meta = {};
-try { const m = await import('../content/scenes.js'); meta = m.SCENES || {}; } catch (e) { console.warn('scenes.js not loaded:', e.message); }
+let META = {};
+try { META = (await import(pathToFileURL(path.resolve('content/script.js')).href)).META || {}; } catch (e) {}
+try { const m = await import(pathToFileURL(path.resolve('content/scenes.js')).href); meta = m.SCENES || {}; } catch (e) { console.warn('scenes.js not loaded:', e.message); }
 const LINE_GAP = 0.42;
 let t = 0;
 const scenes = [], subtitles = [];
@@ -37,12 +39,13 @@ fs.mkdirSync('dist', { recursive: true });
 const fmt = s => { const ms = Math.round(s * 1000); const h = Math.floor(ms / 3600000), mi = Math.floor(ms / 60000) % 60, se = Math.floor(ms / 1000) % 60, mm = ms % 1000;
   return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}:${String(se).padStart(2, '0')},${String(mm).padStart(3, '0')}`; };
 // 主課程與額外課程是兩支影片：字幕各自從 0 開始
-const bonus = scenes.find(s => s.part === 3);
+const TITLE = META.title || '投球原理';
+const bonus = META.single ? null : scenes.find(s => s.part === 3);
 const T = bonus ? bonus.t0 : out.duration;
 const srt = (list, off) => list.map((s, i) => `${i + 1}\n${fmt(s.t0 - off)} --> ${fmt(s.t1 - off)}\n${s.text}\n`).join('\n');
 for (const f of fs.readdirSync('dist')) if (f.endsWith('.srt')) fs.unlinkSync('dist/' + f);
-fs.writeFileSync('dist/投球原理_主課程_字幕.srt', srt(subtitles.filter(s => s.t0 < T), 0));
-if (bonus) fs.writeFileSync('dist/投球原理_額外課程_字幕.srt', srt(subtitles.filter(s => s.t0 >= T), T));
+fs.writeFileSync(META.single ? `dist/${TITLE}_字幕.srt` : `dist/${TITLE}_主課程_字幕.srt`, srt(subtitles.filter(s => s.t0 < T), 0));
+if (bonus) fs.writeFileSync(`dist/${TITLE}_額外課程_字幕.srt`, srt(subtitles.filter(s => s.t0 >= T), T));
 const mins = Math.floor(t / 60), secs = Math.round(t % 60);
 console.log(`scenes ${scenes.length}, subtitles ${subtitles.length}, duration ${t.toFixed(1)}s (${mins}m${secs}s)`);
 // 章節時間表

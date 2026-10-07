@@ -76,7 +76,7 @@ export function solveSkeleton(p) {
   const chestYaw = Math.atan2(-F.z, F.x);
   let yaw = Math.atan2(-d.z, d.x);
   let rel = wrapPi(yaw - chestYaw);
-  const lim = 85 * DEG;
+  const lim = ((p.head && p.head.lim) || 85) * DEG;
   rel = Math.max(-lim, Math.min(lim, rel));
   yaw = chestYaw + rel + ((p.head && p.head.yawOff) || 0) * DEG;
   const pitch = Math.max(-35 * DEG, Math.min(30 * DEG, Math.asin(d.y) + ((p.head && p.head.pitchOff) || 0) * DEG));
@@ -94,7 +94,9 @@ function solveArm(a, side, S) {
   const abd = a.abd * DEG, hz = a.hz * DEG, er = a.er * DEG, ef = a.ef * DEG;
   const Rs = R.clone().multiplyScalar(side);
   // 肩胛骨：水平外展時後收、內收時前伸，舉高時略上提
-  const retr = Math.max(-1, Math.min(1, -a.hz / 45));
+  // 手臂橫過身體超過 135° 時 atan2 會繞到負值，先接回來，避免肩胛骨位置突然跳到另一邊
+  const hzw = a.hz < -135 ? a.hz + 360 : a.hz;
+  const retr = Math.max(-1, Math.min(1, -hzw / 45));
   const sh = P3.clone()
     .add(V(0, -DIM.shDrop, side * DIM.shHalf).applyQuaternion(qC))
     .add(F.clone().multiplyScalar(-0.022 * retr))

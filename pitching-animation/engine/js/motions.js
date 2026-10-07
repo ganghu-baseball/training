@@ -229,7 +229,7 @@ export function poseAt(m, t) {
     lf: { x: g('lf.x'), y: g('lf.y'), z: g('lf.z'), yaw: g('lf.yaw', -90), pitch: g('lf.pitch') },
     rk: { yaw: g('rk.yaw'), up: g('rk.up') },
     lk: { yaw: g('lk.yaw'), up: g('lk.up') },
-    head: { look: m.props.look || [18.4, 0.95, 0], lookChest: !!m.props.lookChest, rel: !!m.props.headRel, yawOff: g('head.yaw'), pitchOff: g('head.pitch') },
+    head: { look: m.props.look || [18.4, 0.95, 0], lookChest: !!m.props.lookChest, rel: !!m.props.headRel, yawOff: g('head.yaw'), pitchOff: g('head.pitch'), lim: m.props.headLim },
     ground: m.props.ground || MOUND,
   };
 }
