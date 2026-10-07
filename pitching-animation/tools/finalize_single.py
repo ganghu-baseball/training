@@ -1,6 +1,7 @@
 """單一課程的成品輸出（打擊課程用）：1080p 完整版（有配樂／無配樂）＋ 720p 分段傳送版（每段 < 30 MB）。
 設定檔 content/finalize.json：
-  {"title": "打擊原理", "full_title": "...", "chapters": [["sceneId", "章節名"], ...], "parts": [["名稱", "起始 sceneId"], ...]}
+  {"title": "打擊原理", "full_title": "...", "chapters": [["sceneId", "章節名"], ...], "parts": [["名稱", "起始 sceneId"], ...],
+   "episodes": [["檔名", "起始 sceneId", "結束 sceneId 或 null"], ...]}（episodes 可省略；有的話另外輸出 dist/單集/ 的 720p 單集檔）
 先渲染：node tools/render.mjs --out build/master.mp4，再執行：python3 tools/finalize_single.py"""
 import subprocess, imageio_ffmpeg, os, json
 FF = imageio_ffmpeg.get_ffmpeg_exe()
@@ -58,4 +59,15 @@ for i, (name, sid) in enumerate(parts):
     a = scene[sid]['t0'] if i else 0.0
     b = scene[parts[i + 1][1]]['t0'] if i + 1 < len(parts) else D
     enc720(a, b, f'{TITLE}｜{name}', f'dist/{TITLE}_720p_{i + 1}_{name}.mp4')
-for f in sorted(os.listdir('dist')): print(f, round(os.path.getsize('dist/' + f) / 1e6, 1), 'MB')
+if cfg.get('episodes'):
+    ep_dir = 'dist/單集'
+    os.makedirs(ep_dir, exist_ok=True)
+    for f in os.listdir(ep_dir):
+        if f.endswith('.mp4'): os.remove(f'{ep_dir}/{f}')
+    for name, s0, s1 in cfg['episodes']:
+        a = scene[s0]['t0'] if s0 != tl['scenes'][0]['id'] else 0.0
+        b = scene[s1]['t0'] if s1 else D
+        enc720(a, b, f'{TITLE}｜{name}', f'{ep_dir}/{name}.mp4')
+    for f in sorted(os.listdir(ep_dir)): print('單集/' + f, round(os.path.getsize(f'{ep_dir}/{f}') / 1e6, 1), 'MB')
+for f in sorted(os.listdir('dist')):
+    if os.path.isfile('dist/' + f): print(f, round(os.path.getsize('dist/' + f) / 1e6, 1), 'MB')
