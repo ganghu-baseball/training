@@ -40,7 +40,31 @@ function icon(name, size = 48, color = 'currentColor', sw = 2) {
   return raw.replace(/<!--[\s\S]*?-->/g, '').replace(/width="24"/, `width="${size}"`).replace(/height="24"/, `height="${size}"`)
     .replace(/stroke="currentColor"/, `stroke="${color}"`).replace(/stroke-width="2"/, `stroke-width="${sw}"`).replace('<svg', '<svg style="display:block"');
 }
-const { SCENES } = await import('../../content/scenes.js?v=' + Date.now());
+const { SCENES, THEME } = await import('../../content/scenes.js?v=' + Date.now());
+// 主題：painted＝手繪風格（天空、遠山、草地、紙張質感、圓體字）
+let painter = null;
+const RETHEME = [];
+if (THEME === 'painted') {
+  const P = await import('./painted.js');
+  painter = P.paintWorld(world);
+  P.paperOverlay(document.getElementById('stage'));
+  CH.setChibiTheme({ gradient: [150, 255], outline: '#4a3528', width: 0.0075, face: 'soft' });
+  const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = 'css/painted.css';
+  await new Promise(res => { link.onload = res; link.onerror = res; document.head.appendChild(link); });
+  // 場景裡寫死的深藍面板 → 苔綠墨色
+  RETHEME.push([/rgba\(\s*(?:10|12|8|14)\s*,\s*(?:21|24|17|27)\s*,\s*(?:29|33|24|36)\s*,/g, 'rgba(40, 52, 44,'],
+    [/#0E1B24/gi, '#28342C'], [/#152632/gi, '#2E3A31'], [/#10202b/gi, '#2A2A22'], [/#233D4D/gi, '#3A4D3F']);
+}
+function retheme(root) {
+  if (!RETHEME.length) return;
+  for (const e of [root, ...root.querySelectorAll('*')]) {
+    for (const a of ['style', 'fill', 'stroke', 'stop-color']) {
+      const v = e.getAttribute(a); if (!v) continue;
+      let w = v; for (const [re, to] of RETHEME) w = w.replace(re, to);
+      if (w !== v) e.setAttribute(a, w);
+    }
+  }
+}
 
 // ─────────────── 相機路徑 ───────────────
 class CamPath {
@@ -155,10 +179,11 @@ function resetForScene() {
     if (a.medball) a.medball.visible = false;
     if (a.waterbag) a.waterbag.visible = false;
     a.pitcher.highlight({}); a.pitcher.setOpacity(1); a.pitcher.tint('#ffffff', 0);
+    if (a.pitcher.setFace) a.pitcher.setFace('smile');
     a.offset.set(0, 0, 0);
   }
   ctx.env({});
-  world.renderer.setClearColor('#0E1B24');
+  world.renderer.setClearColor(world.clearColor || '#0E1B24');
 }
 
 // ─────────────── 場景切換 ───────────────
@@ -176,6 +201,7 @@ function enter(sc) {
     const info = { ...sc, dur: sc.t1 - sc.t0, lines: sc.lines.map(l => ({ ...l, t0: l.t0 - sc.t0, t1: l.t1 - sc.t0 })) };
     sc._info = info;
     if (def.build) def.build(el, ctx, info);
+    retheme(el);
   }
   sceneEls[sc.id].classList.add('on');
 }
@@ -196,6 +222,62 @@ function updateSubs(t) {
   }
 }
 
+// ─────────────── 效果層（擬聲字、星星、汗滴）：場景在 update 裡登記，相機都設定好之後才投影 ───────────────
+const fxRoot = document.createElement('div');
+fxRoot.style.cssText = 'position:absolute;inset:0;pointer-events:none';
+document.getElementById('stage').insertBefore(fxRoot, subsEl);
+const fxPool = [];
+let fxReq = [];
+ctx.fx = (r) => { fxReq.push(r); };
+const OUT = (c, w) => [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1.3], [0, 1.3], [-1.3, 0], [1.3, 0]].map(([x, y]) => `${x * w}px ${y * w}px 0 ${c}`).join(',');
+const STAR = (x, y, r) => `<path transform="translate(${x},${y})" d="M0,${-r} Q${r * 0.18},${-r * 0.18} ${r},0 Q${r * 0.18},${r * 0.18} 0,${r} Q${-r * 0.18},${r * 0.18} ${-r},0 Q${-r * 0.18},${-r * 0.18} 0,${-r}Z" fill="#FFE27A" stroke="#7a5520" stroke-width="3" stroke-linejoin="round"/>`;
+function fxHTML(r) {
+  if (r.kind === 'word') return `<div style="font-family:'Chiron GoRound TC','Noto Sans TC',sans-serif;font-weight:900;font-size:96px;line-height:1;white-space:nowrap;letter-spacing:2px;color:${r.color || '#FF8A3D'};text-shadow:${OUT('#3a2c22', 4)},0 8px 12px rgba(0,0,0,0.3)">${r.text}</div>`;
+  if (r.kind === 'sparkle') return `<svg width="150" height="150" viewBox="-75 -75 150 150" style="display:block;overflow:visible">${STAR(-8, -12, 30)}${STAR(36, 18, 18)}${STAR(-40, 30, 13)}</svg>`;
+  if (r.kind === 'sweat') return `<svg width="70" height="90" viewBox="-35 -45 70 90" style="display:block;overflow:visible"><path d="M0,-34 C12,-12 24,4 24,16 A24,24 0 0 1 -24,16 C-24,4 -12,-12 0,-34Z" fill="#A9DBFF" stroke="#2f5a7a" stroke-width="4"/><ellipse cx="-8" cy="12" rx="5" ry="9" fill="#fff" opacity="0.85"/></svg>`;
+  return '';
+}
+function fxAnim(r) {
+  const a = r.age;
+  if (r.kind === 'word') return { s: a < 0.08 ? easeOut(a / 0.08) * 1.2 : a < 0.16 ? 1.2 - 0.2 * (a - 0.08) / 0.08 : 1, o: 1 - smooth(0.32, 0.5, a), dy: -30 * easeOut(clamp(a / 0.5, 0, 1)) };
+  if (r.kind === 'sparkle') return { s: easeOut(clamp(a / 0.22, 0, 1)) * (0.88 + 0.12 * Math.sin(a * 14)), o: 1 - smooth(0.95, 1.35, a), dy: -12 * a };
+  return { s: easeOut(clamp(a / 0.2, 0, 1)), o: 1 - smooth(1.15, 1.55, a), dy: 22 * smooth(0.2, 1.3, a) };
+}
+function drawFx() {
+  let n = 0;
+  for (const r of fxReq) {
+    const pos = r.pos.isVector3 ? r.pos : new THREE.Vector3(...r.pos);
+    let p, sc = 1;
+    if (ctx.views && ctx.views.length) {
+      const vi = ctx.views.findIndex(v => v.show.includes(r.slot));
+      if (vi < 0) continue;
+      const rc = ctx.views[vi].rect;
+      p = ctx.projectView(vi, pos); sc = Math.min(1, Math.sqrt(rc[2] / 1920) * 1.3);
+      if (p.z > 1 || p.x < rc[0] + 20 || p.x > rc[0] + rc[2] - 20 || p.y < rc[1] + 20 || p.y > rc[1] + rc[3] - 20) continue;
+      p = { ...p };
+    } else { p = ctx.project(pos); if (!p.vis) continue; p = { ...p }; }
+    // 擬聲字：從頭往擊球點的方向再推出去一點，避免壓在角色身上；也不要掉到字幕區
+    let rc = [0, 0, 1920, 1080];
+    if (ctx.views && ctx.views.length) rc = ctx.views[ctx.views.findIndex(v => v.show.includes(r.slot))].rect;
+    if (r.from) {
+      const f = r.from.isVector3 ? r.from : new THREE.Vector3(...r.from);
+      const q = ctx.views && ctx.views.length ? ctx.projectView(ctx.views.findIndex(v => v.show.includes(r.slot)), f) : ctx.project(f);
+      const side = Math.sign(p.x - q.x) || 1;      // 往遠離頭（身體）的那一側水平推開，並稍微往上
+      p = { ...p, x: p.x + side * 160 * sc, y: Math.min(p.y, q.y + 80 * sc) - 40 * sc };
+      p.x = Math.min(Math.max(p.x, rc[0] + 90 * sc), rc[0] + rc[2] - 90 * sc);
+      p.y = Math.min(Math.max(p.y, rc[1] + 120 * sc), rc[1] + rc[3] - 200 * sc);
+    }
+    const el = fxPool[n] || (fxPool[n] = fxRoot.appendChild(document.createElement('div')));
+    n++;
+    const key = r.kind + (r.text || '') + (r.color || '');
+    if (el.dataset.key !== key) { el.dataset.key = key; el.innerHTML = fxHTML(r); }
+    const A = fxAnim(r), k = sc * (r.size || 1);
+    el.style.cssText = `position:absolute;display:block;left:${p.x + (r.ox || 0) * sc}px;top:${p.y + (r.oy || 0) * sc + A.dy * sc}px;transform:translate(-50%,-50%) scale(${A.s * k}) rotate(${r.rot || 0}deg);opacity:${A.o}`;
+  }
+  for (let i = n; i < fxPool.length; i++) fxPool[i].style.display = 'none';
+  fxReq = [];
+}
+
 // ─────────────── 分割畫面算圖 ───────────────
 const RS = +(qs.get('rs') || 1);
 function renderViews() {
@@ -205,7 +287,7 @@ function renderViews() {
   const medVis = actors.map(a => a.medball ? a.medball.visible : false);
   const wbVis = actors.map(a => a.waterbag ? a.waterbag.visible : false);
   r.setScissorTest(true);
-  r.setClearColor('#0E1B24');
+  r.setClearColor(world.clearColor || '#0E1B24');
   r.clear();
   ctx.views.forEach((v, i) => {
     const [x, y, w, h] = v.rect;
@@ -236,8 +318,9 @@ window.renderAt = (t) => {
   } else {
     for (const a of actors) { a.root.visible = false; a.used = false; a.ball.visible = false; if (a.medball) a.medball.visible = false; if (a.waterbag) a.waterbag.visible = false; }
     // 染色每格重設：場景只在某一段染紅（錯誤示範）時，不會殘留到後面，分段渲染的結果也一致
-    for (const a of actors) a.pitcher.tint('#ffffff', 0);
+    for (const a of actors) { a.pitcher.tint('#ffffff', 0); if (a.pitcher.setFace) a.pitcher.setFace('smile'); }
   }
+  fxReq = [];
   const def = SCENES[sc.id] || SCENES._default;
   const lt = t - sc.t0;
   ctx.views = null;           // 分割畫面每一格都要由場景重新設定
@@ -257,6 +340,14 @@ window.renderAt = (t) => {
   curtain.style.opacity = cv * 0.92;
   updateSubs(t);
   const pq1 = performance.now();
+  // 音效收集模式：只跑場景邏輯、記下擬聲字（擊球事件），不算圖
+  if (window.__collect) {
+    for (const r of fxReq) if (r.kind === 'word') window.__collect.push({ t, scene: sc.id, slot: r.slot, text: r.text, age: r.age });
+    fxReq = [];
+    return true;
+  }
+  drawFx();
+  if (painter) painter.update(t, ctx.views && ctx.views.length ? viewCams[0] : world.camera);
   if (ctx.views && ctx.views.length) renderViews(); else world.render();
   window.__tRender = performance.now() - pq1;
   return true;
@@ -264,6 +355,10 @@ window.renderAt = (t) => {
 window.timeline = timeline;
 window.__missing = timeline.scenes.map(s => s.id).filter(id => !SCENES[id]);
 window.__world = world; window.__actors = actors;
+if (THEME === 'painted') {
+  // 中文字型依字元分成很多小檔：先全部載入，避免後面才出現的字閃一下備用字型
+  await Promise.all([...document.fonts].filter(f => /Chiron|WenKai/.test(f.family)).map(f => f.load().catch(() => {})));
+}
 await document.fonts.ready;
 // 預熱：讓字型、貼圖、shader 都先載入
 window.renderAt(0.5);

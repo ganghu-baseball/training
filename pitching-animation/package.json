@@ -8,6 +8,8 @@
   "license": "ISC",
   "dependencies": {
     "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/chiron-goround-tc": "^5.3.0",
+    "@fontsource/lxgw-wenkai-tc": "^5.3.0",
     "@fontsource/noto-sans-tc": "^5.3.0",
     "@fontsource/noto-serif-tc": "^5.3.0",
     "lucide-static": "^1.48.0",

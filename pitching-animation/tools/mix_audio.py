@@ -123,9 +123,30 @@ SFX_CFG = 'content/sfx.json'
 if os.path.exists(SFX_CFG):
     # 專案自訂音效：{"events":[{"scene","t","kind","gain"}], "chime":"場景 id 的正規式"}
     cfg = json.load(open(SFX_CFG))
-    kinds = {'pop': pop, 'thud': thud, 'crack': crack, 'chime': chime}
+    def whoosh():
+        # 揮空的「咻～」：往下掃的帶通噪音
+        n = int(0.32 * SR); tt = np.arange(n) / SR
+        noise = rng.standard_normal(n).astype(np.float32)
+        env = np.sin(np.pi * np.clip(tt / 0.32, 0, 1)) ** 2
+        y = np.zeros(n, dtype=np.float32); lp = 0.0; bp = 0.0
+        for i in range(n):
+            f = 2400 - 1800 * tt[i] / 0.32; a = 2 * np.pi * f / SR
+            lp += a * (noise[i] - lp); bp += a * (lp - bp); y[i] = lp - bp
+        return (y * env * 1.6).astype(np.float32)
+    def thunk():
+        # 打得軟弱的「叩…」：悶悶的木頭聲
+        n = int(0.16 * SR); tt = np.arange(n) / SR
+        return ((np.sin(2 * np.pi * 420 * tt) * 0.6 + np.sin(2 * np.pi * 690 * tt) * 0.3) * np.exp(-tt * 38) + rng.standard_normal(n) * np.exp(-tt * 120) * 0.2).astype(np.float32)
+    kinds = {'pop': pop, 'thud': thud, 'crack': crack, 'chime': chime, 'whoosh': whoosh, 'thunk': thunk}
     for ev in cfg.get('events', []):
         add(scenes[ev['scene']]['t0'] + ev['t'], kinds[ev['kind']](), ev.get('gain', 1.0))
+    if cfg.get('events_file'):
+        # 動畫裡擬聲字出現的瞬間（tools/collect_sfx.mjs 產生）：鏗！＝擊球、咻～＝揮空、叩…＝軟弱擊球
+        by_text = {'鏗！': ('crack', 0.45), '咻～': ('whoosh', 0.4), '叩…': ('thunk', 0.45)}
+        bank = {k: [kinds[k]() for _ in range(4)] for k in ('crack', 'whoosh', 'thunk')}
+        for i, ev in enumerate(json.load(open(cfg['events_file']))):
+            k, g = by_text.get(ev['text'], (None, 0))
+            if k: add(ev['t'], bank[k][i % 4], g)
     if cfg.get('chime'):
         for s in tl['scenes']:
             if re.match(cfg['chime'], s['id']): add(s['t0'] + 0.15, chime(), 0.35)

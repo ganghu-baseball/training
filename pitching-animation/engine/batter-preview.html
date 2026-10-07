@@ -11,6 +11,11 @@ document.body.appendChild(world.renderer.domElement);
 world.plate.rotation.z = 0; world.plate.position.x = HOME.front;
 world.mound.visible = world.rubber.visible = world.target.visible = false;
 const CH = new URLSearchParams(location.search).get('chibi') !== null;
+let painter = null;
+if (new URLSearchParams(location.search).get('painted') !== null) {
+  const P = await import('./js/painted.js'); const C = await import('./js/chibi.js');
+  painter = P.paintWorld(world); C.setChibiTheme({ gradient: [150, 255], outline: '#4a3528', width: 0.0075, face: 'soft' });
+}
 const b = new Batter(world.scene, { chibi: CH });
 const cache = {};
 const pa = new Actor(world.scene, { chibi: CH }); pa.setMotion(makePitch()); pa.root.visible = false;
@@ -25,6 +30,8 @@ window.show = (opts, t, cam, extra = {}) => {
   if (extra.hideBatter) b.root.visible = false; else b.root.visible = true;
   world.camera.fov = cam.fov || 30; world.camera.updateProjectionMatrix();
   world.camera.position.set(...cam.pos); world.camera.up.set(...(cam.up || [0, 1, 0])); world.camera.lookAt(...cam.look);
+  world.camera.updateMatrixWorld();
+  if (painter) painter.update(0, world.camera);
   world.renderer.info.render.frame++;
   world.renderer.render(world.scene, world.camera);
   const r = v => v.toArray().map(x => +x.toFixed(3));

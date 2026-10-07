@@ -15,12 +15,16 @@ export const CHIBI_COLORS = {
   helmet: '#233D4D', cap: '#233D4D', brim: '#1A2D3A', glove: '#B5722F', gloveDark: '#8A5225', number: '#233D4D',
 };
 
-// 三階明暗的漸層貼圖（卡通著色）
+// 主題（要在建立任何角色之前設定）：明暗階數、描邊顏色與粗細
+const THEME = { gradient: [90, 175, 255], outline: '#141c22', width: 0.009 };
+export function setChibiTheme(o) { Object.assign(THEME, o); if (o.colors) Object.assign(CHIBI_COLORS, o.colors); }
+
+// 多階明暗的漸層貼圖（卡通著色）
 let GRADIENT = null;
 function gradientMap() {
   if (GRADIENT) return GRADIENT;
-  const data = new Uint8Array([90, 90, 90, 255, 175, 175, 175, 255, 255, 255, 255, 255]);
-  GRADIENT = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat);
+  const data = new Uint8Array(THEME.gradient.flatMap(v => [v, v, v, 255]));
+  GRADIENT = new THREE.DataTexture(data, THEME.gradient.length, 1, THREE.RGBAFormat);
   GRADIENT.minFilter = GRADIENT.magFilter = THREE.NearestFilter;
   GRADIENT.generateMipmaps = false; GRADIENT.needsUpdate = true;
   return GRADIENT;
@@ -31,7 +35,7 @@ let OUTLINE = null;
 function outlineMaterial() {
   if (OUTLINE) return OUTLINE;
   OUTLINE = new THREE.ShaderMaterial({
-    uniforms: { width: { value: 0.009 }, color: { value: new THREE.Color('#141c22') } },
+    uniforms: { width: { value: THEME.width }, color: { value: new THREE.Color(THEME.outline) } },
     vertexShader: `uniform float width;
       void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); vec3 n = normalize(normalMatrix * normal);
         mv.xyz += n * width; gl_Position = projectionMatrix * mv; }`,
@@ -202,20 +206,64 @@ export class Chibi {
     for (const z of [-1, 1]) { const e = mk(SPH, this.M.skinH, 'head', true); e.scale.set(H * 0.16, H * 0.22, H * 0.1); e.position.set(-H * 0.02, -H * 0.05, z * H * 0.99); }
     // 大眼睛（黑色橢圓 + 白色亮點）
     this.eyes = [];
+    const soft = THEME.face === 'soft';   // 手繪風格：圓一點的眼睛、大一點的亮點、細眉毛
     for (const z of [-1, 1]) {
-      const e = mk(SPH, this.M.eye, 'face', false); e.scale.set(H * 0.07, H * 0.24, H * 0.16); e.position.set(H * 0.93, -H * 0.04, z * H * 0.36);
+      const e = mk(SPH, this.M.eye, 'face', false);
+      if (soft) { e.scale.set(H * 0.08, H * 0.235, H * 0.2); e.position.set(H * 0.92, -H * 0.07, z * H * 0.37); }
+      else { e.scale.set(H * 0.07, H * 0.24, H * 0.16); e.position.set(H * 0.93, -H * 0.04, z * H * 0.36); }
       e.rotation.y = -z * 0.36;
-      const w = mk(SPH, this.M.white, 'face', false); w.scale.set(H * 0.04, H * 0.075, H * 0.06); w.position.set(H * 0.97, H * 0.06, z * H * 0.33 - H * 0.04);
-      const w2 = mk(SPH, this.M.white, 'face', false); w2.scale.set(H * 0.03, H * 0.035, H * 0.035); w2.position.set(H * 0.98, -H * 0.12, z * H * 0.4);
+      const w = mk(SPH, this.M.white, 'face', false);
+      if (soft) { w.scale.set(H * 0.045, H * 0.08, H * 0.075); w.position.set(H * 0.975, H * 0.02, z * H * 0.35 - H * 0.05); }
+      else { w.scale.set(H * 0.04, H * 0.075, H * 0.06); w.position.set(H * 0.97, H * 0.06, z * H * 0.33 - H * 0.04); }
+      const w2 = mk(SPH, this.M.white, 'face', false); w2.scale.set(H * 0.03, H * 0.035, H * 0.035); w2.position.set(H * 0.98, soft ? -H * 0.15 : -H * 0.12, z * H * 0.41);
+      (this.eyeParts = this.eyeParts || []).push(e, w, w2);
       const b = mk(SPH, this.M.blush, 'face', false); b.scale.set(H * 0.04, H * 0.07, H * 0.13); b.position.set(H * 0.86, -H * 0.3, z * H * 0.56); b.rotation.y = -z * 0.6;
-      const brow = mk(new THREE.CapsuleGeometry(H * 0.035, H * 0.2, 4, 8), this.M.hair, 'face', false);
-      brow.position.set(H * 0.9, H * 0.3, z * H * 0.36); brow.rotation.set(Math.PI / 2 + z * 0.12, 0, 0); brow.rotation.order = 'YXZ'; brow.rotation.y = -z * 0.38;
+      const brow = mk(new THREE.CapsuleGeometry(H * (soft ? 0.02 : 0.035), H * (soft ? 0.17 : 0.2), 4, 8), this.M.hair, 'face', false);
+      brow.position.set(H * 0.9, H * (soft ? 0.27 : 0.3), z * H * 0.37); brow.rotation.set(Math.PI / 2 + z * 0.12, 0, 0); brow.rotation.order = 'YXZ'; brow.rotation.y = -z * 0.38;
       this.eyes.push(e);
     }
     // 嘴巴（小小的微笑）
     const mouth = mk(new THREE.TorusGeometry(H * 0.1, H * 0.022, 6, 16, Math.PI), this.M.eye, 'face', false);
     mouth.position.set(H * 0.94, -H * 0.38, 0); mouth.rotation.set(0, Math.PI / 2, Math.PI);
     this.mouth = mouth;
+    if (soft) this.makeFaces(H);
+  }
+
+  // 表情：開心（^^ 眼、張嘴笑）、糟糕（>< 眼、o 嘴）
+  makeFaces(H) {
+    const g = this.headGroup, F = this.faces = { happy: [], oops: [] };
+    const mouthM = new THREE.MeshBasicMaterial({ color: '#7c3a30', side: THREE.DoubleSide }); mouthM.userData.part = 'face'; this.mats.push(mouthM);
+    const arcG = new THREE.TorusGeometry(H * 0.1, H * 0.027, 6, 14, Math.PI);
+    const strokeLen = Math.hypot(0.11, 0.075) * H;
+    const strokeG = new THREE.CapsuleGeometry(H * 0.024, strokeLen, 4, 8);
+    for (const z of [-1, 1]) {
+      const a = this.mk(arcG, this.M.eye, 'face', false, g); a.position.set(H * 0.95, -H * 0.13, z * H * 0.37); a.rotation.set(0, Math.PI / 2 - z * 0.36, 0);
+      F.happy.push(a);
+      const grp = new THREE.Group(); grp.position.set(H * 0.94, -H * 0.06, z * H * 0.37); grp.rotation.y = -z * 0.36; g.add(grp);
+      for (const sy of [-1, 1]) {
+        const st = this.mk(strokeG, this.M.eye, 'face', false, grp);
+        const dz = z * 0.11 * H, dy = sy * 0.075 * H;       // 頂點在內側（靠鼻子），往外上／外下畫：>  <
+        st.position.set(0, dy / 2, -z * 0.05 * H + dz / 2);
+        st.rotation.x = Math.atan2(dz, dy);
+        F.oops.push(st);
+      }
+    }
+    F.mouthHappy = this.mk(new THREE.CircleGeometry(H * 0.1, 18, Math.PI, Math.PI), mouthM, 'face', false, g);
+    F.mouthHappy.position.set(H * 0.965, -H * 0.33, 0); F.mouthHappy.rotation.y = Math.PI / 2;
+    F.mouthO = this.mk(new THREE.TorusGeometry(H * 0.05, H * 0.02, 6, 16), this.M.eye, 'face', false, g);
+    F.mouthO.position.set(H * 0.95, -H * 0.38, 0); F.mouthO.rotation.y = Math.PI / 2;
+    this.faceKind = null; this.setFace('smile');
+  }
+  setFace(kind = 'smile') {
+    if (!this.faces || this.faceKind === kind) return;
+    this.faceKind = kind;
+    const F = this.faces;
+    for (const m of this.eyeParts) m.visible = kind === 'smile' || kind === 'surprise';
+    for (const m of F.happy) m.visible = kind === 'happy';
+    for (const m of F.oops) m.visible = kind === 'oops';
+    this.mouth.visible = kind === 'smile';
+    F.mouthHappy.visible = kind === 'happy';
+    F.mouthO.visible = kind === 'oops' || kind === 'surprise';
   }
 
   // 打擊頭盔：比頭大一圈、亮面，面向投手那側有護耳
