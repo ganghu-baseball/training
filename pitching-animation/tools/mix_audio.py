@@ -1,6 +1,6 @@
 """混音：旁白（依時間軸放置）+ 程式生成的柔和配樂（自動閃避旁白）+ 少量音效。
 輸出 build/mix.wav（有配樂）與 build/voice.wav（只有旁白）。配樂為程式即時合成，無版權問題。"""
-import json, math, numpy as np, soundfile as sf
+import json, math, os, re, numpy as np, soundfile as sf
 
 SR = 48000
 tl = json.load(open('build/timeline.json', encoding='utf-8'))
@@ -119,7 +119,17 @@ def crack():
     noise = rng.standard_normal(n).astype(np.float32) * np.exp(-tt * 90)
     ring = sum(np.sin(2 * np.pi * fr * tt) * np.exp(-tt * d) * g for fr, d, g in [(1850, 45, 0.5), (2900, 60, 0.3), (950, 30, 0.35)])
     return ((noise * 0.6 + ring) * 0.8).astype(np.float32)
-if 'medball' in scenes:
+SFX_CFG = 'content/sfx.json'
+if os.path.exists(SFX_CFG):
+    # 專案自訂音效：{"events":[{"scene","t","kind","gain"}], "chime":"場景 id 的正規式"}
+    cfg = json.load(open(SFX_CFG))
+    kinds = {'pop': pop, 'thud': thud, 'crack': crack, 'chime': chime}
+    for ev in cfg.get('events', []):
+        add(scenes[ev['scene']]['t0'] + ev['t'], kinds[ev['kind']](), ev.get('gain', 1.0))
+    if cfg.get('chime'):
+        for s in tl['scenes']:
+            if re.match(cfg['chime'], s['id']): add(s['t0'] + 0.15, chime(), 0.35)
+elif 'medball' in scenes:
     add(scenes['intro']['t0'] + 3.105, pop(), 0.9)        # 開場真實速度那一球進捕手手套
     mb = scenes['medball']['t0']
     add(mb + 0.6 + (2.10 - 0.35) + 0.40, thud(), 0.7)     # 藥球（原速）撞牆
