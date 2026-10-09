@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>港湖社區棒球隊 開場動畫</title>
+<style>
+  @font-face { font-family: 'NotoTC'; src: url(fonts/NotoSansTC-var.woff2) format('woff2'); font-weight: 100 900; }
+  @font-face { font-family: 'Mont';   src: url(fonts/Montserrat-var.woff2) format('woff2'); font-weight: 100 900; }
+  html, body { margin: 0; background: #000; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// ------------------------------------------------------------------
+// 港湖社區棒球隊 — 10 秒開場動畫 (1080x1920, 30fps)
+// render(t) 畫出時間 t 秒的畫面；render.js 逐格截圖後交給 ffmpeg。
+// 節奏對齊原影片音樂：122 BPM，最後一拍落在原影片的第一拍。
+// ------------------------------------------------------------------
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W = 1080, H = 1920, DUR = 10;
+
+function makeLayer() {
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  return [c, c.getContext('2d')];
+}
+const [blurCv, bx] = makeLayer();   // motion-blur scratch layer
+const [textCv, tx] = makeLayer();   // text layer (for the shine sweep)
+
+// Beat grid (matches the original video's music, 122 BPM)
+const BEAT = 60 / 122, B0 = 0.294;
+const B = k => B0 + k * BEAT;
+
+const ORANGE = [255, 122, 26];
+const ORANGE_HI = [255, 168, 80];
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+// ---------- easing ----------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, u) => a + (b - a) * u;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOutCubic = u => 1 - Math.pow(1 - u, 3);
+const eInCubic = u => u * u * u;
+const eInOutCubic = u => u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+const eOutExpo = u => u >= 1 ? 1 : 1 - Math.pow(2, -10 * u);
+const eInExpo = u => u <= 0 ? 0 : Math.pow(2, 10 * u - 10);
+const eOutBack = u => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2); };
+const smooth = (a, b, x) => { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); };
+
+function rng(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// ---------- 3D baseball seam ----------
+const SB = 0.27, SA = 1 - SB, SC = 2 * Math.sqrt(SA * SB);
+const seam = th => [SA * Math.cos(th) + SB * Math.cos(3 * th), SA * Math.sin(th) - SB * Math.sin(3 * th), SC * Math.sin(2 * th)];
+const seamD = th => [-SA * Math.sin(th) - 3 * SB * Math.sin(3 * th), SA * Math.cos(th) - 3 * SB * Math.cos(3 * th), 2 * SC * Math.cos(2 * th)];
+const norm = v => { const l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; };
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const add = (a, b, s = 1) => [a[0] + b[0] * s, a[1] + b[1] * s, a[2] + b[2] * s];
+
+const SEAM_PTS = [];
+for (let i = 0; i <= 240; i++) SEAM_PTS.push(seam(i / 240 * Math.PI * 2));
+const STITCHES = [];
+for (let i = 0; i < 108; i++) {
+  const th = (i + 0.5) / 108 * Math.PI * 2;
+  const p = seam(th), d = norm(seamD(th)), n = norm(cross(p, d));
+  for (const s of [1, -1]) {
+    const a = norm(add(add(p, n, s * 0.03), d, 0.018));
+    const b = norm(add(add(p, n, s * 0.095), d, -0.03));
+    STITCHES.push([a, b]);
+  }
+}
+
+function matMul(A, Bm) {
+  const R = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+    R[i][j] = A[i][0] * Bm[0][j] + A[i][1] * Bm[1][j] + A[i][2] * Bm[2][j];
+  return R;
+}
+const rotX = a => [[1, 0, 0], [0, Math.cos(a), -Math.sin(a)], [0, Math.sin(a), Math.cos(a)]];
+const rotY = a => [[Math.cos(a), 0, Math.sin(a)], [0, 1, 0], [-Math.sin(a), 0, Math.cos(a)]];
+const rotZ = a => [[Math.cos(a), -Math.sin(a), 0], [Math.sin(a), Math.cos(a), 0], [0, 0, 1]];
+const apply = (M, v) => [M[0][0] * v[0] + M[0][1] * v[1] + M[0][2] * v[2],
+                         M[1][0] * v[0] + M[1][1] * v[1] + M[1][2] * v[2],
+                         M[2][0] * v[0] + M[2][1] * v[1] + M[2][2] * v[2]];
+
+// spin speed (rad/s) over time, integrated numerically
+function omega(t) {
+  if (t < B(4)) return lerp(13, 2.2, eOutCubic(prog(t, B0, B(4))));
+  if (t < B(16)) return lerp(2.2, 0.7, eOutCubic(prog(t, B(4), B(6))));
+  return lerp(0.7, 22, eInCubic(prog(t, B(16), 9.95)));
+}
+function spinAngle(t) {
+  let a = 0; const dt = 1 / 240;
+  for (let s = 0; s < t; s += dt) a += omega(s) * Math.min(dt, t - s);
+  return a;
+}
+const BASE_ORIENT = matMul(rotX(0.55), rotZ(0.35));
+function ballMatrix(t) {
+  return matMul(matMul(rotZ(-0.42), rotX(0.32)), matMul(rotY(spinAngle(t)), BASE_ORIENT));
+}
+
+function drawBall(g, cx, cy, R, M, alpha = 1) {
+  if (R < 0.5 || alpha <= 0) return;
+  g.save();
+  g.globalAlpha = alpha;
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2);
+  const body = g.createRadialGradient(cx - 0.36 * R, cy - 0.42 * R, R * 0.04, cx - 0.08 * R, cy - 0.08 * R, R * 1.18);
+  body.addColorStop(0, '#ffffff');
+  body.addColorStop(0.45, '#f6f2ec');
+  body.addColorStop(0.78, '#dcd3c6');
+  body.addColorStop(1, '#8e8274');
+  g.fillStyle = body; g.fill();
+  g.clip();
+  g.lineCap = 'round';
+  // seam groove
+  for (let i = 0; i < SEAM_PTS.length - 1; i++) {
+    const p = apply(M, SEAM_PTS[i]), q = apply(M, SEAM_PTS[i + 1]);
+    const z = (p[2] + q[2]) / 2;
+    if (z <= 0) continue;
+    g.strokeStyle = `rgba(150,138,124,${0.6 * smooth(0, 0.3, z)})`;
+    g.lineWidth = Math.max(1, R * 0.014);
+    g.beginPath(); g.moveTo(cx + R * p[0], cy + R * p[1]); g.lineTo(cx + R * q[0], cy + R * q[1]); g.stroke();
+  }
+  // orange stitches
+  g.lineWidth = Math.max(1.2, R * 0.024);
+  for (const [a0, b0] of STITCHES) {
+    const a = apply(M, a0), b = apply(M, b0);
+    const z = (a[2] + b[2]) / 2;
+    if (z <= 0) continue;
+    const k = smooth(0, 0.35, z);
+    g.strokeStyle = `rgba(238,88,18,${k})`;
+    g.beginPath(); g.moveTo(cx + R * a[0], cy + R * a[1]); g.lineTo(cx + R * b[0], cy + R * b[1]); g.stroke();
+  }
+  // warm rim light from below-right + soft edge darkening
+  const rim = g.createRadialGradient(cx + 0.8 * R, cy + 0.85 * R, 0, cx + 0.8 * R, cy + 0.85 * R, R * 1.25);
+  rim.addColorStop(0, 'rgba(255,128,36,0.55)');
+  rim.addColorStop(1, 'rgba(255,128,36,0)');
+  g.fillStyle = rim; g.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+  const edge = g.createRadialGradient(cx, cy, R * 0.6, cx, cy, R);
+  edge.addColorStop(0, 'rgba(0,0,0,0)');
+  edge.addColorStop(1, 'rgba(20,12,6,0.28)');
+  g.fillStyle = edge; g.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+  g.restore();
+}
+
+// ---------- ball flight path ----------
+const PATH = [[-140, 1560], [860, 1700], [1230, 520], [540, 680]];
+function bez(u) {
+  const v = 1 - u;
+  const a = v * v * v, b = 3 * v * v * u, c = 3 * v * u * u, d = u * u * u;
+  return [a * PATH[0][0] + b * PATH[1][0] + c * PATH[2][0] + d * PATH[3][0],
+          a * PATH[0][1] + b * PATH[1][1] + c * PATH[2][1] + d * PATH[3][1]];
+}
+const flightU = t => 1 - Math.pow(1 - prog(t, B0, B(4)), 2.4);
+const EMBLEM = [540, 680];
+const R_FINAL = 150;
+
+function ballState(t) {
+  if (t < B(4)) {
+    const u = flightU(t);
+    const [x, y] = bez(u);
+    return { x, y, R: lerp(30, 64, u) };
+  }
+  let R = lerp(64, R_FINAL, eOutBack(prog(t, B(4), B(6))));
+  let x = EMBLEM[0], y = EMBLEM[1];
+  if (t > B(16)) {
+    const m = eInOutCubic(prog(t, B(16) + 0.4, 9.7));
+    y = lerp(EMBLEM[1], 900, m);
+    const z = prog(t, B(18), 9.93);
+    R = R_FINAL * Math.pow(24, eInCubic(z));
+  }
+  return { x, y, R };
+}
+
+// ---------- background ----------
+const rand = rng(7);
+const PARTICLES = Array.from({ length: 46 }, () => ({
+  x: rand() * W, y: rand() * H, r: 3 + Math.pow(rand(), 2.2) * 34,
+  depth: 0.3 + rand() * 0.7, warm: rand() < 0.7, phase: rand() * 6.28, a: 0.06 + rand() * 0.22,
+}));
+
+const NOISE = [];
+for (let k = 0; k < 4; k++) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'); const img = g.createImageData(256, 256); const r = rng(100 + k);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 128 + (r() - 0.5) * 255;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0); NOISE.push(c);
+}
+
+function drawBackground(t) {
+  const bg = ctx.createRadialGradient(W / 2, 760, 0, W / 2, 760, 1500);
+  bg.addColorStop(0, '#17222c');
+  bg.addColorStop(0.42, '#0b131a');
+  bg.addColorStop(1, '#000000');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+  // warm glow behind the emblem, swells as the ball arrives
+  const glowA = 0.05 + 0.2 * smooth(B(3), B(6), t) - 0.1 * smooth(9.2, 9.8, t);
+  const gl = ctx.createRadialGradient(EMBLEM[0], EMBLEM[1], 0, EMBLEM[0], EMBLEM[1], 760);
+  gl.addColorStop(0, rgba(ORANGE, glowA));
+  gl.addColorStop(1, rgba(ORANGE, 0));
+  ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H);
+}
+
+// stadium lights switching on (top corners)
+const LIGHTS = [{ x: 150, y: 150, on: B(1) }, { x: 945, y: 118, on: B(2) }];
+function drawLights(t) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const L of LIGHTS) {
+    const since = t - L.on;
+    if (since < 0) continue;
+    // quick flicker then steady, slow breathing
+    let k = since < 0.06 ? 1 : since < 0.1 ? 0.35 : since < 0.16 ? 1.0 : 0.82 + 0.06 * Math.sin(t * 2.2 + L.x);
+    k *= 1 - smooth(9.0, 9.6, t) * 0.6;
+    const core = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, 230);
+    core.addColorStop(0, `rgba(255,248,235,${0.95 * k})`);
+    core.addColorStop(0.08, `rgba(255,214,160,${0.7 * k})`);
+    core.addColorStop(0.35, rgba(ORANGE, 0.16 * k));
+    core.addColorStop(1, rgba(ORANGE, 0));
+    ctx.fillStyle = core; ctx.fillRect(L.x - 230, L.y - 230, 460, 460);
+    // starburst streaks
+    for (const [ang, len, w] of [[0.15, 520, 3], [1.75, 300, 2], [-0.95, 260, 1.5], [2.6, 220, 1.5]]) {
+      const dx = Math.cos(ang) * len, dy = Math.sin(ang) * len;
+      const sg = ctx.createLinearGradient(L.x - dx, L.y - dy, L.x + dx, L.y + dy);
+      sg.addColorStop(0, 'rgba(255,200,140,0)');
+      sg.addColorStop(0.5, `rgba(255,230,200,${0.55 * k})`);
+      sg.addColorStop(1, 'rgba(255,200,140,0)');
+      ctx.strokeStyle = sg; ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(L.x - dx, L.y - dy); ctx.lineTo(L.x + dx, L.y + dy); ctx.stroke();
+    }
+    // faint beam down toward the field
+    const bg = ctx.createLinearGradient(L.x, L.y, W / 2, 1500);
+    bg.addColorStop(0, `rgba(255,190,120,${0.10 * k})`);
+    bg.addColorStop(1, 'rgba(255,190,120,0)');
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.moveTo(L.x, L.y);
+    ctx.lineTo(W / 2 - 520, 1650); ctx.lineTo(W / 2 + 520, 1650); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ---------- perspective baseball field (lower third) ----------
+const HORIZON = 1340, FOCAL = 940, CAM_H = 30;
+function camZ(t) { return lerp(64, 50, eInOutCubic(t / DUR)); }
+function proj(X, Z, t) {
+  const zr = Z + camZ(t);
+  return [W / 2 + FOCAL * X / zr, HORIZON + FOCAL * CAM_H / zr, zr];
+}
+function fieldLine(t, pts, prg, color, width, alpha) {
+  if (prg <= 0) return;
+  const total = pts.length - 1, upto = prg * total;
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+  for (let i = 0; i < total && i < upto; i++) {
+    const f = Math.min(1, upto - i);
+    const a = pts[i], b = [lerp(pts[i][0], pts[i + 1][0], f), lerp(pts[i][1], pts[i + 1][1], f)];
+    const pa = proj(a[0], a[1], t), pb = proj(b[0], b[1], t);
+    const fog = clamp(1 - (pa[2] - 60) / 420);
+    ctx.globalAlpha = alpha * fog;
+    ctx.beginPath(); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+function seg(a, b, n) { const out = []; for (let i = 0; i <= n; i++) out.push([lerp(a[0], b[0], i / n), lerp(a[1], b[1], i / n)]); return out; }
+const D = 63.64; // 90ft base path projected on the axes
+const FOUL_L = seg([0, 0], [-300, 300], 40), FOUL_R = seg([0, 0], [300, 300], 40);
+const BASEPATH = [...seg([0, 0], [D, D], 10), ...seg([D, D], [0, 2 * D], 10).slice(1), ...seg([0, 2 * D], [-D, D], 10).slice(1), ...seg([-D, D], [0, 0], 10).slice(1)];
+const OUTFIELD = Array.from({ length: 61 }, (_, i) => { const a = (-45 + i * 1.5) * Math.PI / 180; return [330 * Math.sin(a), 330 * Math.cos(a)]; });
+const INFIELD_ARC = Array.from({ length: 41 }, (_, i) => { const a = (-45 + i * 2.25) * Math.PI / 180; return [155 * Math.sin(a), 155 * Math.cos(a)]; });
+
+function drawField(t) {
+  const out = 1 - smooth(8.7, 9.4, t);
+  if (out <= 0) return;
+  ctx.save();
+  // turf glow
+  const tg = ctx.createLinearGradient(0, HORIZON - 40, 0, H);
+  tg.addColorStop(0, 'rgba(255,122,26,0)');
+  tg.addColorStop(1, `rgba(255,122,26,${0.07 * out * smooth(0.2, 1.5, t)})`);
+  ctx.fillStyle = tg; ctx.fillRect(0, HORIZON - 40, W, H);
+
+  fieldLine(t, FOUL_L, eInOutCubic(prog(t, 0.25, 1.6)), '#ffffff', 3, 0.5 * out);
+  fieldLine(t, FOUL_R, eInOutCubic(prog(t, 0.25, 1.6)), '#ffffff', 3, 0.5 * out);
+  fieldLine(t, OUTFIELD, eInOutCubic(prog(t, 0.9, 2.4)), rgba(ORANGE, 1), 2.5, 0.35 * out);
+  fieldLine(t, INFIELD_ARC, eInOutCubic(prog(t, 1.1, 2.4)), rgba(ORANGE, 1), 2.5, 0.45 * out);
+  fieldLine(t, BASEPATH, eInOutCubic(prog(t, 0.6, 2.2)), rgba(ORANGE_HI, 1), 3.5, 0.75 * out);
+
+  // bases pop in
+  const bases = [[D, D, B(2)], [0, 2 * D, B(3)], [-D, D, B(3) + BEAT / 2]];
+  for (const [X, Z, t0] of bases) {
+    const s = eOutBack(prog(t, t0, t0 + 0.35));
+    if (s <= 0) continue;
+    const q = [[X, Z - 1.3 * s], [X + 1.3 * s, Z], [X, Z + 1.3 * s], [X - 1.3 * s, Z]].map(p => proj(p[0], p[1], t));
+    ctx.globalAlpha = 0.9 * out;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); q.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill();
+  }
+  // pitcher's mound
+  const ms = eOutBack(prog(t, B(3), B(4)));
+  if (ms > 0) {
+    ctx.globalAlpha = 0.6 * out; ctx.strokeStyle = rgba(ORANGE_HI, 1); ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i <= 48; i++) {
+      const a = i / 48 * Math.PI * 2;
+      const p = proj(9 * ms * Math.cos(a), 42.7 + 9 * ms * Math.sin(a), t);
+      i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
+    }
+    ctx.stroke();
+  }
+  // home plate
+  const hs = eOutBack(prog(t, B(1), B(1) + 0.4));
+  if (hs > 0) {
+    const hp = [[-0.7, 0.7], [0.7, 0.7], [0.7, 0], [0, -0.7], [-0.7, 0]].map(p => proj(p[0] * hs * 1.6, p[1] * hs * 1.6, t));
+    ctx.globalAlpha = out; ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(255,160,80,0.9)'; ctx.shadowBlur = 24;
+    ctx.beginPath(); hp.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
+function drawParticles(t) {
+  const warp = eInCubic(prog(t, B(16), 9.9));
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const fadeIn = smooth(0, 1.2, t);
+  for (const p of PARTICLES) {
+    let x = p.x + Math.sin(t * 0.6 + p.phase) * 18 * p.depth;
+    let y = ((p.y - t * 28 * p.depth) % H + H) % H;
+    const c = p.warm ? ORANGE_HI : [255, 240, 225];
+    const a = p.a * fadeIn * (0.7 + 0.3 * Math.sin(t * 1.7 + p.phase));
+    if (warp > 0) {
+      // stream outward from the ball like warp speed
+      const cx = W / 2, cy = 820;
+      const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1;
+      const push = warp * 1400 * p.depth;
+      const x2 = x + dx / d * push, y2 = y + dy / d * push;
+      const tail = 40 + warp * 520 * p.depth;
+      ctx.strokeStyle = rgba(c, Math.min(0.9, a * 2.5));
+      ctx.lineWidth = Math.max(1.5, p.r * 0.25);
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - dx / d * tail, y2 - dy / d * tail); ctx.stroke();
+      continue;
+    }
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, p.r);
+    gr.addColorStop(0, rgba(c, a));
+    gr.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = gr; ctx.fillRect(x - p.r, y - p.r, 2 * p.r, 2 * p.r);
+  }
+  ctx.restore();
+}
+
+// ---------- ball trail (glowing seam ribbon) ----------
+function drawTrail(t) {
+  if (t < B0 || t > B(4) + 0.9) return;
+  const N = 46, span = 0.75;
+  const pts = [];
+  for (let k = 0; k <= N; k++) {
+    const tt = t - k * span / N;
+    if (tt < B0) break;
+    const tc = Math.min(tt, B(4));
+    const s = ballState(tc);
+    pts.push([s.x, s.y, s.R, k / N]);
+  }
+  if (pts.length < 2) return;
+  const fade = 1 - smooth(B(4), B(4) + 0.8, t);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x0, y0, r0, f] = pts[i], [x1, y1] = pts[i + 1];
+    const k = Math.pow(1 - f, 1.6) * fade;
+    ctx.strokeStyle = rgba(ORANGE, 0.22 * k); ctx.lineWidth = r0 * 1.9 * (1 - f * 0.7);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.strokeStyle = rgba(ORANGE_HI, 0.75 * k); ctx.lineWidth = r0 * 0.32 * (1 - f * 0.8);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  }
+  // stitch chevrons along the trail
+  let acc = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [x0, y0, r0, f] = pts[i], [x1, y1] = pts[i + 1];
+    const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy);
+    acc += L;
+    if (acc < 30 || L < 0.01) continue;
+    acc = 0;
+    const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+    const w = r0 * 0.75 * (1 - f * 0.6), h = r0 * 0.28;
+    const k = Math.pow(1 - f, 1.3) * fade;
+    ctx.strokeStyle = `rgba(255,236,215,${0.85 * k})`; ctx.lineWidth = Math.max(1.5, r0 * 0.07);
+    for (const s of [1, -1]) {
+      ctx.beginPath();
+      ctx.moveTo(x0 + nx * w * 0.35 * s, y0 + ny * w * 0.35 * s);
+      ctx.lineTo(x0 + nx * w * s + ux * h, y0 + ny * w * s + uy * h);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+// ---------- emblem (rings around the ball) ----------
+const RING_TEXT = 'GANGHU  ·  BASEBALL  ·  GANGHU  ·  BASEBALL  ·  ';
+function drawEmblem(t, st) {
+  const appear = prog(t, B(4) + 0.08, B(6));
+  if (appear <= 0) return;
+  const out = smooth(B(17) + 0.1, B(18) + 0.2, t);
+  const sc = 1 + out * 0.7;
+  const alpha = 1 - out;
+  if (alpha <= 0) return;
+  const cx = st.x, cy = st.y;
+  const R = R_FINAL * sc;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // arrival pulse
+  const pp = prog(t, B(4), B(4) + 0.7);
+  if (pp > 0 && pp < 1) {
+    ctx.strokeStyle = rgba(ORANGE_HI, 0.9 * (1 - pp));
+    ctx.lineWidth = lerp(10, 1, pp);
+    ctx.beginPath(); ctx.arc(cx, cy, lerp(70, 520, eOutCubic(pp)), 0, Math.PI * 2); ctx.stroke();
+  }
+  // orange ring drawing clockwise
+  const rp = eInOutCubic(appear);
+  ctx.strokeStyle = rgba(ORANGE, 1); ctx.lineWidth = 8; ctx.lineCap = 'round';
+  ctx.shadowColor = rgba(ORANGE, 0.8); ctx.shadowBlur = 22;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 1.34, -Math.PI / 2, -Math.PI / 2 + rp * Math.PI * 2); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // stitched dashed ring
+  const dp = smooth(B(5), B(6) + 0.2, t);
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(t * 0.18);
+  ctx.strokeStyle = `rgba(255,255,255,${0.55 * dp})`; ctx.lineWidth = 3; ctx.lineCap = 'butt';
+  ctx.setLineDash([4, 13]);
+  ctx.beginPath(); ctx.arc(0, 0, R * 1.47, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+  // circular text
+  const tp = smooth(B(6) - 0.1, B(7) + 0.2, t);
+  if (tp > 0) {
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(-t * 0.12 - 1.1);
+    ctx.font = '600 21px Mont';
+    ctx.fillStyle = `rgba(255,255,255,${0.72 * tp})`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const r = R * 1.62, chars = [...RING_TEXT];
+    const step = Math.PI * 2 / chars.length;
+    chars.forEach((ch, i) => {
+      ctx.save(); ctx.rotate(i * step); ctx.translate(0, -r); ctx.fillText(ch, 0, 0); ctx.restore();
+    });
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// ---------- text ----------
+function measureChars(g, font, chars) { g.font = font; return chars.map(c => g.measureText(c).width); }
+
+// Draw a string with motion blur along x (velocity in px/frame) onto layer g
+function drawBlurredText(g, text, font, x, y, vx, color, alpha, spacing = 0, shadow = null) {
+  if (alpha <= 0) return;
+  const chars = [...text];
+  const widths = measureChars(bx, font, chars);
+  const total = widths.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
+  const n = Math.min(28, Math.max(1, Math.ceil(Math.abs(vx) / 5)));
+  bx.clearRect(0, 0, W, H);
+  bx.save();
+  bx.font = font; bx.textBaseline = 'alphabetic'; bx.fillStyle = color;
+  bx.globalCompositeOperation = 'lighter';
+  bx.globalAlpha = 1 / n;
+  for (let i = 0; i < n; i++) {
+    const off = n === 1 ? 0 : (i / (n - 1) - 0.5) * vx * 1.6;
+    let cx = x - total / 2 + off;
+    chars.forEach((ch, k) => { bx.fillText(ch, cx, y); cx += widths[k] + spacing; });
+  }
+  bx.restore();
+  g.save();
+  g.globalAlpha = alpha;
+  if (shadow) { g.shadowColor = shadow[0]; g.shadowBlur = shadow[1]; }
+  g.drawImage(blurCv, 0, 0);
+  g.restore();
+}
+
+const CAPTION = 'GANGHU COMMUNITY BASEBALL';
+const CAP_ORDER = (() => { const r = rng(42); return [...CAPTION].map((_, i) => [r(), i]).sort((a, b) => a[0] - b[0]).map(p => p[1]); })();
+const TITLE = '港湖社區棒球隊';
+const TAG = 'PLAY BALL';
+const Y_CAP = 1012, Y_TITLE = 1152, Y_TAG = 1266;
+
+function drawCaption(g, t) {
+  const tIn = B(6), tOut = B(16);
+  if (t < tIn) return;
+  const pin = prog(t, tIn, tIn + 0.75), pout = prog(t, tOut, tOut + 0.4);
+  const spacing = lerp(26, 9, eOutExpo(pin)) + 30 * eInCubic(pout);
+  const font = '600 30px Mont';
+  const chars = [...CAPTION];
+  const widths = measureChars(g, font, chars);
+  const total = widths.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
+  g.save();
+  g.font = font; g.textBaseline = 'alphabetic';
+  let x = W / 2 - total / 2;
+  chars.forEach((ch, i) => {
+    const rank = CAP_ORDER.indexOf(i);
+    const a = smooth(0, 0.12, t - tIn - rank * 0.016) * (1 - eInCubic(pout));
+    if (a > 0) {
+      const blur = (1 - smooth(0, 0.2, t - tIn - rank * 0.016)) * 6 + pout * 10;
+      g.filter = blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : 'none';
+      g.fillStyle = `rgba(255,255,255,${0.92 * a})`;
+      g.fillText(ch, x, Y_CAP);
+    }
+    x += widths[i] + spacing;
+  });
+  g.filter = 'none';
+  // thin divider lines either side (like the original's end card)
+  const lp = eOutCubic(prog(t, tIn + 0.3, tIn + 1.0)) * (1 - pout);
+  if (lp > 0) {
+    g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1.5;
+    const gap = total / 2 + 22, len = 70 * lp;
+    g.beginPath(); g.moveTo(W / 2 - gap, Y_CAP - 10); g.lineTo(W / 2 - gap - len, Y_CAP - 10);
+    g.moveTo(W / 2 + gap, Y_CAP - 10); g.lineTo(W / 2 + gap + len, Y_CAP - 10); g.stroke();
+  }
+  g.restore();
+}
+
+function titleX(t) {
+  const tIn = B(7), tLand = B(8), tOut = B(17);
+  if (t < tOut) return lerp(-760, 0, eOutExpo(prog(t, tIn, tLand + 0.15)));
+  return lerp(0, 900, eInExpo(prog(t, tOut, tOut + 0.42)));
+}
+function drawTitle(g, t) {
+  const tIn = B(7), tOut = B(17);
+  if (t < tIn || t > tOut + 0.45) return;
+  const x = titleX(t), vx = titleX(t) - titleX(t - 1 / 30);
+  const a = smooth(tIn, tIn + 0.12, t) * (1 - smooth(tOut + 0.15, tOut + 0.42, t));
+  drawBlurredText(g, TITLE, '700 120px NotoTC', W / 2 + x, Y_TITLE, vx, '#ffffff', a, 10,
+                  ['rgba(255,110,20,0.45)', 28]);
+}
+
+function drawTag(g, t) {
+  const tIn = B(9), tOut = B(18);
+  if (t < tIn || t > tOut + 0.4) return;
+  const pin = prog(t, tIn, tIn + 0.4), pout = prog(t, tOut, tOut + 0.35);
+  const s = lerp(1.35, 1, eOutBack(pin)) * (1 + 0.5 * eInCubic(pout));
+  const a = smooth(0, 0.5, pin) * (1 - eInCubic(pout));
+  g.save();
+  g.translate(W / 2, Y_TAG - 32); g.scale(s, s); g.translate(-W / 2, -(Y_TAG - 32));
+  g.filter = (1 - pin) * 8 + pout * 8 > 0.3 ? `blur(${((1 - pin) * 8 + pout * 8).toFixed(1)}px)` : 'none';
+  g.font = '900 88px Mont'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.letterSpacing = '6px';
+  g.fillStyle = rgba(ORANGE, a);
+  g.shadowColor = rgba(ORANGE, 0.55 * a); g.shadowBlur = 26;
+  g.fillText(TAG, W / 2 + 3, Y_TAG);
+  g.shadowBlur = 0; g.filter = 'none'; g.letterSpacing = '0px';
+  // flanking lines + small diamonds
+  const lp = eOutCubic(prog(t, tIn + 0.2, tIn + 0.8)) * (1 - pout);
+  if (lp > 0) {
+    const half = g.measureText(TAG).width / 2 + 34;
+    g.strokeStyle = `rgba(255,255,255,${0.6 * lp})`; g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(W / 2 - half, Y_TAG - 32); g.lineTo(W / 2 - half - 60 * lp, Y_TAG - 32);
+    g.moveTo(W / 2 + half, Y_TAG - 32); g.lineTo(W / 2 + half + 60 * lp, Y_TAG - 32);
+    g.stroke();
+  }
+  g.restore();
+}
+
+// diagonal shine across the text block
+function applyShine(g, t, t0, dur) {
+  const p = prog(t, t0, t0 + dur);
+  if (p <= 0 || p >= 1) return;
+  const cx = lerp(-300, W + 300, eInOutCubic(p));
+  g.save();
+  g.globalCompositeOperation = 'source-atop';
+  const sg = g.createLinearGradient(cx - 160, 1000, cx + 160, 1300);
+  sg.addColorStop(0, 'rgba(255,255,255,0)');
+  sg.addColorStop(0.5, 'rgba(255,246,228,0.85)');
+  sg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = sg; g.fillRect(0, 900, W, 450);
+  g.restore();
+}
+
+// soft orange light leak sweeping across
+function lightLeak(t, t0, dur, amax) {
+  const p = prog(t, t0, t0 + dur);
+  if (p <= 0 || p >= 1) return;
+  const a = Math.sin(p * Math.PI) * amax;
+  const x = lerp(-500, W + 500, p), y = lerp(200, 1500, p);
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  const g = ctx.createRadialGradient(x, y, 0, x, y, 900);
+  g.addColorStop(0, `rgba(255,190,110,${a})`);
+  g.addColorStop(0.4, rgba(ORANGE, a * 0.5));
+  g.addColorStop(1, rgba(ORANGE, 0));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function drawOverlays(t, frameNo) {
+  // vignette
+  const v = ctx.createRadialGradient(W / 2, H * 0.45, H * 0.28, W / 2, H * 0.45, H * 0.78);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  // film grain
+  ctx.save();
+  ctx.globalAlpha = 0.07; ctx.globalCompositeOperation = 'overlay';
+  const tile = NOISE[frameNo % 4], r = rng(frameNo * 13 + 1);
+  const ox = Math.floor(r() * 256), oy = Math.floor(r() * 256);
+  for (let y = -oy; y < H; y += 256) for (let x = -ox; x < W; x += 256) ctx.drawImage(tile, x, y);
+  ctx.restore();
+  // fade up from black
+  const fin = 1 - smooth(0, 0.55, t);
+  if (fin > 0) { ctx.fillStyle = `rgba(0,0,0,${fin})`; ctx.fillRect(0, 0, W, H); }
+  // white flash into the original video
+  const fl = eInCubic(prog(t, 9.6, 9.93));
+  if (fl > 0) { ctx.fillStyle = `rgba(255,252,246,${fl})`; ctx.fillRect(0, 0, W, H); }
+}
+
+function render(t) {
+  const frameNo = Math.round(t * 30);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+
+  // gentle camera push during the hold
+  const push = 1 + 0.045 * eInOutCubic(prog(t, B(8), B(16) + 0.4));
+  ctx.setTransform(push, 0, 0, push, W / 2 * (1 - push), 900 * (1 - push));
+
+  drawBackground(t);
+  drawLights(t);
+  drawField(t);
+  drawParticles(t);
+  lightLeak(t, B(12), 1.4, 0.32);
+  lightLeak(t, B(16) + 0.2, 1.3, 0.25);
+
+  const st = ballState(t);
+  drawTrail(t);
+  // ball glow
+  if (t > B0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const gr = ctx.createRadialGradient(st.x, st.y, st.R * 0.8, st.x, st.y, st.R * 2.6);
+    gr.addColorStop(0, rgba(ORANGE, 0.32));
+    gr.addColorStop(1, rgba(ORANGE, 0));
+    ctx.fillStyle = gr; ctx.fillRect(st.x - st.R * 2.6, st.y - st.R * 2.6, st.R * 5.2, st.R * 5.2);
+    ctx.restore();
+  }
+  drawEmblem(t, st);
+  drawBall(ctx, st.x, st.y, st.R, ballMatrix(t));
+
+  // text layer
+  tx.setTransform(1, 0, 0, 1, 0, 0);
+  tx.clearRect(0, 0, W, H);
+  drawCaption(tx, t);
+  drawTitle(tx, t);
+  drawTag(tx, t);
+  applyShine(tx, t, B(12) + 0.1, 0.9);
+  ctx.drawImage(textCv, 0, 0);
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  drawOverlays(t, frameNo);
+}
+
+window.render = render;
+window.ready = (async () => {
+  await Promise.all([
+    document.fonts.load('700 120px NotoTC', TITLE),
+    document.fonts.load('600 30px Mont', CAPTION),
+    document.fonts.load('900 88px Mont', TAG),
+  ]);
+  await document.fonts.ready;
+  render(0);
+  return document.fonts.check('700 120px NotoTC', TITLE) && document.fonts.check('900 88px Mont', TAG);
+})();
+
+// open the file directly in a browser to preview it in real time
+if (!navigator.webdriver) {
+  window.ready.then(() => {
+    const start = performance.now();
+    const loop = () => { render(((performance.now() - start) / 1000) % DUR); requestAnimationFrame(loop); };
+    loop();
+  });
+}
+</script>
+</body>
+</html>
