@@ -14,13 +14,14 @@
 <canvas id="c" width="1080" height="1920"></canvas>
 <script>
 // ------------------------------------------------------------------
-// 港湖社區棒球隊 — 10 秒開場動畫 (1080x1920, 30fps)
+// 港湖社區棒球隊 — 5 秒開場動畫 (1080x1920, 30fps)
 // render(t) 畫出時間 t 秒的畫面；render.js 逐格截圖後交給 ffmpeg。
-// 節奏對齊原影片音樂：122 BPM，最後一拍落在原影片的第一拍。
+// 節奏對齊原影片音樂：122 BPM，第 10 拍落在原影片的第一拍 (接上後的 5.13 秒)。
+// 最後 0.15 秒白閃會淡出到原影片的第一格 (orig_first_frame.png)，直接接原影片就是無縫轉場。
 // ------------------------------------------------------------------
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
-const W = 1080, H = 1920, DUR = 10;
+const W = 1080, H = 1920, DUR = 5;
 
 function makeLayer() {
   const c = document.createElement('canvas');
@@ -31,8 +32,20 @@ const [blurCv, bx] = makeLayer();   // motion-blur scratch layer
 const [textCv, tx] = makeLayer();   // text layer (for the shine sweep)
 
 // Beat grid (matches the original video's music, 122 BPM)
-const BEAT = 60 / 122, B0 = 0.294;
+const BEAT = 60 / 122, B0 = 5.13 - 10 * BEAT;   // 0.212s
 const B = k => B0 + k * BEAT;
+
+// Timeline (seconds)
+const T = {
+  arrive: B(2),            // ball reaches the emblem
+  grown: B(3),             // ball at full size, caption starts
+  titleIn: B(3) + 0.2, titleLand: B(4),
+  tag: B(4.5),
+  shine: B(5) + 0.1,
+  exitCap: B(7), exitTitle: B(7.5), exitTag: B(8),
+  zoom: B(8),              // ball rushes the camera
+  flashPeak: 4.84,         // full white, then fade into the original's first frame
+};
 
 const ORANGE = [255, 122, 26];
 const ORANGE_HI = [255, 168, 80];
@@ -95,9 +108,9 @@ const apply = (M, v) => [M[0][0] * v[0] + M[0][1] * v[1] + M[0][2] * v[2],
 
 // spin speed (rad/s) over time, integrated numerically
 function omega(t) {
-  if (t < B(4)) return lerp(13, 2.2, eOutCubic(prog(t, B0, B(4))));
-  if (t < B(16)) return lerp(2.2, 0.7, eOutCubic(prog(t, B(4), B(6))));
-  return lerp(0.7, 22, eInCubic(prog(t, B(16), 9.95)));
+  if (t < T.arrive) return lerp(13, 2.5, eOutCubic(prog(t, B0, T.arrive)));
+  if (t < T.exitCap) return lerp(2.5, 0.9, eOutCubic(prog(t, T.arrive, T.grown)));
+  return lerp(0.9, 22, eInCubic(prog(t, T.exitCap, 4.95)));
 }
 function spinAngle(t) {
   let a = 0; const dt = 1 / 240;
@@ -161,22 +174,22 @@ function bez(u) {
   return [a * PATH[0][0] + b * PATH[1][0] + c * PATH[2][0] + d * PATH[3][0],
           a * PATH[0][1] + b * PATH[1][1] + c * PATH[2][1] + d * PATH[3][1]];
 }
-const flightU = t => 1 - Math.pow(1 - prog(t, B0, B(4)), 2.4);
+const flightU = t => 1 - Math.pow(1 - prog(t, B0, T.arrive), 2.2);
 const EMBLEM = [540, 680];
 const R_FINAL = 150;
 
 function ballState(t) {
-  if (t < B(4)) {
+  if (t < T.arrive) {
     const u = flightU(t);
     const [x, y] = bez(u);
     return { x, y, R: lerp(30, 64, u) };
   }
-  let R = lerp(64, R_FINAL, eOutBack(prog(t, B(4), B(6))));
+  let R = lerp(64, R_FINAL, eOutBack(prog(t, T.arrive, T.grown)));
   let x = EMBLEM[0], y = EMBLEM[1];
-  if (t > B(16)) {
-    const m = eInOutCubic(prog(t, B(16) + 0.4, 9.7));
+  if (t > T.exitCap) {
+    const m = eInOutCubic(prog(t, T.exitTitle, 4.75));
     y = lerp(EMBLEM[1], 900, m);
-    const z = prog(t, B(18), 9.93);
+    const z = prog(t, T.zoom, T.flashPeak);
     R = R_FINAL * Math.pow(24, eInCubic(z));
   }
   return { x, y, R };
@@ -208,7 +221,7 @@ function drawBackground(t) {
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
   // warm glow behind the emblem, swells as the ball arrives
-  const glowA = 0.05 + 0.2 * smooth(B(3), B(6), t) - 0.1 * smooth(9.2, 9.8, t);
+  const glowA = 0.05 + 0.2 * smooth(B(1), T.grown, t) - 0.1 * smooth(4.3, 4.8, t);
   const gl = ctx.createRadialGradient(EMBLEM[0], EMBLEM[1], 0, EMBLEM[0], EMBLEM[1], 760);
   gl.addColorStop(0, rgba(ORANGE, glowA));
   gl.addColorStop(1, rgba(ORANGE, 0));
@@ -216,7 +229,7 @@ function drawBackground(t) {
 }
 
 // stadium lights switching on (top corners)
-const LIGHTS = [{ x: 150, y: 150, on: B(1) }, { x: 945, y: 118, on: B(2) }];
+const LIGHTS = [{ x: 150, y: 150, on: 0.25 }, { x: 945, y: 118, on: 0.5 }];
 function drawLights(t) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
@@ -225,7 +238,7 @@ function drawLights(t) {
     if (since < 0) continue;
     // quick flicker then steady, slow breathing
     let k = since < 0.06 ? 1 : since < 0.1 ? 0.35 : since < 0.16 ? 1.0 : 0.82 + 0.06 * Math.sin(t * 2.2 + L.x);
-    k *= 1 - smooth(9.0, 9.6, t) * 0.6;
+    k *= 1 - smooth(4.3, 4.8, t) * 0.6;
     const core = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, 230);
     core.addColorStop(0, `rgba(255,248,235,${0.95 * k})`);
     core.addColorStop(0.08, `rgba(255,214,160,${0.7 * k})`);
@@ -255,7 +268,7 @@ function drawLights(t) {
 
 // ---------- perspective baseball field (lower third) ----------
 const HORIZON = 1340, FOCAL = 940, CAM_H = 30;
-function camZ(t) { return lerp(64, 50, eInOutCubic(t / DUR)); }
+function camZ(t) { return lerp(62, 52, eInOutCubic(t / DUR)); }
 function proj(X, Z, t) {
   const zr = Z + camZ(t);
   return [W / 2 + FOCAL * X / zr, HORIZON + FOCAL * CAM_H / zr, zr];
@@ -282,23 +295,23 @@ const OUTFIELD = Array.from({ length: 61 }, (_, i) => { const a = (-45 + i * 1.5
 const INFIELD_ARC = Array.from({ length: 41 }, (_, i) => { const a = (-45 + i * 2.25) * Math.PI / 180; return [155 * Math.sin(a), 155 * Math.cos(a)]; });
 
 function drawField(t) {
-  const out = 1 - smooth(8.7, 9.4, t);
+  const out = 1 - smooth(4.0, 4.5, t);
   if (out <= 0) return;
   ctx.save();
   // turf glow
   const tg = ctx.createLinearGradient(0, HORIZON - 40, 0, H);
   tg.addColorStop(0, 'rgba(255,122,26,0)');
-  tg.addColorStop(1, `rgba(255,122,26,${0.07 * out * smooth(0.2, 1.5, t)})`);
+  tg.addColorStop(1, `rgba(255,122,26,${0.07 * out * smooth(0.1, 0.9, t)})`);
   ctx.fillStyle = tg; ctx.fillRect(0, HORIZON - 40, W, H);
 
-  fieldLine(t, FOUL_L, eInOutCubic(prog(t, 0.25, 1.6)), '#ffffff', 3, 0.5 * out);
-  fieldLine(t, FOUL_R, eInOutCubic(prog(t, 0.25, 1.6)), '#ffffff', 3, 0.5 * out);
-  fieldLine(t, OUTFIELD, eInOutCubic(prog(t, 0.9, 2.4)), rgba(ORANGE, 1), 2.5, 0.35 * out);
-  fieldLine(t, INFIELD_ARC, eInOutCubic(prog(t, 1.1, 2.4)), rgba(ORANGE, 1), 2.5, 0.45 * out);
-  fieldLine(t, BASEPATH, eInOutCubic(prog(t, 0.6, 2.2)), rgba(ORANGE_HI, 1), 3.5, 0.75 * out);
+  fieldLine(t, FOUL_L, eInOutCubic(prog(t, 0.1, 0.95)), '#ffffff', 3, 0.5 * out);
+  fieldLine(t, FOUL_R, eInOutCubic(prog(t, 0.1, 0.95)), '#ffffff', 3, 0.5 * out);
+  fieldLine(t, OUTFIELD, eInOutCubic(prog(t, 0.45, 1.4)), rgba(ORANGE, 1), 2.5, 0.35 * out);
+  fieldLine(t, INFIELD_ARC, eInOutCubic(prog(t, 0.55, 1.4)), rgba(ORANGE, 1), 2.5, 0.45 * out);
+  fieldLine(t, BASEPATH, eInOutCubic(prog(t, 0.3, 1.25)), rgba(ORANGE_HI, 1), 3.5, 0.75 * out);
 
   // bases pop in
-  const bases = [[D, D, B(2)], [0, 2 * D, B(3)], [-D, D, B(3) + BEAT / 2]];
+  const bases = [[D, D, 0.62], [0, 2 * D, 0.85], [-D, D, 1.05]];
   for (const [X, Z, t0] of bases) {
     const s = eOutBack(prog(t, t0, t0 + 0.35));
     if (s <= 0) continue;
@@ -308,7 +321,7 @@ function drawField(t) {
     ctx.beginPath(); q.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill();
   }
   // pitcher's mound
-  const ms = eOutBack(prog(t, B(3), B(4)));
+  const ms = eOutBack(prog(t, 0.9, 1.3));
   if (ms > 0) {
     ctx.globalAlpha = 0.6 * out; ctx.strokeStyle = rgba(ORANGE_HI, 1); ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -320,7 +333,7 @@ function drawField(t) {
     ctx.stroke();
   }
   // home plate
-  const hs = eOutBack(prog(t, B(1), B(1) + 0.4));
+  const hs = eOutBack(prog(t, 0.2, 0.55));
   if (hs > 0) {
     const hp = [[-0.7, 0.7], [0.7, 0.7], [0.7, 0], [0, -0.7], [-0.7, 0]].map(p => proj(p[0] * hs * 1.6, p[1] * hs * 1.6, t));
     ctx.globalAlpha = out; ctx.fillStyle = '#ffffff';
@@ -332,10 +345,10 @@ function drawField(t) {
 }
 
 function drawParticles(t) {
-  const warp = eInCubic(prog(t, B(16), 9.9));
+  const warp = eInCubic(prog(t, T.exitCap, 4.9));
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const fadeIn = smooth(0, 1.2, t);
+  const fadeIn = smooth(0, 0.7, t);
   for (const p of PARTICLES) {
     let x = p.x + Math.sin(t * 0.6 + p.phase) * 18 * p.depth;
     let y = ((p.y - t * 28 * p.depth) % H + H) % H;
@@ -364,18 +377,18 @@ function drawParticles(t) {
 
 // ---------- ball trail (glowing seam ribbon) ----------
 function drawTrail(t) {
-  if (t < B0 || t > B(4) + 0.9) return;
-  const N = 46, span = 0.75;
+  if (t < B0 || t > T.arrive + 0.7) return;
+  const N = 46, span = 0.55;
   const pts = [];
   for (let k = 0; k <= N; k++) {
     const tt = t - k * span / N;
     if (tt < B0) break;
-    const tc = Math.min(tt, B(4));
+    const tc = Math.min(tt, T.arrive);
     const s = ballState(tc);
     pts.push([s.x, s.y, s.R, k / N]);
   }
   if (pts.length < 2) return;
-  const fade = 1 - smooth(B(4), B(4) + 0.8, t);
+  const fade = 1 - smooth(T.arrive, T.arrive + 0.6, t);
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
@@ -412,9 +425,9 @@ function drawTrail(t) {
 // ---------- emblem (rings around the ball) ----------
 const RING_TEXT = 'GANGHU  ·  BASEBALL  ·  GANGHU  ·  BASEBALL  ·  ';
 function drawEmblem(t, st) {
-  const appear = prog(t, B(4) + 0.08, B(6));
+  const appear = prog(t, T.arrive + 0.05, T.grown + 0.2);
   if (appear <= 0) return;
-  const out = smooth(B(17) + 0.1, B(18) + 0.2, t);
+  const out = smooth(T.exitTitle + 0.05, T.exitTag + 0.2, t);
   const sc = 1 + out * 0.7;
   const alpha = 1 - out;
   if (alpha <= 0) return;
@@ -423,7 +436,7 @@ function drawEmblem(t, st) {
   ctx.save();
   ctx.globalAlpha = alpha;
   // arrival pulse
-  const pp = prog(t, B(4), B(4) + 0.7);
+  const pp = prog(t, T.arrive, T.arrive + 0.6);
   if (pp > 0 && pp < 1) {
     ctx.strokeStyle = rgba(ORANGE_HI, 0.9 * (1 - pp));
     ctx.lineWidth = lerp(10, 1, pp);
@@ -436,7 +449,7 @@ function drawEmblem(t, st) {
   ctx.beginPath(); ctx.arc(cx, cy, R * 1.34, -Math.PI / 2, -Math.PI / 2 + rp * Math.PI * 2); ctx.stroke();
   ctx.shadowBlur = 0;
   // stitched dashed ring
-  const dp = smooth(B(5), B(6) + 0.2, t);
+  const dp = smooth(T.arrive + 0.3, T.grown + 0.3, t);
   ctx.save();
   ctx.translate(cx, cy); ctx.rotate(t * 0.18);
   ctx.strokeStyle = `rgba(255,255,255,${0.55 * dp})`; ctx.lineWidth = 3; ctx.lineCap = 'butt';
@@ -445,7 +458,7 @@ function drawEmblem(t, st) {
   ctx.setLineDash([]);
   ctx.restore();
   // circular text
-  const tp = smooth(B(6) - 0.1, B(7) + 0.2, t);
+  const tp = smooth(T.grown, T.titleLand, t);
   if (tp > 0) {
     ctx.save();
     ctx.translate(cx, cy); ctx.rotate(-t * 0.12 - 1.1);
@@ -497,9 +510,9 @@ const TAG = 'PLAY BALL';
 const Y_CAP = 1012, Y_TITLE = 1152, Y_TAG = 1266;
 
 function drawCaption(g, t) {
-  const tIn = B(6), tOut = B(16);
+  const tIn = T.grown, tOut = T.exitCap;
   if (t < tIn) return;
-  const pin = prog(t, tIn, tIn + 0.75), pout = prog(t, tOut, tOut + 0.4);
+  const pin = prog(t, tIn, tIn + 0.6), pout = prog(t, tOut, tOut + 0.35);
   const spacing = lerp(26, 9, eOutExpo(pin)) + 30 * eInCubic(pout);
   const font = '600 30px Mont';
   const chars = [...CAPTION];
@@ -510,9 +523,9 @@ function drawCaption(g, t) {
   let x = W / 2 - total / 2;
   chars.forEach((ch, i) => {
     const rank = CAP_ORDER.indexOf(i);
-    const a = smooth(0, 0.12, t - tIn - rank * 0.016) * (1 - eInCubic(pout));
+    const a = smooth(0, 0.1, t - tIn - rank * 0.013) * (1 - eInCubic(pout));
     if (a > 0) {
-      const blur = (1 - smooth(0, 0.2, t - tIn - rank * 0.016)) * 6 + pout * 10;
+      const blur = (1 - smooth(0, 0.18, t - tIn - rank * 0.013)) * 6 + pout * 10;
       g.filter = blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : 'none';
       g.fillStyle = `rgba(255,255,255,${0.92 * a})`;
       g.fillText(ch, x, Y_CAP);
@@ -521,7 +534,7 @@ function drawCaption(g, t) {
   });
   g.filter = 'none';
   // thin divider lines either side (like the original's end card)
-  const lp = eOutCubic(prog(t, tIn + 0.3, tIn + 1.0)) * (1 - pout);
+  const lp = eOutCubic(prog(t, tIn + 0.25, tIn + 0.8)) * (1 - pout);
   if (lp > 0) {
     g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1.5;
     const gap = total / 2 + 22, len = 70 * lp;
@@ -532,23 +545,23 @@ function drawCaption(g, t) {
 }
 
 function titleX(t) {
-  const tIn = B(7), tLand = B(8), tOut = B(17);
-  if (t < tOut) return lerp(-760, 0, eOutExpo(prog(t, tIn, tLand + 0.15)));
-  return lerp(0, 900, eInExpo(prog(t, tOut, tOut + 0.42)));
+  const tIn = T.titleIn, tLand = T.titleLand, tOut = T.exitTitle;
+  if (t < tOut) return lerp(-760, 0, eOutExpo(prog(t, tIn, tLand + 0.1)));
+  return lerp(0, 900, eInExpo(prog(t, tOut, tOut + 0.38)));
 }
 function drawTitle(g, t) {
-  const tIn = B(7), tOut = B(17);
-  if (t < tIn || t > tOut + 0.45) return;
+  const tIn = T.titleIn, tOut = T.exitTitle;
+  if (t < tIn || t > tOut + 0.4) return;
   const x = titleX(t), vx = titleX(t) - titleX(t - 1 / 30);
-  const a = smooth(tIn, tIn + 0.12, t) * (1 - smooth(tOut + 0.15, tOut + 0.42, t));
+  const a = smooth(tIn, tIn + 0.1, t) * (1 - smooth(tOut + 0.12, tOut + 0.38, t));
   drawBlurredText(g, TITLE, '700 120px NotoTC', W / 2 + x, Y_TITLE, vx, '#ffffff', a, 10,
                   ['rgba(255,110,20,0.45)', 28]);
 }
 
 function drawTag(g, t) {
-  const tIn = B(9), tOut = B(18);
-  if (t < tIn || t > tOut + 0.4) return;
-  const pin = prog(t, tIn, tIn + 0.4), pout = prog(t, tOut, tOut + 0.35);
+  const tIn = T.tag, tOut = T.exitTag;
+  if (t < tIn || t > tOut + 0.35) return;
+  const pin = prog(t, tIn, tIn + 0.35), pout = prog(t, tOut, tOut + 0.3);
   const s = lerp(1.35, 1, eOutBack(pin)) * (1 + 0.5 * eInCubic(pout));
   const a = smooth(0, 0.5, pin) * (1 - eInCubic(pout));
   g.save();
@@ -561,7 +574,7 @@ function drawTag(g, t) {
   g.fillText(TAG, W / 2 + 3, Y_TAG);
   g.shadowBlur = 0; g.filter = 'none'; g.letterSpacing = '0px';
   // flanking lines + small diamonds
-  const lp = eOutCubic(prog(t, tIn + 0.2, tIn + 0.8)) * (1 - pout);
+  const lp = eOutCubic(prog(t, tIn + 0.15, tIn + 0.6)) * (1 - pout);
   if (lp > 0) {
     const half = g.measureText(TAG).width / 2 + 34;
     g.strokeStyle = `rgba(255,255,255,${0.6 * lp})`; g.lineWidth = 3;
@@ -618,11 +631,20 @@ function drawOverlays(t, frameNo) {
   for (let y = -oy; y < H; y += 256) for (let x = -ox; x < W; x += 256) ctx.drawImage(tile, x, y);
   ctx.restore();
   // fade up from black
-  const fin = 1 - smooth(0, 0.55, t);
+  const fin = 1 - smooth(0, 0.3, t);
   if (fin > 0) { ctx.fillStyle = `rgba(0,0,0,${fin})`; ctx.fillRect(0, 0, W, H); }
-  // white flash into the original video
-  const fl = eInCubic(prog(t, 9.6, 9.93));
-  if (fl > 0) { ctx.fillStyle = `rgba(255,252,246,${fl})`; ctx.fillRect(0, 0, W, H); }
+  // white flash, then fade out of white onto the original video's first frame
+  if (t <= T.flashPeak) {
+    const fl = eInCubic(prog(t, 4.55, T.flashPeak));
+    if (fl > 0) { ctx.fillStyle = `rgba(255,252,246,${fl})`; ctx.fillRect(0, 0, W, H); }
+  } else {
+    let white = 1;
+    if (ORIG_FIRST.complete && ORIG_FIRST.naturalWidth) {
+      ctx.drawImage(ORIG_FIRST, 0, 0, W, H);
+      white = Math.pow(1 - prog(t, T.flashPeak, DUR), 1.3);
+    }
+    ctx.fillStyle = `rgba(255,252,246,${white})`; ctx.fillRect(0, 0, W, H);
+  }
 }
 
 function render(t) {
@@ -631,15 +653,15 @@ function render(t) {
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
 
   // gentle camera push during the hold
-  const push = 1 + 0.045 * eInOutCubic(prog(t, B(8), B(16) + 0.4));
+  const push = 1 + 0.035 * eInOutCubic(prog(t, T.titleLand, T.exitTag + 0.3));
   ctx.setTransform(push, 0, 0, push, W / 2 * (1 - push), 900 * (1 - push));
 
   drawBackground(t);
   drawLights(t);
   drawField(t);
   drawParticles(t);
-  lightLeak(t, B(12), 1.4, 0.32);
-  lightLeak(t, B(16) + 0.2, 1.3, 0.25);
+  lightLeak(t, B(5), 1.0, 0.3);
+  lightLeak(t, T.exitTitle, 0.9, 0.22);
 
   const st = ballState(t);
   drawTrail(t);
@@ -662,15 +684,22 @@ function render(t) {
   drawCaption(tx, t);
   drawTitle(tx, t);
   drawTag(tx, t);
-  applyShine(tx, t, B(12) + 0.1, 0.9);
+  applyShine(tx, t, T.shine, 0.75);
   ctx.drawImage(textCv, 0, 0);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   drawOverlays(t, frameNo);
 }
 
+// the original video's first frame (made by build.sh); without it the intro just ends on white
+const ORIG_FIRST = new Image();
+const origLoaded = new Promise(res => { ORIG_FIRST.onload = ORIG_FIRST.onerror = res; });
+ORIG_FIRST.src = 'orig_first_frame.png';
+
 window.render = render;
+window.DUR = DUR;
 window.ready = (async () => {
+  await origLoaded;
   await Promise.all([
     document.fonts.load('700 120px NotoTC', TITLE),
     document.fonts.load('600 30px Mont', CAPTION),

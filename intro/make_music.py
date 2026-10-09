@@ -1,11 +1,10 @@
-"""港湖社區棒球隊 開場音樂 (10 秒)
+"""港湖社區棒球隊 開場音效 (5 秒)
 
-輕鬆、漸進式的開場配樂，速度與調性對齊原影片音樂 (122 BPM, C 調)：
-  0.0 - 2.3s  柔和 pad 淡入、球場燈「喀」亮起、棒球飛入的 whoosh
-  2.3 - 4.2s  球到位的鐘聲 + 馬林巴琶音進場
-  4.2 - 6.2s  隊名出現，加入貝斯、輕柔大鼓
-  6.2 - 8.2s  沙鈴、拍手，整首最完整的段落
-  8.2 - 10.0s 漸強 riser + 小鼓滾奏，停在 G 掛留和弦，接進原影片第一拍
+簡單、輕柔的開場音效，速度與調性對齊原影片音樂 (122 BPM, C 調)，
+後面直接接很震撼的原曲，所以這裡只有柔和的 pad 和跟著畫面的音效，沒有鼓和貝斯：
+  0.0 - 1.2s  pad 淡入、球場燈「喀」亮起、棒球飛入的 whoosh
+  1.2 - 3.7s  球到位的鐘聲、字幕閃光、隊名滑入、PLAY BALL
+  3.7 - 5.0s  輕柔 riser，停在 G 掛留和弦，原曲第一拍落在接上後的 5.13 秒
 
 Usage: python3 make_music.py [out.wav]
 """
@@ -15,10 +14,10 @@ from scipy import signal
 from scipy.io import wavfile
 
 SR = 48000
-DUR = 10.0
+DUR = 5.0
 N = int(SR * DUR)
 BEAT = 60 / 122
-B0 = 0.294          # first beat; beat 20 lands on the original video's first beat (10.13s)
+B0 = 5.13 - 10 * BEAT   # beat 10 lands on the original video's first beat (0.13s into it)
 
 
 def B(k):
@@ -29,7 +28,7 @@ rng = np.random.default_rng(2026)
 
 dry = np.zeros((2, N))
 send = np.zeros((2, N))   # reverb send bus
-duck_times = []           # kick hits, for a gentle sidechain on the pad
+duck_times = []           # kick hits for a sidechain duck (none in the 5s version)
 
 
 def mtof(m):
@@ -153,7 +152,7 @@ def switch_clunk(vel=1.0):
 
 def brightness(time):
     # pad filter slowly opens across the whole intro, fully open during the build
-    return 0.28 + 0.32 * np.clip(time / 8.0, 0, 1) + 0.18 * np.clip((time - 8.16) / 1.7, 0, 1)
+    return 0.28 + 0.25 * np.clip(time / 3.6, 0, 1) + 0.18 * np.clip((time - 3.6) / 1.3, 0, 1)
 
 
 def pad(notes, t0, t1, gain, att=0.35, rel=0.6):
@@ -178,63 +177,44 @@ def pad(notes, t0, t1, gain, att=0.35, rel=0.6):
 
 
 # ------------------------------------------------------------------ arrangement
-BAR = [0.0, B(4), B(8), B(12), B(16), DUR]
+ARRIVE, GROWN, TITLE_LAND, TAG = B(2), B(3), B(4), B(4.5)
+EXIT_CAP, EXIT_TITLE, EXIT_TAG, FLASH = B(7), B(7.5), B(8), 4.84
 
-# Pad: Cadd9 -> Am9 -> Fmaj9 -> Gadd9 -> G7sus4 (resolves into the original, which sits on C)
-pad([48, 55, 64, 67, 74], 0.0, BAR[1], 0.22, att=1.6)
-pad([57, 60, 64, 67, 71], BAR[1], BAR[2], 0.22)
-pad([53, 57, 60, 64, 67], BAR[2], BAR[3], 0.24)
-pad([55, 59, 62, 67, 69], BAR[3], BAR[4], 0.25)
-pad([55, 60, 62, 65, 67], BAR[4], 9.93, 0.30, rel=0.07)
+# Pad: Cadd9 -> Fmaj9 -> G7sus4 (resolves into the original, which sits on C)
+pad([48, 55, 64, 67, 74], 0.0, TITLE_LAND, 0.16, att=0.8)
+pad([53, 57, 60, 64, 67], TITLE_LAND, EXIT_CAP, 0.17)
+pad([55, 60, 62, 65, 67], EXIT_CAP, FLASH + 0.04, 0.24, rel=0.08)
 
 # Stadium lights switching on (matches the two lights in the animation)
-place(switch_clunk(0.33), B(1), pan=-0.5, rev=0.25)
-place(bell(79, 0.10), B(1) + 0.02, pan=-0.4, rev=0.6)
-place(switch_clunk(0.30), B(2), pan=0.5, rev=0.25)
-place(bell(86, 0.09), B(2) + 0.02, pan=0.4, rev=0.6)
+place(switch_clunk(0.26), 0.25, pan=-0.5, rev=0.25)
+place(bell(79, 0.07), 0.27, pan=-0.4, rev=0.6)
+place(switch_clunk(0.24), 0.50, pan=0.5, rev=0.25)
+place(bell(86, 0.06), 0.52, pan=0.4, rev=0.6)
 
 # Ball flight whoosh, panned with the ball's x position
 PATH = np.array([[-140, 1560], [860, 1700], [1230, 520], [540, 680]], float)
-fl_t = np.arange(int((BAR[1] - B0 + 0.25) * SR)) / SR
-p = np.clip(fl_t / (BAR[1] - B0), 0, 1)
-u = 1 - (1 - p) ** 2.4
+fl_t = np.arange(int((ARRIVE - B0 + 0.2) * SR)) / SR
+p = np.clip(fl_t / (ARRIVE - B0), 0, 1)
+u = 1 - (1 - p) ** 2.2
 coef = np.stack([(1 - u) ** 3, 3 * (1 - u) ** 2 * u, 3 * (1 - u) * u ** 2, u ** 3], 1)
 pos = coef @ PATH
 speed = np.hypot(*np.gradient(pos, axis=0).T)
 speed = speed / speed.max()
 ball_pan = np.clip((pos[:, 0] - 540) / 600, -0.9, 0.9)
 wh = swept_noise(len(fl_t), lambda tt: 500 + 2600 * np.interp(tt, fl_t, speed), bw_oct=0.9, seed=1)
-wh *= speed ** 0.9 * np.minimum(1, fl_t / 0.15)
-place(wh, B0, gain=0.62, pan=ball_pan, rev=0.25)
+wh *= speed ** 0.9 * np.minimum(1, fl_t / 0.1)
+place(wh, B0, gain=0.55, pan=ball_pan, rev=0.25)
 
 # Ball arrives: soft thump + bell chord
 t_ = tvec(0.6)
-place(np.sin(2 * np.pi * 58 * t_) * np.exp(-t_ / 0.16), BAR[1], gain=0.2)
-for m, v in ((84, 0.13), (91, 0.07), (88, 0.06)):
-    place(bell(m, v), BAR[1], pan=0.0, rev=0.7)
-
-# Marimba arpeggios (8ths), entering at bar 2 and building
-ARP = {
-    1: [69, 72, 76, 81, 79, 76, 72, 76],   # Am
-    2: [65, 69, 72, 77, 76, 72, 69, 72],   # F
-    3: [67, 71, 74, 79, 81, 79, 74, 71],   # G
-}
-for bar, notes in ARP.items():
-    for i, m in enumerate(notes):
-        vel = (0.10 + 0.05 * bar) * (1.0 if i % 2 == 0 else 0.78)
-        place(marimba(m, vel), B(4 * bar) + i * BEAT / 2, pan=(-0.3 if i % 2 else 0.3), rev=0.35)
-# bar 4: 8ths then 16ths on G7sus4, stops before the drop
-build = [67, 72, 74, 77, 79, 77, 74, 72]
-for i, m in enumerate(build[:4]):
-    place(marimba(m, 0.26), B(16) + i * BEAT / 2, pan=(-0.3 if i % 2 else 0.3), rev=0.35)
-for i in range(10):
-    m = [79, 74, 77, 72, 79, 74, 77, 72, 84, 79][i]
-    place(marimba(m, 0.22 + 0.015 * i), B(18) + i * BEAT / 4, pan=(-0.35 if i % 2 else 0.35), rev=0.3)
+place(np.sin(2 * np.pi * 58 * t_) * np.exp(-t_ / 0.16), ARRIVE, gain=0.16)
+for m, v in ((84, 0.11), (91, 0.06), (88, 0.05)):
+    place(bell(m, v), ARRIVE, pan=0.0, rev=0.7)
 
 # Caption reveal sparkle (random high pentatonic blips, like the random letter reveal)
-for k in range(18):
+for k in range(10):
     m = rng.choice([84, 86, 88, 91, 93, 96, 98])
-    place(bell(int(m), 0.035 + 0.02 * rng.random(), dur=0.6), B(6) + k * 0.034 + rng.random() * 0.01,
+    place(bell(int(m), 0.03 + 0.015 * rng.random(), dur=0.6), GROWN + k * 0.03 + rng.random() * 0.01,
           pan=rng.uniform(-0.7, 0.7), rev=0.6)
 
 
@@ -247,59 +227,35 @@ def short_whoosh(t_end, dur, gain, pan, f0=400, f1=3200, seed=0):
 
 
 # Title slides in and lands
-short_whoosh(B(8), 0.5, 0.34, -0.4, seed=3)
-place(np.sin(2 * np.pi * 62 * t_) * np.exp(-t_ / 0.14), B(8), gain=0.2)
-place(bell(88, 0.08), B(8), rev=0.6)
+short_whoosh(TITLE_LAND, 0.32, 0.28, -0.4, seed=3)
+place(bell(88, 0.07), TITLE_LAND, rev=0.6)
 
-# PLAY BALL stab
+# PLAY BALL: soft chord
 for m in (77, 81, 84):
-    place(marimba(m, 0.16), B(9), rev=0.4)
-place(bell(84, 0.08), B(9), rev=0.6)
-place(clap(0.22), B(9), rev=0.3)
+    place(marimba(m, 0.11), TAG, rev=0.45)
+place(bell(84, 0.06), TAG, rev=0.6)
 
 # Shine sweep: quick rising bell run
 for i, m in enumerate((79, 83, 86, 91)):
-    place(bell(m, 0.07, dur=1.2), B(12) + 0.1 + i * 0.09, pan=-0.6 + 0.4 * i, rev=0.6)
+    place(bell(m, 0.05, dur=1.2), B(5) + 0.1 + i * 0.08, pan=-0.6 + 0.4 * i, rev=0.6)
 
-# Bass
-for bar, root in ((2, 41), (3, 43)):
-    for beat, length in ((0, 1.5), (1.5, 0.5), (2, 1.5), (3.5, 0.5)):
-        place(bass(root + (12 if beat in (1.5, 3.5) else 0), length * BEAT * 0.95, 0.22), B(4 * bar + beat))
-for beat in range(0, 3):
-    place(bass(43, BEAT * 0.9, 0.24), B(16 + beat))
+# Exit whooshes as the text leaves, then a light riser into the original video
+short_whoosh(EXIT_CAP + 0.3, 0.35, 0.10, -0.5, f0=600, f1=4000, seed=5)
+short_whoosh(EXIT_TITLE + 0.35, 0.4, 0.12, 0.6, f0=500, f1=4500, seed=6)
+short_whoosh(EXIT_TAG + 0.3, 0.35, 0.10, 0.0, f0=700, f1=5000, seed=7)
 
-# Drums (gentle)
-kicks = [B(8), B(10)] + [B(k) for k in range(12, 18)] + [B(18), B(18.5), B(19), B(19.25)]
-for k in kicks:
-    place(kick(0.36), k)
-    duck_times.append(k)
-for k in (B(13), B(15), B(17)):
-    place(clap(0.26), k, pan=0.05, rev=0.3)
-roll = [B(18) + i * BEAT / 4 for i in range(7)]
-for i, k in enumerate(roll):
-    place(snare(0.06 + 0.035 * i), k, pan=0.1, rev=0.25)
-for i in range(int((B(19.5) - B(10)) / (BEAT / 4))):
-    tk = B(10) + i * BEAT / 4
-    fade = min(1, (tk - B(10)) / (B(12) - B(10)))
-    place(shaker((0.08 if i % 2 else 0.04) * fade), tk, pan=0.35, rev=0.15)
-
-# Exit whooshes as the text leaves, then the big riser into the original video
-short_whoosh(B(16) + 0.25, 0.4, 0.13, -0.5, f0=600, f1=4000, seed=5)
-short_whoosh(B(17) + 0.35, 0.45, 0.16, 0.6, f0=500, f1=4500, seed=6)
-short_whoosh(B(18) + 0.3, 0.4, 0.14, 0.0, f0=700, f1=5000, seed=7)
-
-r_start, r_end = B(16), 9.93
+r_start, r_end = EXIT_CAP - 0.3, FLASH
 n = int((r_end - r_start) * SR)
 tt = np.arange(n) / SR
 dur_r = r_end - r_start
-riser = swept_noise(n, lambda x: 250 * (9000 / 250) ** np.clip(x / dur_r, 0, 1) ** 1.6, bw_oct=1.0, seed=9)
-riser *= (np.clip(tt / dur_r, 0, 1) ** 2.2)
-place(riser, r_start, gain=0.6, pan=0.0, rev=0.3)
+riser = swept_noise(n, lambda x: 250 * (8000 / 250) ** np.clip(x / dur_r, 0, 1) ** 1.6, bw_oct=1.0, seed=9)
+riser *= (np.clip(tt / dur_r, 0, 1) ** 1.5)
+place(riser, r_start, gain=0.85, pan=0.0, rev=0.3)
 # reverse cymbal into the flash
-n2 = int(0.7 * SR)
+n2 = int(0.55 * SR)
 t2 = np.arange(n2) / SR
-rc = sos_filter(np.random.default_rng(11).standard_normal(n2), 'highpass', 5000) * (t2 / 0.7) ** 3.5
-place(rc, 9.93 - 0.7, gain=0.3, rev=0.2)
+rc = sos_filter(np.random.default_rng(11).standard_normal(n2), 'highpass', 5000) * (t2 / 0.55) ** 3.5
+place(rc, FLASH - 0.55, gain=0.3, rev=0.2)
 
 # ------------------------------------------------------------------ mix
 # sidechain duck on everything melodic when the kick hits
@@ -323,8 +279,8 @@ mix = sos_filter(mix, 'highpass', 28)
 
 # fades: in from silence, quick cut at the end so the original's first beat lands clean
 fade = np.ones(N)
-fade *= np.clip(tN / 0.25, 0, 1)
-fade *= np.clip((DUR - tN) / 0.07, 0, 1)
+fade *= np.clip(tN / 0.15, 0, 1)
+fade *= np.clip((DUR - tN) / 0.1, 0, 1)
 mix *= fade
 
 
@@ -344,8 +300,8 @@ def lufs(x):
     return -0.691 + 10 * np.log10(z.mean())
 
 
-# level: about 6 LU under the original video's -9 LUFS so the original lands with impact
-TARGET_LUFS = -15.0
+# level: well under the original video's -9 LUFS so the original lands with impact
+TARGET_LUFS = -18.0
 mix *= 10 ** ((TARGET_LUFS - lufs(mix)) / 20)
 # gentle soft-clip on any peaks above -1 dBFS
 ceiling = 10 ** (-1.0 / 20)
