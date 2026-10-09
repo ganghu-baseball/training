@@ -52,13 +52,15 @@ export function makeToss(o = {}) {
 
 // ─────── 不拿球棒的練習（右打者站位，與 makeSwing 相同的位置） ───────
 // 屁股往後碰軟墊（髖鉸鏈），再回到打擊預備
-export function makeHinge() {
+// mode：good 屁股往後、舒服能轉；fold 腰折得太低；squat 整個人蹲下去不動
+export function makeHinge(mode = 'good') {
   const c = swingChannels({}).c;
   for (const k of Object.keys(c)) if (!k.startsWith('k.') && !k.startsWith('b.')) c[k] = [[-9, new Motion({ x: c[k] }).get('x', -2.4)]];
   const z0 = c['pel.z'][0][1], y0 = c['pel.y'][0][1];
-  c['pel.z'] = K([-9, z0], [0, z0], [0.9, z0 + 0.13], [1.6, z0 + 0.13], [2.5, z0], [9, z0]);
-  c['pel.y'] = K([-9, y0 + 0.04], [0, y0 + 0.04], [0.9, y0 - 0.02], [1.6, y0 - 0.02], [2.5, y0], [9, y0]);
-  c['pel.tilt'] = K([-9, 6], [0, 6], [0.9, 38], [1.6, 38], [2.5, 18], [9, 18]);
+  const P = { good: [0.13, -0.02, 38], fold: [0.2, 0.03, 78], squat: [0.06, -0.2, 22] }[mode];
+  c['pel.z'] = K([-9, z0], [0, z0], [0.9, z0 + P[0]], [1.6, z0 + P[0]], [2.5, z0], [9, z0]);
+  c['pel.y'] = K([-9, y0 + 0.04], [0, y0 + 0.04], [0.9, y0 + P[1]], [1.6, y0 + P[1]], [2.5, y0], [9, y0]);
+  c['pel.tilt'] = K([-9, 6], [0, 6], [0.9, P[2]], [1.6, P[2]], [2.5, 18], [9, 18]);
   c['tr.flex'] = K([-9, 2], [0.9, 4], [2.5, 7], [9, 7]);
   const keys = [];
   for (const t of [-9, 9]) {

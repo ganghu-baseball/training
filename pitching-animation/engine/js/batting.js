@@ -218,6 +218,25 @@ export function swingChannels(o = {}) {
     speed = 25;
   }
 
+  if (o.style === 'stomp') {
+    // 用力跺腳：前腳抬很高，再重重踩下去，身體跟著往下一沉、往前晃
+    c['lf.y'] = K([-2.2, 0], [-0.45, 0], [-0.38, 0.07], [-0.30, 0.16], [-0.25, 0.16], [-0.18, 0.015], [-0.15, 0], [1.0, 0]).map(([t, v]) => [remap(t), v]);
+    c['lk.up'] = K([-2.2, 0], [-0.45, 0], [-0.33, 42], [-0.25, 40], [-0.18, 6], [-0.15, 0], [1.0, 0]).map(([t, v]) => [remap(t), v]);
+    c['lf.pitch'] = K([-2.2, 0], [-0.45, 0], [-0.33, 18], [-0.25, 16], [-0.19, 0], [1.0, 0]).map(([t, v]) => [remap(t), v]);
+    const bump = (t, a, w) => a * Math.exp(-(((t + 0.16) / w) ** 2));
+    c['pel.y'] = mapKeys(c['pel.y'], -0.3, 0.2, (v, t) => v - bump(t, 0.04, 0.06));
+    c['tr.flex'] = mapKeys(c['tr.flex'], -0.3, 0.3, (v, t) => v + bump(t, 9, 0.08));
+    speed = 26;
+  }
+  if (o.style === 'lockKnee') {
+    // 前膝硬鎖住：前腳落地後膝蓋完全打直、骨盆被頂高，轉身卡卡的
+    c['lf.x'] = mapKeys(c['lf.x'], -0.3, 1.0, (v, t) => v - 0.1 * Math.min(1, (t + 0.3) / 0.15));
+    c['pel.y'] = mapKeys(c['pel.y'], -0.35, 1.0, (v, t) => v + 0.04 * Math.min(1, Math.max(0, (t + 0.35) / 0.15)));
+    c['pel.x'] = mapKeys(c['pel.x'], -0.35, 1.0, (v, t) => v + 0.03 * Math.min(1, Math.max(0, (t + 0.35) / 0.15)));
+    c['pel.yaw'] = mapKeys(c['pel.yaw'], -0.05, 1.0, v => v - 10);
+    speed = 26;
+  }
+
   // 跨步大小：small 小跨步、large 大跨步、none 不跨步（腳尖輕點）
   if (o.stride && o.stride !== 'normal') {
     const f = { small: 0.45, large: 1.7, none: 0.05 }[o.stride] ?? 1;

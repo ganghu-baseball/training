@@ -142,8 +142,8 @@ if os.path.exists(SFX_CFG):
         add(scenes[ev['scene']]['t0'] + ev['t'], kinds[ev['kind']](), ev.get('gain', 1.0))
     if cfg.get('events_file'):
         # 動畫裡擬聲字出現的瞬間（tools/collect_sfx.mjs 產生）：鏗！＝擊球、咻～＝揮空、叩…＝軟弱擊球
-        by_text = {'鏗！': ('crack', 0.45), '咻～': ('whoosh', 0.4), '叩…': ('thunk', 0.45)}
-        bank = {k: [kinds[k]() for _ in range(4)] for k in ('crack', 'whoosh', 'thunk')}
+        by_text = {'鏗！': ('crack', 0.45), '咻～': ('whoosh', 0.4), '叩…': ('thunk', 0.45), '碰！': ('thud', 0.8)}
+        bank = {k: [kinds[k]() for _ in range(4)] for k in ('crack', 'whoosh', 'thunk', 'thud')}
         for i, ev in enumerate(json.load(open(cfg['events_file']))):
             k, g = by_text.get(ev['text'], (None, 0))
             if k: add(ev['t'], bank[k][i % 4], g)

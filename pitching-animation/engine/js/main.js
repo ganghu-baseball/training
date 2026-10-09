@@ -286,9 +286,12 @@ function renderViews() {
   const ballVis = actors.map(a => a.ball.visible);
   const medVis = actors.map(a => a.medball ? a.medball.visible : false);
   const wbVis = actors.map(a => a.waterbag ? a.waterbag.visible : false);
+  // 先清掉整個畫面（分割格子沒有蓋滿時，空白處才不會留著上一格的殘影）
+  r.setScissorTest(false);
+  r.setClearColor(ctx.viewBg || world.clearColor || '#0E1B24');
+  r.clear();
   r.setScissorTest(true);
   r.setClearColor(world.clearColor || '#0E1B24');
-  r.clear();
   ctx.views.forEach((v, i) => {
     const [x, y, w, h] = v.rect;
     actors.forEach((a, k) => {
@@ -324,6 +327,7 @@ window.renderAt = (t) => {
   const def = SCENES[sc.id] || SCENES._default;
   const lt = t - sc.t0;
   ctx.views = null;           // 分割畫面每一格都要由場景重新設定
+  ctx.viewBg = null;
   const pq0 = performance.now();
   def.update && def.update(lt, ctx, sc._info);
   window.__tUpdate = performance.now() - pq0;

@@ -76,7 +76,10 @@ export function xformSkeleton(S, T) {
     if (pole.lengthSq() < 1e-8) pole = V(0, 0, 0.001);
     pole.normalize();
     const hh = Math.sqrt(Math.max(0, seg * seg - (d / 2) * (d / 2)));
-    const knee = mid.add(pole.multiplyScalar(hh));
+    let knee = mid.clone().add(pole.multiplyScalar(hh));
+    // 示範「膝蓋硬鎖住」：T.straight = { l: 0~1 } 讓那隻腿的膝蓋往打直的位置靠
+    const w = T.straight ? (l === S.lLeg ? T.straight.l : T.straight.r) || 0 : 0;
+    if (w > 0) knee = knee.lerp(mid, w);
     return { ...l, hip, knee, ankle, ball, toe, heel };
   };
   return { ...S, P0: Lg(P0), P1: U(S.P1), P2: U(S.P2), P3: U(S.P3), N0: U(S.N0), N1: U(S.N1), head: U(S.head),
