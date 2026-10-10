@@ -9,6 +9,7 @@ const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
 const CENTER = new THREE.Vector3(9.2, 0, 0);
 export const SUN_DIR = new THREE.Vector3(0.42, 0.78, 0.46).normalize();
 
+let CALM = false;   // 安靜模式：背景低彩度、少動態，讓注意力留在人物和重點上
 export const PAINT = {
   zenith: '#3b80cc', sky: '#79b3e2', horizon: '#d8ecf0', haze: '#c6dccf',
   grass: '#78b054', dirt: '#d6a66d', ink: '#4a3528',
@@ -140,7 +141,7 @@ function grassTexture() {
   g.lineCap = 'round';
   for (let i = 0; i < 16000; i++) {
     const x = r() * S, y = r() * S, len = 5 + r() * 12, a = -Math.PI / 2 + (r() - 0.5) * 0.9, bend = (r() - 0.5) * 5;
-    g.strokeStyle = pal[Math.floor(r() * pal.length)]; g.globalAlpha = 0.45 + r() * 0.45; g.lineWidth = 1.4 + r() * 1.8;
+    g.strokeStyle = pal[Math.floor(r() * pal.length)]; g.globalAlpha = CALM ? 0.18 + r() * 0.25 : 0.45 + r() * 0.45; g.lineWidth = 1.4 + r() * 1.8;
     const x1 = x + Math.cos(a) * len, y1 = y + Math.sin(a) * len;
     g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo((x + x1) / 2 + bend, (y + y1) / 2, x1, y1); g.stroke();
   }
@@ -194,26 +195,28 @@ function shadeTexture() {
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }
-export const SHADE = { tex: null, offset: new THREE.Vector2() };
+export const SHADE = { tex: null, offset: new THREE.Vector2(), amt: { value: 0.8 } };
 // 把「雲影＋大色塊」加進材質：worldXZ 決定取樣位置
 function addShade(m, { haze = false, patches = false } = {}) {
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.shadeTex = { value: SHADE.tex }; sh.uniforms.shadeOff = { value: SHADE.offset };
+    sh.uniforms.shadeTex = { value: SHADE.tex }; sh.uniforms.shadeOff = { value: SHADE.offset }; sh.uniforms.shadeAmt = SHADE.amt;
     if (haze) sh.uniforms.hazeColor = { value: new THREE.Color(PAINT.haze) };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vWXZ;' + (haze ? '\nattribute float haze;\nvarying float vHaze;' : ''))
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWXZ = (modelMatrix * vec4(position, 1.0)).xz;' + (haze ? '\nvHaze = haze;' : ''));
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D shadeTex;\nuniform vec2 shadeOff;\nvarying vec2 vWXZ;' + (haze ? '\nuniform vec3 hazeColor;\nvarying float vHaze;' : ''))
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D shadeTex;\nuniform vec2 shadeOff;\nuniform float shadeAmt;\nvarying vec2 vWXZ;' + (haze ? '\nuniform vec3 hazeColor;\nvarying float vHaze;' : ''))
       .replace('#include <opaque_fragment>', `
         float cs = texture2D(shadeTex, vWXZ * 0.011 + shadeOff).r;
-        outgoingLight = mix(outgoingLight, outgoingLight * vec3(0.74, 0.8, 0.93), smoothstep(0.25, 0.6, cs) * 0.8);
+        outgoingLight = mix(outgoingLight, outgoingLight * vec3(0.74, 0.8, 0.93), smoothstep(0.25, 0.6, cs) * shadeAmt);
         ${haze ? 'outgoingLight = mix(outgoingLight, hazeColor, vHaze);' : ''}
         #include <opaque_fragment>`);
   };
   return m;
 }
 
-export function paintWorld(world) {
+export function paintWorld(world, opts = {}) {
   const { scene, renderer } = world;
+  CALM = !!opts.calm;
+  if (CALM) { Object.assign(PAINT, { zenith: '#6e9dc9', sky: '#a2c4df', horizon: '#e3edee', haze: '#d4e2d8', grass: '#86b26c' }); SHADE.amt.value = 0; }
   renderer.toneMapping = THREE.NoToneMapping;
   paintSky(world);
   world.clearColor = PAINT.horizon;
@@ -233,7 +236,7 @@ export function paintWorld(world) {
     const x = pos.getX(i), z = pos.getY(i), d = Math.hypot(x - CENTER.x, z);
     let v = 1; for (const [bx, bz, br, a] of blobs) v += a * Math.exp(-((x - bx) ** 2 + (z - bz) ** 2) / (br * br));   // 大片的深淺草色
     col.setXYZ(i, v, v * 1.01, v * 0.98);
-    hz[i] = ss(25, 115, d) * 0.85;
+    hz[i] = CALM ? ss(10, 70, d) * 0.9 : ss(25, 115, d) * 0.85;
   }
   col.needsUpdate = true; gg.setAttribute('haze', new THREE.BufferAttribute(hz, 1));
   SHADE.tex = shadeTexture();
@@ -261,20 +264,21 @@ export function paintWorld(world) {
   const bandTex = (cv, rep) => { const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping;
     t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.repeat.x = rep; return t; };
   const farT = hillTexture('far'), nearT = hillTexture('near');
-  const skyU = { cloudTex: { value: bandTex(cloudBand, 1) }, farTex: { value: bandTex(farT.image, 2) }, nearTex: { value: bandTex(nearT.image, 2) }, cloudOff: { value: 0 } };
+  const skyU = { cloudTex: { value: bandTex(cloudBand, 1) }, farTex: { value: bandTex(farT.image, 2) }, nearTex: { value: bandTex(nearT.image, 2) }, cloudOff: { value: 0 },
+    fade: { value: CALM ? 0.45 : 0 }, fadeCol: { value: new THREE.Color(PAINT.haze) } };
   world.sky.material = new THREE.ShaderMaterial({
     uniforms: skyU, vertexColors: true, side: THREE.BackSide, depthWrite: false,
     vertexShader: `varying vec3 vDir; varying vec3 vCol;
       void main() { vDir = position; vCol = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: `uniform sampler2D cloudTex, farTex, nearTex; uniform float cloudOff; varying vec3 vDir; varying vec3 vCol;
+    fragmentShader: `uniform sampler2D cloudTex, farTex, nearTex; uniform float cloudOff, fade; uniform vec3 fadeCol; varying vec3 vDir; varying vec3 vCol;
       void main() {
         vec3 d = normalize(vDir);
         float az = atan(d.z, d.x) / 6.2831853 + 0.5;
         float el = degrees(asin(clamp(d.y, -1.0, 1.0)));
         vec3 c = vCol;
         if (el > -0.5 && el < 25.0) { vec4 k = texture2D(cloudTex, vec2(az + cloudOff, el / 25.0)); c = mix(c, k.rgb, k.a); }
-        if (el > -2.5 && el < 10.0) { vec4 h = texture2D(farTex, vec2(az * 2.0, (el + 2.5) / 12.5)); c = mix(c, h.rgb, h.a); }
-        if (el > -2.5 && el < 6.0) { vec4 h = texture2D(nearTex, vec2(az * 2.0 + 0.37, (el + 2.5) / 8.5)); c = mix(c, h.rgb, h.a); }
+        if (el > -2.5 && el < 10.0) { vec4 h = texture2D(farTex, vec2(az * 2.0, (el + 2.5) / 12.5)); c = mix(c, mix(h.rgb, fadeCol, fade), h.a); }
+        if (el > -2.5 && el < 6.0) { vec4 h = texture2D(nearTex, vec2(az * 2.0 + 0.37, (el + 2.5) / 8.5)); c = mix(c, mix(h.rgb, fadeCol, fade), h.a); }
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -290,7 +294,7 @@ export function paintWorld(world) {
     for (let i = 0; i < n; i++) {
       const k = kinds[Math.floor(r() * kinds.length)], a = a0 + (r() - 0.5) * 0.16, d = d0 + (r() - 0.5) * 10;
       const h = k === 'poplar' ? 9 + r() * 5 : k === 'bush' ? 3 + r() * 2 : 6 + r() * 5;
-      const hz = d > 72 ? 0.42 : 0.3;
+      const hz = CALM ? (d > 72 ? 0.62 : 0.52) : d > 72 ? 0.42 : 0.3;
       const m = new THREE.Mesh(new THREE.PlaneGeometry(h * 0.8, h), new THREE.MeshBasicMaterial({ map: getTex(k, Math.floor(r() * 3), hz), transparent: true, alphaTest: 0.5, fog: false }));
       m.position.set(CENTER.x + Math.cos(a) * d, h / 2 - 0.2, CENTER.z + Math.sin(a) * d);
       m.lookAt(CENTER.x, h / 2, CENTER.z); if (r() < 0.5) m.scale.x = -1;
@@ -300,7 +304,7 @@ export function paintWorld(world) {
   // 小鳥：幾群 V 字形的鳥，拍著翅膀飛過天空
   const birdMat = new THREE.MeshBasicMaterial({ color: '#3f4a5a', side: THREE.DoubleSide, fog: false });
   const flocks = [], br = rng(17);
-  for (let f = 0; f < 4; f++) {
+  for (let f = 0; f < (CALM ? 0 : 4); f++) {
     const n = 3 + Math.floor(br() * 4), birds = [];
     for (let i = 0; i < n; i++) {
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(18), 3));
@@ -316,14 +320,14 @@ export function paintWorld(world) {
     return mkTex(c); })();
   const seedMat = new THREE.SpriteMaterial({ map: seedTex, transparent: true, depthWrite: false, fog: false });
   const seeds = [], sr = rng(29);
-  for (let i = 0; i < 36; i++) {
+  for (let i = 0; i < (CALM ? 0 : 36); i++) {
     const sp = new THREE.Sprite(seedMat.clone()); const s = 0.035 + sr() * 0.025; sp.scale.set(s, s, 1); props.add(sp);
     seeds.push({ sp, b: new THREE.Vector3(sr(), sr(), sr()), ph: sr() * 6.28, sp2: 0.6 + sr() * 0.8 });
   }
   const wing = new THREE.Vector3(), tmp = new THREE.Vector3();
   const look = new THREE.Vector3(), fwd = new THREE.Vector3();
   function update(t, cam) {
-    SHADE.offset.set(t * 0.0042, t * 0.0016);
+    if (!CALM) SHADE.offset.set(t * 0.0042, t * 0.0016);
     for (const fl of flocks) {
       const u = ((t + fl.t0) % fl.period) / fl.period, on = u < 0.6;
       const a = fl.a + fl.speed * ((t + fl.t0) % fl.period) - fl.speed * fl.period * 0.3;

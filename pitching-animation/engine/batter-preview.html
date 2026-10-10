@@ -14,7 +14,7 @@ const CH = new URLSearchParams(location.search).get('chibi') !== null;
 let painter = null;
 if (new URLSearchParams(location.search).get('painted') !== null) {
   const P = await import('./js/painted.js'); const C = await import('./js/chibi.js');
-  painter = P.paintWorld(world); C.setChibiTheme({ gradient: [150, 255], outline: '#4a3528', width: 0.0075, face: 'soft' });
+  painter = P.paintWorld(world); C.setChibiTheme({ gradient: [150, 255], outline: '#4a3528', width: 0.0075, face: 'soft', body: new URLSearchParams(location.search).get('body') || 'chibi' });
 }
 const b = new Batter(world.scene, { chibi: CH });
 const cache = {};

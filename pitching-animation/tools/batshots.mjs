@@ -26,7 +26,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 const page = await browser.newPage({ viewport: { width: +w, height: Math.round(+w * 9 / 16) } });
 page.on('pageerror', e => console.log('PAGEERR', e.message));
 page.on('console', m => { if (m.type() === 'error') console.log('CONSOLE', m.text()); });
-await page.goto(`http://localhost:8796/engine/batter-preview.html?w=${w}${process.env.CHIBI ? '&chibi=1' : ''}${process.env.PAINTED ? '&painted=1' : ''}`);
+await page.goto(`http://localhost:8796/engine/batter-preview.html?w=${w}${process.env.CHIBI ? '&chibi=1' : ''}${process.env.PAINTED ? '&painted=1' : ''}${process.env.BODY ? '&body=' + process.env.BODY : ''}`);
 await page.waitForFunction(() => window.ready === true, null, { timeout: 60000 });
 const dir = '/tmp/claude-0/bshots'; fs.mkdirSync(dir, { recursive: true });
 const files = [];

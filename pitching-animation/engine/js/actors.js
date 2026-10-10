@@ -3,16 +3,17 @@ import * as THREE from '../vendor/three.module.js';
 import { Pitcher, solveSkeleton, armAnglesFromTarget } from './rig.js';
 import { poseAt, ballFlight } from './motions.js';
 import { makeBaseball, makeMedball, makeWaterBag } from './world.js';
-import { Chibi, CHIBI_K, CHIBI_KL, xformSkeleton, invXformUpper } from './chibi.js';
+import { Chibi, CHIBI_K, CHIBI_KL, xformSkeleton, invXformUpper, bodyK, isHuman } from './chibi.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 
 export class Actor {
   constructor(scene, opts = {}) {
     this.chibi = !!opts.chibi;
-    this.pitcher = this.chibi ? new Chibi({ colors: opts.colors, castShadow: opts.castShadow, headR: opts.headR, number: opts.number }) : new Pitcher({ colors: opts.colors, castShadow: opts.castShadow });
+    const BK = bodyK({ k: opts.k, kL: opts.kL });
+    this.pitcher = this.chibi ? new Chibi({ colors: opts.colors, castShadow: opts.castShadow, headR: opts.headR, number: opts.number, bodyK: BK.k }) : new Pitcher({ colors: opts.colors, castShadow: opts.castShadow });
     // Q 版：以投手板（或指定錨點）為中心等比縮放
-    if (this.chibi) this.T = { A: opts.anchor ? V(...opts.anchor) : V(0, 0.254, 0), k: opts.k || CHIBI_K, kL: opts.kL || CHIBI_KL, off: V() };
+    if (this.chibi) this.T = { A: opts.anchor ? V(...opts.anchor) : V(0, 0.254, 0), k: BK.k, kL: BK.kL, off: V() };
     this.root = new THREE.Group();
     this.root.add(this.pitcher.group);
     scene.add(this.root);

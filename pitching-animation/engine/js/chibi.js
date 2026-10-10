@@ -16,8 +16,15 @@ export const CHIBI_COLORS = {
 };
 
 // 主題（要在建立任何角色之前設定）：明暗階數、描邊顏色與粗細
-const THEME = { gradient: [90, 175, 255], outline: '#141c22', width: 0.009 };
+const THEME = { gradient: [90, 175, 255], outline: '#141c22', width: 0.009, body: 'chibi', bodyScale: 0.62 };
 export function setChibiTheme(o) { Object.assign(THEME, o); if (o.colors) Object.assign(CHIBI_COLORS, o.colors); }
+export const isHuman = () => THEME.body === 'human';
+// 角色的縮放：Q 版（腿 kL 比上半身 k 短）；一般人比例（整個人等比例縮放，k = kL）
+export function bodyK(o = {}) {
+  if (THEME.body !== 'human') return { k: o.k || CHIBI_K, kL: o.kL || CHIBI_KL };
+  const r = o.k ? o.k / CHIBI_K : 1, k = THEME.bodyScale * r;
+  return { k, kL: k };
+}
 
 // 多階明暗的漸層貼圖（卡通著色）
 let GRADIENT = null;
@@ -113,6 +120,13 @@ export class Chibi {
     this.opacity = 1;
     this.castShadow = opts.castShadow !== false;
     this.HR = opts.headR || 0.17;
+    this.human = THEME.body === 'human';
+    const f = this.human ? (opts.bodyK || THEME.bodyScale) * 1.15 : 1;   // 一般人：四肢粗細跟著身高
+    this.f = f;
+    if (this.human) this.HR = 0.102 * f * ((opts.headR || 0.17) / 0.17);
+    this.D = this.human
+      ? { knee: 0.064 * f, hip: 0.094 * f, elbow: 0.043 * f, sh: 0.06 * f, trim: 0.056 * f, hand: [0.042 * f, 0.036 * f, 0.042 * f], shoeBack: 0.035, headUp: 0.95, headFwd: 0.06 }
+      : { knee: 0.066, hip: 0.076, elbow: 0.047, sh: 0.066, trim: 0.062, hand: [0.05, 0.042, 0.05], shoeBack: 0.05, headUp: 0.78, headFwd: 0.04 };
     this.number = opts.number ?? 7;
     const c = this.colors;
     const M = (color, part, extra = {}) => {
@@ -138,8 +152,11 @@ export class Chibi {
     this.mk = mk;
     // 四肢（兩端收圓的旋轉體，關節處再補球）
     const L = {};
-    const G = { thigh: limbGeo(0.078, 0.068), shank: limbGeo(0.066, 0.058), sock: limbGeo(0.056, 0.05), uArm: limbGeo(0.05, 0.046),
-      sleeve: limbGeo(0.064, 0.06), fArm: limbGeo(0.047, 0.043) };
+    const G = this.human
+      ? { thigh: limbGeo(0.096 * f, 0.066 * f), shank: limbGeo(0.066 * f, 0.05 * f), sock: limbGeo(0.052 * f, 0.042 * f), uArm: limbGeo(0.048 * f, 0.041 * f),
+        sleeve: limbGeo(0.062 * f, 0.056 * f), fArm: limbGeo(0.043 * f, 0.034 * f) }
+      : { thigh: limbGeo(0.078, 0.068), shank: limbGeo(0.066, 0.058), sock: limbGeo(0.056, 0.05), uArm: limbGeo(0.05, 0.046),
+        sleeve: limbGeo(0.064, 0.06), fArm: limbGeo(0.047, 0.043) };
     L.thighR = mk(G.thigh, this.M.pantsR, 'legR'); L.thighL = mk(G.thigh, this.M.pantsL, 'legL');
     L.shankR = mk(G.shank, this.M.pantsR, 'legR'); L.shankL = mk(G.shank, this.M.pantsL, 'legL');
     L.sockR = mk(G.sock, this.M.sockR, 'legR'); L.sockL = mk(G.sock, this.M.sockL, 'legL');
@@ -174,8 +191,9 @@ export class Chibi {
   makeMitt(side) {
     const g = new THREE.Group(); this.group.add(g);
     const part = side > 0 ? 'armR' : 'armL', mat = side > 0 ? this.M.skinR : this.M.skinL;
-    const palm = this.mk(SPH, mat, part, true, g); palm.scale.set(0.05, 0.046, 0.048); palm.position.set(-0.012, 0, 0);
-    const thumb = this.mk(SPH, mat, part, true, g); thumb.scale.set(0.02, 0.018, 0.026); thumb.position.set(-0.02, side * 0.04, 0.034);
+    const q = this.human ? 0.78 * this.f : 1;
+    const palm = this.mk(SPH, mat, part, true, g); palm.scale.set(0.05 * q, 0.046 * q, 0.048 * q); palm.position.set(-0.012 * q, 0, 0);
+    const thumb = this.mk(SPH, mat, part, true, g); thumb.scale.set(0.02 * q, 0.018 * q, 0.026 * q); thumb.position.set(-0.02 * q, side * 0.04 * q, 0.034 * q);
     return g;
   }
 
@@ -188,11 +206,13 @@ export class Chibi {
     for (let i = 0; i < 4; i++) add(SPH, this.M.glove, V(0.1, 0.0, -0.045 + i * 0.03), V(0.045, 0.026, 0.017));
     add(SPH, this.M.glove, V(0.03, 0.0, -0.075), V(0.05, 0.026, 0.022));
     add(SPH, this.M.gloveDark, V(-0.055, -0.005, 0), V(0.03, 0.035, 0.06));
+    if (this.human) g.scale.setScalar(0.85 * this.f);
     return g;
   }
 
   makeShoe(side) {
     const g = new THREE.Group(); this.group.add(g);
+    if (this.human) g.scale.set(0.78 * this.f, 0.66 * this.f, 0.66 * this.f);   // 一般人的腳：長一點、薄一點
     const body = this.mk(SPH, this.M['shoe' + side], 'foot' + side, true, g); body.scale.set(0.11, 0.06, 0.068); body.position.set(0.02, 0.05, 0);
     const sole = this.mk(SPH, this.M['sole' + side], 'foot' + side, true, g); sole.scale.set(0.118, 0.024, 0.072); sole.position.set(0.02, 0.014, 0);
     const lace = this.mk(SPH, this.M.trim, 'foot' + side, false, g); lace.scale.set(0.045, 0.014, 0.04); lace.position.set(0.06, 0.098, 0);
@@ -200,6 +220,7 @@ export class Chibi {
   }
 
   makeHead() {
+    if (this.human) return this.makeHumanHead();
     const H = this.HR, g = this.headGroup, mk = (geo, mat, part, ol) => this.mk(geo, mat, part, ol, g);
     const head = mk(SPH, this.M.skinH, 'head', true); head.scale.set(H * 1.0, H * 0.94, H * 1.02);
     this.headMesh = head;
@@ -232,29 +253,56 @@ export class Chibi {
     if (soft) this.makeFaces(H);
   }
 
+  // 一般人比例的頭：橢圓頭、小一點的眼睛、細眉、小鼻子、短髮（原創的手繪感臉孔）
+  makeHumanHead() {
+    const H = this.HR, g = this.headGroup, mk = (geo, mat, part, ol) => this.mk(geo, mat, part, ol, g);
+    const head = mk(SPH, this.M.skinH, 'head', true); head.scale.set(H * 1.0, H * 1.18, H * 0.84);
+    this.headMesh = head;
+    const jaw = mk(SPH, this.M.skinH, 'head', false); jaw.scale.set(H * 0.78, H * 0.62, H * 0.66); jaw.position.set(H * 0.14, -H * 0.5, 0);
+    const neck = mk(new THREE.CylinderGeometry(H * 0.36, H * 0.42, H * 1.1, 14), this.M.skinH, 'head', true); neck.position.set(-H * 0.12, -H * 1.05, 0);
+    const hair = mk(SPH, this.M.hair, 'head', true); hair.scale.set(H * 0.98, H * 1.1, H * 0.86); hair.position.set(-H * 0.14, H * 0.12, 0);
+    for (const z of [-1, 1]) { const e = mk(SPH, this.M.skinH, 'head', true); e.scale.set(H * 0.13, H * 0.22, H * 0.08); e.position.set(-H * 0.05, -H * 0.05, z * H * 0.84); }
+    this.eyes = [];
+    for (const z of [-1, 1]) {
+      const e = mk(SPH, this.M.eye, 'face', false); e.scale.set(H * 0.06, H * 0.15, H * 0.1); e.position.set(H * 0.92, -H * 0.02, z * H * 0.34); e.rotation.y = -z * 0.42;
+      const w = mk(SPH, this.M.white, 'face', false); w.scale.set(H * 0.03, H * 0.05, H * 0.04); w.position.set(H * 0.97, H * 0.04, z * H * 0.32 - H * 0.03);
+      const w2 = mk(SPH, this.M.white, 'face', false); w2.scale.setScalar(H * 0.018); w2.position.set(H * 0.975, -H * 0.07, z * H * 0.37);
+      (this.eyeParts = this.eyeParts || []).push(e, w, w2);
+      const b = mk(SPH, this.M.blush, 'face', false); b.scale.set(H * 0.03, H * 0.05, H * 0.1); b.position.set(H * 0.86, -H * 0.3, z * H * 0.5); b.rotation.y = -z * 0.6;
+      const brow = mk(new THREE.CapsuleGeometry(H * 0.018, H * 0.16, 4, 8), this.M.hair, 'face', false);
+      brow.position.set(H * 0.93, H * 0.2, z * H * 0.34); brow.rotation.set(Math.PI / 2 + z * 0.1, 0, 0); brow.rotation.order = 'YXZ'; brow.rotation.y = -z * 0.42;
+      this.eyes.push(e);
+    }
+    const nose = mk(SPH, this.M.skinH, 'head', false); nose.scale.set(H * 0.1, H * 0.12, H * 0.08); nose.position.set(H * 1.0, -H * 0.2, 0);
+    const mouth = mk(new THREE.TorusGeometry(H * 0.09, H * 0.018, 6, 16, Math.PI), this.M.eye, 'face', false);
+    mouth.position.set(H * 0.9, -H * 0.5, 0); mouth.rotation.set(0, Math.PI / 2, Math.PI);
+    this.mouth = mouth;
+    this.makeFaces(H, { ex: 0.94, ey: -0.02, ez: 0.34, es: 0.62, my: -0.48, mx: 0.92 });
+  }
+
   // 表情：開心（^^ 眼、張嘴笑）、糟糕（>< 眼、o 嘴）
-  makeFaces(H) {
+  makeFaces(H, P = { ex: 0.95, ey: -0.06, ez: 0.37, es: 1, my: -0.36, mx: 0.95 }) {
     const g = this.headGroup, F = this.faces = { happy: [], oops: [] };
     const mouthM = new THREE.MeshBasicMaterial({ color: '#7c3a30', side: THREE.DoubleSide }); mouthM.userData.part = 'face'; this.mats.push(mouthM);
-    const arcG = new THREE.TorusGeometry(H * 0.1, H * 0.027, 6, 14, Math.PI);
-    const strokeLen = Math.hypot(0.11, 0.075) * H;
-    const strokeG = new THREE.CapsuleGeometry(H * 0.024, strokeLen, 4, 8);
+    const es = P.es, arcG = new THREE.TorusGeometry(H * 0.1 * es, H * 0.027 * Math.max(es, 0.8), 6, 14, Math.PI);
+    const strokeLen = Math.hypot(0.11, 0.075) * H * es;
+    const strokeG = new THREE.CapsuleGeometry(H * 0.024 * Math.max(es, 0.8), strokeLen, 4, 8);
     for (const z of [-1, 1]) {
-      const a = this.mk(arcG, this.M.eye, 'face', false, g); a.position.set(H * 0.95, -H * 0.13, z * H * 0.37); a.rotation.set(0, Math.PI / 2 - z * 0.36, 0);
+      const a = this.mk(arcG, this.M.eye, 'face', false, g); a.position.set(H * P.ex, H * (P.ey - 0.07 * es), z * H * P.ez); a.rotation.set(0, Math.PI / 2 - z * 0.36, 0);
       F.happy.push(a);
-      const grp = new THREE.Group(); grp.position.set(H * 0.94, -H * 0.06, z * H * 0.37); grp.rotation.y = -z * 0.36; g.add(grp);
+      const grp = new THREE.Group(); grp.position.set(H * (P.ex - 0.01), H * P.ey, z * H * P.ez); grp.rotation.y = -z * 0.36; g.add(grp);
       for (const sy of [-1, 1]) {
         const st = this.mk(strokeG, this.M.eye, 'face', false, grp);
-        const dz = z * 0.11 * H, dy = sy * 0.075 * H;       // 頂點在內側（靠鼻子），往外上／外下畫：>  <
-        st.position.set(0, dy / 2, -z * 0.05 * H + dz / 2);
+        const dz = z * 0.11 * H * es, dy = sy * 0.075 * H * es;       // 頂點在內側（靠鼻子），往外上／外下畫：>  <
+        st.position.set(0, dy / 2, -z * 0.05 * H * es + dz / 2);
         st.rotation.x = Math.atan2(dz, dy);
         F.oops.push(st);
       }
     }
-    F.mouthHappy = this.mk(new THREE.CircleGeometry(H * 0.1, 18, Math.PI, Math.PI), mouthM, 'face', false, g);
-    F.mouthHappy.position.set(H * 0.965, -H * 0.33, 0); F.mouthHappy.rotation.y = Math.PI / 2;
-    F.mouthO = this.mk(new THREE.TorusGeometry(H * 0.05, H * 0.02, 6, 16), this.M.eye, 'face', false, g);
-    F.mouthO.position.set(H * 0.95, -H * 0.38, 0); F.mouthO.rotation.y = Math.PI / 2;
+    F.mouthHappy = this.mk(new THREE.CircleGeometry(H * 0.1 * Math.max(es, 0.8), 18, Math.PI, Math.PI), mouthM, 'face', false, g);
+    F.mouthHappy.position.set(H * (P.mx + 0.015), H * (P.my + 0.03), 0); F.mouthHappy.rotation.y = Math.PI / 2;
+    F.mouthO = this.mk(new THREE.TorusGeometry(H * 0.05 * Math.max(es, 0.8), H * 0.02, 6, 16), this.M.eye, 'face', false, g);
+    F.mouthO.position.set(H * P.mx, H * (P.my - 0.02), 0); F.mouthO.rotation.y = Math.PI / 2;
     this.faceKind = null; this.setFace('smile');
   }
   setFace(kind = 'smile') {
@@ -288,6 +336,7 @@ export class Chibi {
     stripe.rotation.order = 'ZYX';
     const logo = mk(SPH, this.M.trim, false); logo.scale.set(H * 0.2, H * 0.2, H * 0.05); logo.position.set(H * 0.05, H * 0.62, -H * 0.93);
     this.capGroup.visible = false;
+    if (this.human) { g.scale.set(1.0, 1.12, 0.86); g.position.y = H * 0.06; }
     this.helmetGroup = g;
     return g;
   }
@@ -301,11 +350,20 @@ export class Chibi {
     brim.scale.set(H * 0.95, H * 0.06, H * 0.95); brim.position.set(H * 0.28, H * 0.22, 0); brim.rotation.set(0, Math.PI / 2, -0.18);
     const btn = mk(SPH, this.M.trim, false); btn.scale.setScalar(H * 0.09); btn.position.set(-H * 0.02, H * 1.14, 0);
     const logo = mk(SPH, this.M.trim, false); logo.scale.set(H * 0.05, H * 0.2, H * 0.2); logo.position.set(H * 0.93, H * 0.6, 0); logo.rotation.z = -0.6;
+    if (this.human) { g.scale.set(1.0, 1.12, 0.86); g.position.y = H * 0.08; }
   }
 
   makeTorso() {
     // 圓滾滾的身體：沿脊椎放樣（每格更新），上衣／皮帶／褲子以頂點顏色區分
-    this.rings = [
+    const hf = this.f / 1.15 / 0.62;   // 一般人比例時，跟著身高縮放
+    if (this.human) this.rings = [
+      { u: 0.0, a: 0.05, b: 0.045, col: 'pants' }, { u: 0.05, a: 0.1, b: 0.075, col: 'pants' }, { u: 0.14, a: 0.118, b: 0.082, col: 'pants' },
+      { u: 0.26, a: 0.112, b: 0.076, col: 'pants' }, { u: 0.30, a: 0.106, b: 0.072, col: 'belt' }, { u: 0.36, a: 0.102, b: 0.07, col: 'belt' },
+      { u: 0.38, a: 0.102, b: 0.07, col: 'jersey' }, { u: 0.52, a: 0.11, b: 0.074, col: 'jersey' }, { u: 0.68, a: 0.124, b: 0.08, col: 'jersey' },
+      { u: 0.80, a: 0.128, b: 0.078, col: 'jersey' }, { u: 0.89, a: 0.108, b: 0.066, col: 'jersey' }, { u: 0.95, a: 0.052, b: 0.047, col: 'jersey' },
+      { u: 1.0, a: 0.036, b: 0.034, col: 'skin' },
+    ].map(r => ({ ...r, a: r.a * hf * 1.08, b: r.b * hf * 1.1 }));
+    else this.rings = [
       { u: 0.0, a: 0.06, b: 0.05, col: 'pants' }, { u: 0.05, a: 0.115, b: 0.095, col: 'pants' }, { u: 0.14, a: 0.142, b: 0.112, col: 'pants' },
       { u: 0.26, a: 0.148, b: 0.118, col: 'pants' }, { u: 0.30, a: 0.15, b: 0.12, col: 'belt' }, { u: 0.37, a: 0.148, b: 0.118, col: 'belt' },
       { u: 0.39, a: 0.146, b: 0.117, col: 'jersey' }, { u: 0.52, a: 0.142, b: 0.116, col: 'jersey' }, { u: 0.68, a: 0.147, b: 0.116, col: 'jersey' },
@@ -343,6 +401,7 @@ export class Chibi {
     const nm = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     nm.userData.part = 'trunk'; this.mats.push(nm);
     this.backNo = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.13), nm); this.group.add(this.backNo);
+    if (this.human) this.backNo.scale.setScalar(0.72 * hf);
     return mesh;
   }
 
@@ -363,37 +422,38 @@ export class Chibi {
       this.setLimb(L['thigh' + s], leg.hip, leg.knee);
       this.setLimb(L['shank' + s], leg.knee, leg.ankle.clone().lerp(leg.knee, 0.4));
       this.setLimb(L['sock' + s], leg.knee.clone().lerp(leg.ankle, 0.5), leg.ankle);
-      J['knee' + s].position.copy(leg.knee); J['knee' + s].scale.setScalar(0.066);
-      J['hip' + s].position.copy(leg.hip); J['hip' + s].scale.setScalar(0.076);
+      J['knee' + s].position.copy(leg.knee); J['knee' + s].scale.setScalar(this.D.knee);
+      J['hip' + s].position.copy(leg.hip); J['hip' + s].scale.setScalar(this.D.hip);
       // 鞋：以腳掌方向擺放（含腳跟抬起）
       const sh = this.shoes[s];
       const fw = leg.fw.clone().normalize(), up = leg.up.clone().normalize(), side = fw.clone().cross(up).normalize();
-      sh.position.copy(leg.ball).sub(fw.clone().multiplyScalar(0.05)).add(up.clone().multiplyScalar(-0.012));
+      sh.position.copy(leg.ball).sub(fw.clone().multiplyScalar(this.D.shoeBack)).add(up.clone().multiplyScalar(-0.012));
       sh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(fw, up, side));
     }
     for (const [s, arm] of [['R', S.rArm], ['L', S.lArm]]) {
       this.setLimb(L['uArm' + s], arm.sh, arm.elbow);
       const sl = arm.sh.clone().lerp(arm.elbow, 0.55);
       this.setLimb(L['sleeve' + s], arm.sh.clone().sub(arm.h.clone().multiplyScalar(0.01)), sl);
-      const tr = L['trim' + s]; tr.position.copy(sl); tr.quaternion.setFromUnitVectors(V(0, 0, 1), arm.h); tr.scale.setScalar(0.062);
+      const tr = L['trim' + s]; tr.position.copy(sl); tr.quaternion.setFromUnitVectors(V(0, 0, 1), arm.h); tr.scale.setScalar(this.D.trim);
       this.setLimb(L['fArm' + s], arm.elbow, arm.wrist);
-      J['elbow' + s].position.copy(arm.elbow); J['elbow' + s].scale.setScalar(0.047);
-      J['sh' + s].position.copy(arm.sh.clone().add(arm.h.clone().multiplyScalar(0.012))); J['sh' + s].scale.setScalar(0.066);
+      J['elbow' + s].position.copy(arm.elbow); J['elbow' + s].scale.setScalar(this.D.elbow);
+      J['sh' + s].position.copy(arm.sh.clone().add(arm.h.clone().multiplyScalar(0.012))); J['sh' + s].scale.setScalar(this.D.sh);
     }
     const ra = S.rArm, la = S.lArm;
-    this.handR.position.copy(ra.wrist.clone().add(ra.hd.clone().multiplyScalar(0.03))); this.handR.scale.set(0.05, 0.042, 0.05);
-    this.handL.position.copy(la.wrist.clone().add(la.hd.clone().multiplyScalar(0.03))); this.handL.scale.set(0.05, 0.042, 0.05);
+    this.handR.position.copy(ra.wrist.clone().add(ra.hd.clone().multiplyScalar(0.03))); this.handR.scale.set(...this.D.hand);
+    this.handL.position.copy(la.wrist.clone().add(la.hd.clone().multiplyScalar(0.03))); this.handL.scale.set(...this.D.hand);
     this.gloveMesh.position.copy(la.wrist.clone().add(la.hd.clone().multiplyScalar(0.05)).add(la.n.clone().multiplyScalar(0.015)));
     this.gloveMesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(la.hd, la.n, la.hd.clone().cross(la.n).normalize()));
     // 頭：大頭放在脖子上方
     const hu = V(0, 1, 0).applyQuaternion(S.qH);
-    const hp = S.N1.clone().add(hu.clone().multiplyScalar(this.HR * 0.78)).add(V(1, 0, 0).applyQuaternion(S.qH).multiplyScalar(this.HR * 0.04));
+    const hp = S.N1.clone().add(hu.clone().multiplyScalar(this.HR * this.D.headUp)).add(V(1, 0, 0).applyQuaternion(S.qH).multiplyScalar(this.HR * this.D.headFwd));
     this.headGroup.position.copy(hp); this.headGroup.quaternion.copy(S.qH);
     S.headC = hp; S.headR = this.HR;
     this.updateTorso(S);
     this.badge.position.copy(S.P2.clone().lerp(S.P3, 0.55).add(S.F.clone().multiplyScalar(0.112)).add(S.R.clone().multiplyScalar(0.06)));
     this.badge.quaternion.copy(S.qC); this.badge.scale.set(0.006, 0.022, 0.022);
-    this.backNo.position.copy(S.P2.clone().lerp(S.P3, 0.45).sub(S.F.clone().multiplyScalar(0.128)));
+    if (this.human) { const hf = this.f / 1.15 / 0.62; this.badge.position.copy(S.P2.clone().lerp(S.P3, 0.55).add(S.F.clone().multiplyScalar(0.08 * hf)).add(S.R.clone().multiplyScalar(0.045 * hf))); this.badge.scale.multiplyScalar(0.75); }
+    this.backNo.position.copy(S.P2.clone().lerp(S.P3, 0.45).sub(S.F.clone().multiplyScalar(this.human ? 0.086 * this.f / 1.15 / 0.62 : 0.128)));
     this.backNo.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(S.R, S.U, S.F.clone().negate()));
     return S;
   }

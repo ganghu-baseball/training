@@ -7,7 +7,7 @@ import { Pitcher, solveSkeleton, armAnglesFromTarget } from './rig.js';
 import { poseAt, makePitch, EV } from './motions.js';
 import { makeBaseball } from './world.js';
 import { FLAT } from './terrain.js';
-import { Chibi, CHIBI_K, CHIBI_KL, xformUpper, invXformUpper, toonMat, addOutlines } from './chibi.js';
+import { Chibi, CHIBI_K, CHIBI_KL, xformUpper, invXformUpper, toonMat, addOutlines, bodyK, isHuman } from './chibi.js';
 
 const DEG = Math.PI / 180;
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -321,7 +321,8 @@ export function releasePoint() {
 export class Batter {
   constructor(scene, opts = {}) {
     this.chibi = !!opts.chibi;
-    this.pitcher = this.chibi ? new Chibi({ colors: opts.colors, castShadow: opts.castShadow, headR: opts.headR, number: opts.number }) : new Pitcher({ colors: opts.colors, castShadow: opts.castShadow });
+    const BK = bodyK({ k: opts.k, kL: opts.kL });
+    this.pitcher = this.chibi ? new Chibi({ colors: opts.colors, castShadow: opts.castShadow, headR: opts.headR, number: opts.number, bodyK: BK.k }) : new Pitcher({ colors: opts.colors, castShadow: opts.castShadow });
     this.root = new THREE.Group();
     this.root.add(this.pitcher.group);
     scene.add(this.root);
@@ -340,8 +341,8 @@ export class Batter {
     (P.parts.armL = P.parts.armL || []).push(...this.fistL.children);
     if (this.chibi) {
       // Q 版：骨架以錨點縮放成小朋友，再往本壘板靠一點，讓甜蜜點仍在本壘板上方
-      this.T = { A: V(18.30, 0, 0.82), k: opts.k || CHIBI_K, kL: opts.kL || CHIBI_KL, tr: opts.tr ? V(...opts.tr) : V(-0.11, 0, -0.25), off: V() };
-      this.batScale = { r: this.T.k * 1.5 * (opts.batR || 1), l: this.T.k * 1.12 * (opts.batL || 1) };
+      this.T = { A: V(18.30, 0, 0.82), k: BK.k, kL: BK.kL, tr: opts.tr ? V(...opts.tr) : V(-0.11, 0, -0.25), off: V() };
+      this.batScale = { r: this.T.k * (isHuman() ? 1.2 : 1.5) * (opts.batR || 1), l: this.T.k * 1.12 * (opts.batL || 1) };
       this.bat.scale.set(this.batScale.r, this.batScale.l, this.batScale.r);
       P.group.remove(this.fistR, this.fistL);
       this.fistR = P.makeMitt(+1); this.fistL = P.makeMitt(-1);

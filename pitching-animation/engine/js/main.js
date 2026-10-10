@@ -40,15 +40,15 @@ function icon(name, size = 48, color = 'currentColor', sw = 2) {
   return raw.replace(/<!--[\s\S]*?-->/g, '').replace(/width="24"/, `width="${size}"`).replace(/height="24"/, `height="${size}"`)
     .replace(/stroke="currentColor"/, `stroke="${color}"`).replace(/stroke-width="2"/, `stroke-width="${sw}"`).replace('<svg', '<svg style="display:block"');
 }
-const { SCENES, THEME } = await import('../../content/scenes.js?v=' + Date.now());
+const { SCENES, THEME, BODY, CALM } = await import('../../content/scenes.js?v=' + Date.now());
 // 主題：painted＝手繪風格（天空、遠山、草地、紙張質感、圓體字）
 let painter = null;
 const RETHEME = [];
 if (THEME === 'painted') {
   const P = await import('./painted.js');
-  painter = P.paintWorld(world);
+  painter = P.paintWorld(world, { calm: !!CALM });
   if (qs.get('paper') !== null) P.paperOverlay(document.getElementById('stage'));   // 紙張紋理（軟體算圖時很花時間，預設關閉）
-  CH.setChibiTheme({ gradient: [150, 255], outline: '#4a3528', width: 0.0075, face: 'soft' });
+  CH.setChibiTheme({ gradient: [150, 255], outline: '#4a3528', width: 0.0075, face: 'soft', body: BODY || 'chibi' });
   const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = 'css/painted.css';
   await new Promise(res => { link.onload = res; link.onerror = res; document.head.appendChild(link); });
   // 場景裡寫死的深藍面板 → 苔綠墨色
