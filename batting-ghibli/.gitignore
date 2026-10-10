@@ -1,0 +1,9 @@
+# 教學內容（旁白、畫面文字）與成品影片不放進公開 repo
+content/
+build/
+dist/
+node_modules
+models
+*.mp4
+*.wav
+*.mp3
