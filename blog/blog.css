@@ -340,3 +340,8 @@ padding:22px 26px;margin:1.4em 0 1.5em}
 .related .cards{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
 .related .card h3{font-size:19px}
 @media(max-width:560px){.topnav{gap:6px}.topnav a{font-size:12.5px;padding:6px 9px}.brand{font-size:15px}}
+.author{display:flex;gap:16px;align-items:flex-start;margin-top:2.2em;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:20px 22px}
+.author .av{flex:0 0 52px;height:52px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"Noto Serif TC",serif;font-weight:900;font-size:22px;box-shadow:0 0 0 3px var(--or)}
+.author b{font-family:"Noto Serif TC",serif;font-size:18px;color:var(--ink)}
+.author p{font-size:15px;line-height:1.75;color:var(--ink2);margin:4px 0 6px}
+.author a{font-size:14px;font-weight:700;color:var(--or-d);text-decoration:none}
