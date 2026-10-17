@@ -345,3 +345,5 @@ padding:22px 26px;margin:1.4em 0 1.5em}
 .author b{font-family:"Noto Serif TC",serif;font-size:18px;color:var(--ink)}
 .author p{font-size:15px;line-height:1.75;color:var(--ink2);margin:4px 0 6px}
 .author a{font-size:14px;font-weight:700;color:var(--or-d);text-decoration:none}
+.author img.av{flex:0 0 72px;width:72px;height:72px;border-radius:50%;object-fit:cover;object-position:center 30%;box-shadow:0 0 0 3px var(--or);background:#ddd}
+.author{align-items:center}
