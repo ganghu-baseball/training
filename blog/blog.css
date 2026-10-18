@@ -347,3 +347,8 @@ padding:22px 26px;margin:1.4em 0 1.5em}
 .author a{font-size:14px;font-weight:700;color:var(--or-d);text-decoration:none}
 .author img.av{flex:0 0 72px;width:72px;height:72px;border-radius:50%;object-fit:cover;object-position:center 30%;box-shadow:0 0 0 3px var(--or);background:#ddd}
 .author{align-items:center}
+.prose a{color:var(--or-d);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.box .lab{display:block;font-family:"Noto Sans TC",sans-serif;font-weight:900;font-size:14px;letter-spacing:.06em;color:var(--teal);margin-bottom:2px}
+.box.home p+p{margin-top:1em}
+.prose a.back{color:var(--ink);text-decoration:none;font-weight:700}
+.prose a.back:hover{color:var(--or-d)}
