@@ -285,6 +285,13 @@ function dowOf(ds){return pd(ds).getDay();}
 
 /* ============ 預設資料 ============ */
 var COACHES=['陳建廷','陳凱文','謝長霖','鄭原成','盧瑞祥','彭威寰','鐘子靖'];
+/* 已不再接新課的教練：新登錄的選單裡選不到，但過去的課照樣算進結算、報表和匯出 */
+var FORMER_COACHES=['陳毅祥'];
+/* 結算／報表用：在職教練＋這批課裡有出現的其他教練（例如已離開的教練） */
+function acctCoaches(ls){var out=COACHES.slice();
+ (ls||[]).forEach(function(l){if(l.coach&&out.indexOf(l.coach)<0)out.push(l.coach);});return out;}
+/* 編輯舊資料用：原本的教練不在在職名單時，也保留在選單裡，避免存檔時被換掉 */
+function coachList(cur){return (cur&&COACHES.indexOf(cur)<0)?COACHES.concat([cur]):COACHES;}
 var DEFSTU=['林甫','洪子硯','李泰宇','楊旻諺','李威辰','李威廷','劉康權','林東瑾','林辰軒','林昱安','蔡承霖','呂奕辰','徐梵齊','李航輝','呂浩仁','楊翼遠','魏詩翰','桑亞涔','杜幕宸','雎慶鏞','陳可卓','韋彥均','許博勛','林奕辰','楊翰澐','林宸愷','蔡宇宸','莊秉叡','成佳駿','林韋宇','林宸樂','劉沛衡','歐禹辰','高晨恩','林禹學','魏廷國','李權旭','許能鈞','方梓皓'];
 /* 上課費率：家長付費＝公積金＋器材＋教練實收；行政費自公積金撥出 */
 var RATES=[
@@ -889,7 +896,7 @@ function lesRow(l){
 function vLes(){
  var ls=LES().slice().sort(function(a,b){return a.date+a.start<b.date+b.start?1:-1;});
  if(lesF!=='全部')ls=ls.filter(function(l){return l.coach===lesF;});
- return '<div class="filt">'+['全部'].concat(COACHES).map(function(c){
+ return '<div class="filt">'+['全部'].concat(acctCoaches(LES())).map(function(c){
    return '<button data-f="'+c+'" class="'+(lesF===c?'on':'')+'">'+c+'</button>';}).join('')+'</div>'
  +(ls.length?ls.map(lesRow).join(''):'<div class="empty">還沒有排課。用上面的按鈕新增第一堂。</div>');
 }
@@ -950,7 +957,7 @@ function vSet(){
  if(!setP)setP=pidOf(today());
  var R=pidRange(setP);
  var ls=LES().filter(function(l){return l.status!=='取消'&&pidOf(l.date)===setP;});
- var rowsC=COACHES.map(function(c){
+ var rowsC=acctCoaches(ls).map(function(c){
   var mine=ls.filter(function(l){return l.coach===c;});
   var s=function(k){return mine.reduce(function(a,l){return a+amt(l,k);},0);};
   var ag=(c===ADMIN_TO?ls.reduce(function(a,l){return a+amt(l,'admin');},0):0);
@@ -1139,7 +1146,7 @@ function fStu(id){
  +'<div class="grid2"><div><label>港湖球員</label><select id="f_ganghu">'
  +['是','否'].map(function(v){return '<option'+(s.ganghu===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div>'
  +'<div><label>主要教練</label><select id="f_scoach"><option value="">未指定</option>'
- +COACHES.map(function(c){return '<option'+(s.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div></div>'
+ +coachList(s.coach).map(function(c){return '<option'+(s.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div></div>'
  +'<label>備註</label><textarea id="f_note" rows="2">'+esc(s.note)+'</textarea></div>';
 
  if(!id){
@@ -1324,7 +1331,7 @@ function fHandover(from){
  openSheet(head('教練交接')
  +'<div class="fbox"><div class="ttl">把課程整批換給另一位教練</div>'
  +'<label>原教練</label><select id="h_from"><option value="">請選擇</option>'
- +COACHES.map(function(c){
+ +acctCoaches(LES()).map(function(c){
    return '<option'+(from===c?' selected':'')+'>'+c+'（還有 '+cnt(c)+' 堂）</option>';}).join('')+'</select>'
  +(from?'<div class="mini">'+from+' 目前還有 <b>'+list.length+'</b> 堂還沒上的課'
    +(list.length?'，'+list[0].date.replace(/-/g,'/')+' ～ '+list[list.length-1].date.replace(/-/g,'/'):'')
@@ -1546,7 +1553,7 @@ function fMove(lid,name){
  +(grp?'<br>這堂還有其他學員：'+esc(l.students.join('、')):'')+'</div>'
  +'<input type="hidden" id="f_per" value="1">'
  +'<label>教練</label><select id="f_coach">'
- +COACHES.map(function(c){return '<option'+(l.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select>'
+ +coachList(l.coach).map(function(c){return '<option'+(l.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select>'
  +'<div class="grid2"><div><label>新的開始時間</label><select id="f_start">'+timeOpts(l.start)+'</select></div>'
  +'<div><label>每堂時間</label><select id="f_dur">'
  +[[60,'60 分鐘'],[90,'90 分鐘'],[120,'120 分鐘']].map(function(o){
@@ -1649,7 +1656,7 @@ function fLes(id){
  +'<div class="grid2"><div><label>開始</label><select id="f_start">'+timeOpts(l.start)+'</select></div>'
  +'<div><label>結束</label><select id="f_end">'+timeOpts(l.end)+'</select></div></div>'
  +'<label>教練 *</label><select id="f_coach"><option value="">請選擇</option>'
- +COACHES.map(function(c){return '<option'+(l.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'
+ +coachList(l.coach).map(function(c){return '<option'+(l.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'
  +'<div class="fbox"><div class="ttl">課程與學員</div>'
  +'<label>方案 *（決定金額）</label><select id="f_plan"><option value="">請選擇</option>'
  +RATES.map(function(r){return '<option'+(l.plan===r.code?' selected':'')+'>'+r.code+'</option>';}).join('')+'</select>'
@@ -2004,7 +2011,7 @@ function perStat(pid){
   cash:payOfPer(pid).reduce(function(a,p){return a+(+p.due||0);},0),ls:ls,
   ex:ex,exOut:expSum(ex,'支出'),exIn:expSum(ex,'收入')};
  o.avail=o.fund-o.admin-o.exOut+o.exIn;
- o.byCoach=COACHES.map(function(c){
+ o.byCoach=acctCoaches(ls).map(function(c){
   var mine=ls.filter(function(l){return l.coach===c;});
   var fee=mine.reduce(function(a,l){return a+amt(l,'coach');},0);
   var adminGet=(c===ADMIN_TO?o.admin:0);
@@ -2431,7 +2438,9 @@ function repAll(){
   r=5;
   xHead(ws,r++,['教練','總堂數','家長付費','教練鐘點費','該堂產生行政費']);
   var CT={cnt:0,pay:0,fee:0,adm:0};
-  COACHES.forEach(function(c){
+  var EC=COACHES.slice();
+  stats.forEach(function(s){s.byCoach.forEach(function(b){if(EC.indexOf(b.c)<0)EC.push(b.c);});});
+  EC.forEach(function(c){
    var cnt=0,pay=0,fee=0,adm=0;
    stats.forEach(function(s){s.byCoach.forEach(function(b){
     if(b.c===c){cnt+=b.cnt;pay+=b.pay;fee+=b.fee;adm+=b.adm;}});});
@@ -2442,10 +2451,11 @@ function repAll(){
    {money:[2,3,4],center:[1],bold:true,top:true,fill:WARM});
   r+=2;
   xSection(ws,r++,'各期教練鐘點費',6);
-  xHead(ws,r++,['期別'].concat(COACHES));
+  xHead(ws,r++,['期別'].concat(EC));
   stats.forEach(function(s){
-   xRow(ws,r++,[pidShort(s.pid)].concat(s.byCoach.map(function(b){return b.fee;})),
-    {money:[1,2,3,4,5,6,7],center:[0]});});
+   xRow(ws,r++,[pidShort(s.pid)].concat(EC.map(function(c){
+     var b=s.byCoach.filter(function(x){return x.c===c;})[0];return b?b.fee:0;})),
+    {money:EC.map(function(c,i){return i+1;}),center:[0]});});
   ws.views=[{state:'frozen',ySplit:5}];
 
   /* 3. 收支明細 */
