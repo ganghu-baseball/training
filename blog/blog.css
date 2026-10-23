@@ -361,3 +361,10 @@ padding:22px 26px;margin:1.4em 0 1.5em}
 .author.slim b{font-size:17px}
 .author.slim a{display:block;margin-top:2px}
 .refs li a{display:none}
+
+/* Instagram 等外部影片嵌入 */
+.prose .embed{margin:28px auto;max-width:400px;text-align:center}
+.prose .embed blockquote.instagram-media{margin:0 auto!important;min-width:280px!important;width:100%!important}
+.prose .embed figcaption{font-size:14px;color:#6b7680;margin-top:8px;line-height:1.6}
+.prose .embed-todo{border:2px dashed #FE7F2D;border-radius:12px;padding:60px 16px;color:#C2500C;background:#FFF6EF;font-weight:700}
+.prose .embed video{display:block;width:100%;max-width:360px;margin:0 auto;border-radius:12px;background:#000;aspect-ratio:9/16}
