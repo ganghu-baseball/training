@@ -1,0 +1,41 @@
+/* 手繪風格主題：奶油紙色 + 苔綠墨色面板 + 暖橘重點、圓體字 */
+@import url('../../node_modules/@fontsource/chiron-goround-tc/500.css');
+@import url('../../node_modules/@fontsource/chiron-goround-tc/700.css');
+@import url('../../node_modules/@fontsource/chiron-goround-tc/900.css');
+@import url('../../node_modules/@fontsource/lxgw-wenkai-tc/chinese-traditional-700.css');
+
+:root {
+  --navy: #33463a; --navy2: #3d5446; --ink: #3a2c22; --deep: #26302a;
+  --or: #F07A2C; --or-l: #FF9C50; --or-d: #C2560D; --yellow: #FFD15C;
+  --sage: #9ED07F; --teal: #6FAE9A; --paper: #FFF9EC; --red: #F2665C; --muted: #D5CCB4;
+  --panel: rgba(40, 52, 44, 0.82);
+  --cream: #FBF3E1;
+}
+html, body { background: #d8ecf0; }
+body { font-family: 'Chiron GoRound TC', 'Noto Sans TC', sans-serif; }
+svg text { font-family: 'Chiron GoRound TC', 'Noto Sans TC', sans-serif; paint-order: stroke; stroke: #2b2219; stroke-width: 5px; stroke-linejoin: round; }
+.scene { text-shadow: 0 0 2px #2b2219, 0 0 3px #2b2219, 0 3px 8px rgba(34, 28, 20, 0.6); }
+
+/* 柔和的暖色暗角、奶油色轉場 */
+#vignette { background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 58%, rgba(70, 48, 26, 0.28) 100%); }
+#curtain { background: #F6EEDC; }
+
+/* 字幕：奶油色紙條 + 深棕字 */
+#subs .sub {
+  background: rgba(251, 243, 225, 0.93); color: #3a2c22; text-shadow: none; font-weight: 700;
+  border-radius: 22px; border-bottom: none; box-shadow: 0 6px 18px rgba(50, 36, 20, 0.22), inset 0 -4px 0 rgba(240, 122, 44, 0.75);
+  padding: 12px 38px 16px;
+}
+#subs .sub em { color: #D4621A; }
+
+/* 標籤與卡片 */
+.tag { text-shadow: none; box-shadow: 0 6px 16px rgba(50, 36, 20, 0.28); }
+.tag.light { background: var(--cream); color: var(--ink); }
+.tag.dark { background: rgba(40, 52, 44, 0.88); border-color: var(--or); }
+.cap.bg { background: rgba(40, 52, 44, 0.84); }
+.cap.bg small { color: #DCD3BC; }
+.bigmark { text-shadow: none; box-shadow: 0 8px 22px rgba(50, 36, 20, 0.3); }
+.panel, .card { border: 2px solid rgba(255, 244, 220, 0.22); box-shadow: 0 18px 50px rgba(40, 30, 16, 0.3); }
+.card p { color: #EDE6D4; }
+.kicker { font-family: 'LXGW WenKai TC', 'Chiron GoRound TC', sans-serif; letter-spacing: 12px; }
+.pill { text-shadow: none; }

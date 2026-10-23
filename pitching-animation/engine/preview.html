@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#152632;overflow:hidden}canvas{display:block}</style></head>
+<body><script type="module">
+import * as THREE from './vendor/three.module.js';
+import { createWorld, makeBaseball } from './js/world.js';
+import { Pitcher } from './js/rig.js';
+import { makePitch, poseAt, ballFlight } from './js/motions.js';
+const W = +(new URLSearchParams(location.search).get('w') || 960), H = Math.round(W * 9 / 16);
+const world = createWorld(W, H);
+document.body.appendChild(world.renderer.domElement);
+const pitcher = new Pitcher();
+world.scene.add(pitcher.group);
+const ball = makeBaseball(); world.scene.add(ball);
+const cache = {};
+const CAMS = {
+  side:  { pos: [0.85, 1.05, 6.8], look: [0.85, 0.9, 0], fov: 32 },
+  front: { pos: [9.0, 1.2, 0.0], look: [0.6, 0.95, 0], fov: 22 },
+  back:  { pos: [-5.5, 1.5, 0.6], look: [1.0, 1.0, 0], fov: 30 },
+  top:   { pos: [0.85, 7.5, 0.001], look: [0.85, 0, 0], fov: 30 },
+  q34:   { pos: [4.2, 1.6, 4.8], look: [0.8, 0.95, 0], fov: 30 },
+  glove: { pos: [0.8, 1.2, -6.5], look: [0.8, 0.95, 0], fov: 32 },
+};
+window.show = (variant, t, cam) => {
+  const key = JSON.stringify(variant);
+  const m = cache[key] || (cache[key] = makePitch(variant));
+  const S = pitcher.update(poseAt(m, t));
+  const rel = m.props.release;
+  if (t < rel) ball.position.copy(S.rArm.ball);
+  else { if (!m._rp) { const S2 = pitcher.update(poseAt(m, rel)); m._rp = S2.rArm.ball.clone(); pitcher.update(poseAt(m, t)); } ball.position.copy(ballFlight(m._rp, t - rel)); }
+  const c = CAMS[cam] || CAMS.side;
+  world.camera.fov = c.fov; world.camera.updateProjectionMatrix();
+  world.camera.position.set(...c.pos); world.camera.up.set(0, 1, 0);
+  if (cam === 'top') world.camera.up.set(1, 0, 0);
+  world.camera.lookAt(...c.look);
+  world.renderer.render(world.scene, world.camera);
+  return { rKnee: S.rLeg.kneeAng, lKnee: S.lLeg.kneeAng, rReach: S.rLeg.reach, lReach: S.lLeg.reach };
+};
+window.ready = true;
+</script></body></html>
