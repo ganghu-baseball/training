@@ -275,7 +275,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.10.24';
+var APPVER='2026.10.24b';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1017,9 +1017,15 @@ function vSet(){
      +'<div class="m">'+c.cnt+' 堂　鐘點費 '+money(c.fee)
      +(c.adminGet?'　＋行政費 '+money(c.adminGet):'')
      +(c.reim?'　＋代墊 '+money(c.reim):'')
+     +(c.cin?'　＋上期補發 '+money(c.cin):'')
      +(po?'　'+(po.date||'')+' 已匯':'')+'</div>'
-     +(diff?'<div class="m warnline">已匯 '+money(po.amount)+'，目前應匯 '+money(c.due)
-       +'（差 '+money(Math.abs(diff))+'）</div>':'')+'</div>'
+     +(c.cinList.length?'<div class="m">'+c.cinList.map(function(x){return esc(x.item||'')+' '+money(x.amount);}).join('、')+'</div>':'')
+     +(c.cout?'<div class="m" style="color:var(--green)">差額 '+money(c.cout)+' 已併入 '+pidShort(c.coutList[0].pid)+' 一起補發'
+       +' <button class="btn sec sm" data-act="carryundo" data-id="'+c.coutList[0].id+'">取消</button></div>':'')
+     +(diff+c.cout?'<div class="m warnline">已匯 '+money(po.amount)+'，目前應匯 '+money(c.due)
+       +'（差 '+money(Math.abs(diff+c.cout))+'）'
+       +(diff+c.cout<0?' <button class="btn sec sm" data-act="carry" data-t="'+esc(c.c)+'" data-p="'+pn+'" data-a="'+(-(diff+c.cout))+'">差額併入下期補發</button>':'')
+       +'</div>':'')+'</div>'
      +'<div class="rr"><div class="num" style="font-size:15px">'+money(c.due)+'</div>'
      +(po?'<span class="tag g">已匯</span> <button class="btn sec sm" data-act="payundo" data-id="'+po.id+'">取消</button>'
         :'<span class="tag r">未匯</span>')+'</div></div>';}).join('');
@@ -2042,20 +2048,25 @@ function perStat(pid){
  o.avail=o.fund-o.admin-o.exOut+o.exIn;
  var rms=reimsOfPer(pid),cs=acctCoaches(ls);
  rms.forEach(function(x){if(cs.indexOf(x.adv)<0)cs.push(x.adv);});
+ carryIn(pid).forEach(function(x){if(cs.indexOf(x.target)<0)cs.push(x.target);});
  o.reims=rms;o.reim=reimSum(rms);
  o.byCoach=cs.map(function(c){
   var mine=ls.filter(function(l){return l.coach===c;});
   var fee=mine.reduce(function(a,l){return a+amt(l,'coach');},0);
   var adminGet=(c===ADMIN_TO?o.admin:0);
   var rl=rms.filter(function(x){return x.adv===c;}),rm=reimSum(rl);
+  var ci=carryIn(pid,c),co=carryOut(pid,c);
   return {c:c,cnt:mine.length,
    pay:mine.reduce(function(a,l){return a+amt(l,'pay');},0),
    fee:fee,
    adm:mine.reduce(function(a,l){return a+amt(l,'admin');},0),
    adminGet:adminGet,reimList:rl,reim:rm,
-   due:fee+adminGet+rm};
+   cinList:ci,cin:reimSum(ci),coutList:co,cout:reimSum(co),
+   due:fee+adminGet+rm+reimSum(ci)};
  });
  o.dueCoach=o.byCoach.reduce(function(a,c){return a+c.due;},0);
+ o.cin=o.byCoach.reduce(function(a,c){return a+c.cin;},0);
+ o.cout=o.byCoach.reduce(function(a,c){return a+c.cout;},0);
  return o;
 }
 /* 行政費統一撥給誰 */
@@ -2063,7 +2074,12 @@ var ADMIN_TO='陳建廷';
 var GEAR_TO='風哥';
 /* EXP() 裡 sys==='payout' 的是「匯款確認」，不是一般收支，兩者要分開算 */
 function payouts(){return EXP().filter(function(x){return x.sys==='payout';});}
-function bills(){return EXP().filter(function(x){return x.sys!=='payout'&&x.sys!=='refund';});}
+function bills(){return EXP().filter(function(x){return x.sys!=='payout'&&x.sys!=='refund'&&x.sys!=='carry';});}
+/* 補發：某期已匯但金額不足（例如事後補登課程），差額併到下一期薪資一起匯。
+   sys='carry'，spid＝原本那期，pid＝併入哪一期，target＝教練。不是新支出，也不動現金，只搬應付金額 */
+function carries(){return EXP().filter(function(x){return x.sys==='carry';});}
+function carryIn(pid,c){return carries().filter(function(x){return x.pid===pid&&(!c||x.target===c);});}
+function carryOut(pid,c){return carries().filter(function(x){return x.spid===pid&&(!c||x.target===c);});}
 function refunds(){return EXP().filter(function(x){return x.sys==='refund';});}
 function refundsOfPer(pid){return refunds().filter(function(x){return x.date&&pidOf(x.date)===pid;});}
 function refundSess(name){
@@ -2113,6 +2129,7 @@ function activePeriods(){
  bills().forEach(function(x){if(x.date)set[pidOf(x.date)]=1;});
  payouts().forEach(function(x){if(x.pid)set[x.pid]=1;});
  bills().forEach(function(x){if(x.adv&&x.rpid)set[x.rpid]=1;});
+ carries().forEach(function(x){if(x.pid)set[x.pid]=1;});
  return Object.keys(set).sort();
 }
 /* 下拉選單用：有資料的期別，加上本期與前後各一期 */
@@ -2211,7 +2228,8 @@ function paySlip(ws,r,s,c){
  xCell(ws,r,1,'結算區間　'+s.from.replace(/-/g,'/')+' ～ '+s.to.replace(/-/g,'/')
   +'　（'+s.short+'）',{size:9,color:'FF6E8794'});
  ws.mergeCells(r,5,r,8);
- xCell(ws,r,5,'匯款狀態　'+(po?'已於 '+(po.date||'').replace(/-/g,'/')+' 匯出':'尚未匯出'),
+ xCell(ws,r,5,'匯款狀態　'+(po?'已於 '+(po.date||'').replace(/-/g,'/')+' 匯出 '+money(po.amount)
+   +(c.cout?'，差額 '+money(c.cout)+' 併入 '+pidShort(c.coutList[0].pid)+' 補發':''):'尚未匯出'),
   {size:9,color:po?'FF2C7A52':'FFC0392B',bold:true});
  ws.getRow(r).height=20;r++;
 
@@ -2229,6 +2247,8 @@ function paySlip(ws,r,s,c){
  if(c.adminGet)A.push(['行政管理費','',c.adminGet]);
  (c.reimList||[]).forEach(function(x){
   A.push(['代墊款　'+(x.item||x.cat),(x.date||'').slice(5).replace('-','/'),+x.amount||0]);});
+ (c.cinList||[]).forEach(function(x){
+  A.push([pidShort(x.spid)+' 補發'+(x.note?'　'+x.note:''),'',+x.amount||0]);});
  if(!A.length)A.push(['本期無課程','',0]);
  var B=[['—','',0]];
  var C=[['該教練課程家長付費',sp.pay],['其中公積金提撥',sp.fund],['其中器材使用費',sp.gear]];
@@ -2261,7 +2281,9 @@ function paySlip(ws,r,s,c){
  xCell(ws,r,3,c.due,{bold:true,size:13,money:true,align:'right',fill:'FFFFE9D6',color:'FFA8490A'});
  ws.mergeCells(r,4,r,8);
  xCell(ws,r,4,(c.c===ADMIN_TO?'含行政管理費，行政費自公積金提撥':'鐘點費依各方案「教練實收」計算')
-  +(c.reim?'；含代墊款 '+money(c.reim)+'，隨薪資歸還':''),
+  +(c.reim?'；含代墊款 '+money(c.reim)+'，隨薪資歸還':'')
+  +(c.cin?'；含 '+c.cinList.map(function(x){return pidShort(x.spid);}).join('、')+' 補發 '+money(c.cin):'')
+  +(c.cout?'；其中 '+money(c.cout)+' 併入 '+pidShort(c.coutList[0].pid)+' 補發':''),
   {size:9,color:'FF6E8794'});
  ws.getRow(r).height=26;
  r+=2;
@@ -2334,8 +2356,8 @@ function buildPeriod(wb,n){
  var due=s.dueCoach+s.gear;
  var L=[['本期提撥',s.fund],['減：行政管理費',-s.admin],
    ['減：其他支出',-s.exOut],['加：其他收入',s.exIn],['可運用餘額',s.avail]];
- var R=[[s.reim?'教練應匯合計（含代墊 '+money(s.reim)+'）':'教練應匯合計',s.dueCoach],[GEAR_TO+' 器材使用費',s.gear],
-   ['應付總額',due],['已匯出',pd],['尚未匯出',due-pd]];
+ var R=[[(s.reim||s.cin)?'教練應匯合計（含'+(s.reim?'代墊 '+money(s.reim):'')+(s.reim&&s.cin?'、':'')+(s.cin?'上期補發 '+money(s.cin):'')+'）':'教練應匯合計',s.dueCoach],[GEAR_TO+' 器材使用費',s.gear],
+   ['應付總額',due],['已匯出',pd],[s.cout?'尚未匯出（另 '+money(s.cout)+' 併入下期補發）':'尚未匯出',due-pd-s.cout]];
  for(var i=0;i<L.length;i++){
   var last=(i===L.length-1);
   xCell(ws,r,1,L[i][0],{bold:last,fill:last?WARM:''});
@@ -2699,6 +2721,16 @@ function bind(){
       kind:'支出',cat:kd==='gear'?'器材使用費':'教練鐘點費',
       item:pidShort(pn2)+' '+tg+(kd==='gear'?' 器材使用費':' 薪資')};
     DB.expenses.push(o);touch('expenses',o);persist();render();return;}
+   if(a==='carry'){
+    var cp=b.dataset.p,ct=b.dataset.t,ca=+b.dataset.a||0,np=pidNext(cp);
+    if(!confirm(pidLabel(cp)+' '+ct+' 教練還差 '+money(ca)+'。\n要把這筆差額併入 '+pidLabel(np)+' 的薪資一起補發嗎？\n（不會動到現金，等 '+pidLabel(np)+' 匯款時一起匯出）'))return;
+    var co={id:uid(),del:0,sys:'carry',pkind:'coach',target:ct,spid:cp,pid:np,amount:ca,date:today(),
+      kind:'',cat:'',item:pidShort(cp)+' 補發',note:''};
+    DB.expenses.push(co);touch('expenses',co);persist();render();return;}
+   if(a==='carryundo'){
+    var cu=byId(DB.expenses,id);
+    if(cu&&confirm('取消這筆「併入下期補發」？')){cu.del=1;touch('expenses',cu);persist();render();}
+    return;}
    if(a==='payundo'){
     var po2=byId(DB.expenses,id);
     if(po2&&confirm('取消這筆匯款確認？金額會從現金支出扣回來。')){
