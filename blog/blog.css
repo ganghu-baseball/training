@@ -351,10 +351,10 @@ padding:22px 26px;margin:1.4em 0 1.5em}
 .box.chat .bub{background:#35566B;color:#F3F6F8;border-radius:4px 16px 16px 16px;padding:10px 14px;margin:0;font-size:15.5px;line-height:1.75}
 .crow.r .bub{background:var(--or);color:#fff;border-radius:16px 4px 16px 16px;font-weight:700}
 .box.chat .bub+.bub{margin-top:8px}
-.box.chat .faces{display:flex;gap:22px;margin:4px 0 14px}
-.box.chat .faces .who{display:flex;flex-direction:column;align-items:center;gap:6px}
-.box.chat .faces img{width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--or);box-shadow:0 3px 10px rgba(0,0,0,.3)}
-.box.chat .faces span{font-size:13px;color:#C9D4DA}
+.box.chat .faces{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:6px 0 16px}
+.box.chat .faces .who{display:flex;flex-direction:column;align-items:center;gap:8px}
+.box.chat .faces img{width:100%;max-width:132px;height:auto;aspect-ratio:1;border-radius:50%;object-fit:cover;border:4px solid var(--or);box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.box.chat .faces span{font-size:15px;font-weight:700;color:#E3EAEE}
 .box.chat .bub{border-radius:16px}
 @media (max-width:520px){.box.chat{padding:18px 14px 18px 12px}.crow{gap:8px}.crow .who{flex-basis:52px}.crow .who img{width:46px;height:46px}.crow .who span{font-size:11px}.box.chat .bub{padding:9px 12px;font-size:15px}}
 .refs{margin-top:2.4em;padding-top:1.4em;border-top:1px solid var(--line);font-size:14px;line-height:1.8;color:var(--ink2)}
