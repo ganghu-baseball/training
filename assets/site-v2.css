@@ -311,3 +311,41 @@ section[id]{scroll-margin-top:72px}
 .cscard[hidden],.dmsg[hidden]{display:none}
 .cscard{scroll-margin-top:76px}
 .gtab .dcol{background:#FFE3CC}
+
+/* 部落格首頁：主題下拉選單 */
+.bl .wrap:not(.wide){max-width:820px}
+.tdrops{display:grid;gap:12px}
+.tdrop{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 6px 18px rgba(35,61,77,.05)}
+.tdrop summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:14px;padding:18px clamp(16px,2.6vw,24px)}
+.tdrop summary::-webkit-details-marker{display:none}
+.tdrop summary::after{content:"";flex:0 0 auto;width:11px;height:11px;border-right:3px solid var(--or);border-bottom:3px solid var(--or);transform:rotate(45deg);margin:-6px 4px 0 0;transition:transform .2s}
+.tdrop[open] summary::after{transform:rotate(-135deg);margin-top:6px}
+.tdh{flex:1;min-width:0}
+.tdh b{display:block;font-family:"Noto Serif TC",serif;font-weight:900;font-size:clamp(20px,2.4vw,23px);line-height:1.35;color:var(--ink)}
+.tdh small{display:block;font-size:14px;line-height:1.55;color:var(--muted);margin-top:2px}
+.tdrop summary i{font-style:normal;font-size:14px;font-weight:700;color:var(--or-d);background:var(--warm);border-radius:999px;padding:4px 11px;white-space:nowrap}
+.tdrop summary:hover .tdh b{color:var(--or-d)}
+.tbody{padding:0 clamp(16px,2.6vw,24px) 18px;border-top:1px solid var(--line)}
+.tbody .trow{padding:12px 0;border-bottom:1px solid #F0EEE6}
+.tbody .trow .th{width:64px;height:64px;flex-basis:64px}
+.tbody .tmore{display:inline-block;margin-top:14px}
+.allbtn{display:flex;align-items:center;gap:16px;margin-top:22px;background:var(--navy);color:#fff;text-decoration:none;border-radius:18px;padding:20px clamp(18px,3vw,28px)}
+.allbtn span{flex:1}
+.allbtn b{display:block;font-family:"Noto Serif TC",serif;font-weight:900;font-size:clamp(21px,2.6vw,25px)}
+.allbtn small{display:block;font-size:14.5px;line-height:1.6;color:#D3E0E6;margin-top:3px}
+.allbtn i{font-style:normal;font-size:26px;color:var(--yellow)}
+.allbtn:hover{background:var(--navy2)}
+/* 所有文章：一格一格 */
+.b-hero.small{padding:clamp(26px,4vw,44px) 0}
+.b-hero.small h1{font-size:clamp(28px,4.4vw,40px)}
+.b-hero .crumb a{color:#FCCA46;text-decoration:none;font-weight:700;font-size:15px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:clamp(12px,1.8vw,18px);margin-top:20px}
+.tile{display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;color:var(--ink);text-decoration:none;transition:transform .15s,box-shadow .15s}
+.tile:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(35,61,77,.1)}
+.tile .th{width:100%;height:auto;aspect-ratio:1/1;border-radius:0;flex:none}
+.tile .tt{display:block;padding:10px 12px 4px;font-weight:700;font-size:15px;line-height:1.5;word-break:break-word}
+.tile:hover .tt{color:var(--or-d)}
+.tile .tc2{display:flex;flex-wrap:wrap;gap:2px 8px;padding:0 12px 12px;margin-top:auto}
+.tile .tc2 em{font-style:normal;font-size:12.5px;font-weight:700}
+.tile[hidden]{display:none}
+@media(max-width:420px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile .tt{font-size:14.5px;padding:9px 10px 3px}.tile .tc2{padding:0 10px 10px}}
