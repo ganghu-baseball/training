@@ -275,7 +275,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.10.24b';
+var APPVER='2026.11.09';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1446,13 +1446,16 @@ function rosterGaps(){
  var out=[];
  Object.keys(map).forEach(function(k){
   var g=map[k];if(g.length<2)return;
-  var all={};
-  g.forEach(function(l){(l.students||[]).forEach(function(n){all[n]=(all[n]||0)+1;});});
+  var all={},first={};
+  g.forEach(function(l){(l.students||[]).forEach(function(n){
+   all[n]=(all[n]||0)+1;
+   if(!first[n]||l.date<first[n])first[n]=l.date;});});
   /* 以「出現在半數以上堂數」的人當作這一班的固定成員 */
   var core=Object.keys(all).filter(function(n){return all[n]*2>g.length;});
   if(!core.length)return;
   g.forEach(function(l){
-   var miss=core.filter(function(n){return (l.students||[]).indexOf(n)<0;});
+   /* 他第一次出現在這班之前的課不算缺人（還沒加入） */
+   var miss=core.filter(function(n){return l.date>first[n]&&(l.students||[]).indexOf(n)<0;});
    if(miss.length)out.push({l:l,miss:miss});});
  });
  return out.sort(function(a,b){return a.l.date<b.l.date?-1:1;});
