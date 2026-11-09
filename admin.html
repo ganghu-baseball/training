@@ -275,7 +275,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.09';
+var APPVER='2026.11.09b';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -780,12 +780,13 @@ function vHome(){
    if(!gaps.length)return '';
    var tot=gaps.reduce(function(a,g){return a+g.miss.length;},0);
    return '<div class="warnbar" style="margin-top:14px">有 '+gaps.length+' 堂團班／一對二的名單比同班其他堂少人'
-    +'（共 '+tot+' 人次），堂數會算錯。'
+    +'（共 '+tot+' 人次）。有來上課的請補上，沒來的按「這堂沒上」，之後就不再提醒。'
     +'<div class="mini" style="margin:8px 0 0;color:var(--or-d)">'
-    +gaps.slice(0,4).map(function(g){
-      return g.l.date.slice(5).replace('-','/')+' '+g.l.start+' '+g.l.coach+'　缺：'+esc(g.miss.join('、'));}).join('<br>')
-    +(gaps.length>4?'<br>…共 '+gaps.length+' 堂':'')+'</div>'
-    +'<div class="row" style="margin-top:8px"><button class="btn sm" data-act="fixRoster">一鍵補齊名單</button></div></div>';
+    +gaps.map(function(g){
+      return g.miss.map(function(n){return '<div style="margin-top:6px">'+g.l.date.slice(5).replace('-','/')+' '+g.l.start+' '+g.l.coach+'　缺：'+esc(n)
+       +' <button class="btn sm" data-act="gapOk" data-id="'+g.l.id+'" data-name="'+esc(n)+'" style="margin-left:6px">這堂沒上</button></div>';}).join('');}).join('')
+    +'</div>'
+    +'<div class="row" style="margin-top:8px"><button class="btn sm" data-act="fixRoster">全部都有上，一鍵補齊</button></div></div>';
  })()
  +(cl?'<div class="warnbar" style="margin-top:14px">有 '+cl+' 堂課和同一位教練的其他課撞時段，'
    +'通常是同一個團班被拆成兩筆。'
@@ -1437,6 +1438,9 @@ function mergeGroup(g){
 }
 /* 同教練、同星期、同時段的團班／一對二視為同一個系列 */
 function seriesKey(l){return l.coach+'|'+dowOf(l.date)+'|'+l.start+'|'+planFam(l.plan);}
+/* 已確認沒有上課、不用再提醒的場次（只記場次，不寫學員姓名） */
+var GAP_OK_SESSIONS={'2026-11-12|19:30|陳凱文':1};
+function gapOk(l,n){return !!GAP_OK_SESSIONS[l.date+'|'+l.start+'|'+l.coach]||(l.gapOk||[]).indexOf(n)>=0;}
 /* 找出系列裡名單比別堂少的課 */
 function rosterGaps(){
  var map={};
@@ -1455,7 +1459,7 @@ function rosterGaps(){
   if(!core.length)return;
   g.forEach(function(l){
    /* 他第一次出現在這班之前的課不算缺人（還沒加入） */
-   var miss=core.filter(function(n){return l.date>first[n]&&(l.students||[]).indexOf(n)<0;});
+   var miss=core.filter(function(n){return l.date>first[n]&&(l.students||[]).indexOf(n)<0&&!gapOk(l,n);});
    if(miss.length)out.push({l:l,miss:miss});});
  });
  return out.sort(function(a,b){return a.l.date<b.l.date?-1:1;});
@@ -1471,7 +1475,7 @@ function missedOf(name){
  return LES().filter(function(l){
   return l.status==='已完成'&&l.date<t&&planFam(l.plan)!=='s'
    &&keys[l.coach+'|'+dowOf(l.date)+'|'+l.start]
-   &&(l.students||[]).indexOf(name)<0;})
+   &&(l.students||[]).indexOf(name)<0&&!gapOk(l,name);})
   .sort(function(a,b){return a.date<b.date?-1:1;});
 }
 
@@ -2867,6 +2871,13 @@ function bind(){
     persist();closeSheet();render();
     var sS=STU().filter(function(x){return x.name===nmS;})[0];if(sS)fStu(sS.id);
     alert('已更換 '+list.length+' 堂課的教練。');
+    return;}
+   if(a==='gapOk'){
+    var gl=LES().filter(function(x){return x.id===id;})[0],gn=b.dataset.name;
+    if(!gl||!gn)return;
+    gl.gapOk=gl.gapOk||[];
+    if(gl.gapOk.indexOf(gn)<0)gl.gapOk.push(gn);
+    touch('lessons',gl);persist();render();
     return;}
    if(a==='fixRoster'){
     var gs2=rosterGaps();
