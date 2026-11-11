@@ -275,7 +275,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.11c';
+var APPVER='2026.11.11d';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1074,14 +1074,21 @@ function vSet(){
      +(po?'<span class="tag g">已匯</span> <button class="btn sec sm" data-act="payundo" data-id="'+po.id+'">取消</button>'
         :'<span class="tag r">未匯</span>')+'</div></div>';}).join('');
    var gp=payoutOf(pn,'gear',GEAR_TO);
-   var grow='<div class="buy"'+(gp?'':' data-act="payok" data-k="gear" data-t="'+GEAR_TO+'" data-p="'+pn+'" data-a="'+st.gear+'"')+'>'
+   var gdiff=gp?(+gp.amount||0)-st.gearDue+st.gearCout:0;
+   var grow='<div class="buy"'+(gp?'':' data-act="payok" data-k="gear" data-t="'+GEAR_TO+'" data-p="'+pn+'" data-a="'+st.gearDue+'"')+'>'
     +'<div><div class="l">'+GEAR_TO+'　場地器材使用費</div>'
-    +'<div class="m">本期 '+st.cnt+' 堂'+(gp?'　'+(gp.date||'')+' 已給':'')+'</div></div>'
-    +'<div class="rr"><div class="num" style="font-size:15px">'+money(st.gear)+'</div>'
+    +'<div class="m">本期 '+st.cnt+' 堂'+(st.gearCin?'　＋上期補發 '+money(st.gearCin):'')+(gp?'　'+(gp.date||'')+' 已給':'')+'</div>'
+    +(st.gearCinList.length?'<div class="m">'+st.gearCinList.map(function(x){return esc(x.item||'')+' '+money(x.amount);}).join('、')+'</div>':'')
+    +(st.gearCout?'<div class="m" style="color:var(--green)">差額 '+money(st.gearCout)+' 已併入 '+pidShort(st.gearCoutList[0].pid)+' 一起補給'
+      +' <button class="btn sec sm" data-act="carryundo" data-id="'+st.gearCoutList[0].id+'">取消</button></div>':'')
+    +(gdiff?'<div class="m warnline">已給 '+money(gp.amount)+'，目前應給 '+money(st.gearDue)+'（差 '+money(Math.abs(gdiff))+'）'
+      +(gdiff<0?' <button class="btn sec sm" data-act="carry" data-k="gear" data-t="'+GEAR_TO+'" data-p="'+pn+'" data-a="'+(-gdiff)+'">差額併入下期補發</button>':'')+'</div>':'')
+    +'</div>'
+    +'<div class="rr"><div class="num" style="font-size:15px">'+money(st.gearDue)+'</div>'
     +(gp?'<span class="tag g">已給</span> <button class="btn sec sm" data-act="payundo" data-id="'+gp.id+'">取消</button>'
        :'<span class="tag r">未給</span>')+'</div></div>';
    var paid=payoutsOfPer(pn).reduce(function(a,x){return a+(+x.amount||0);},0);
-   var total=st.dueCoach+st.gear;
+   var total=st.dueCoach+st.gearDue;
    return '<div class="mini" style="margin:0 0 6px">匯款後點那一列確認，帳才會跟銀行對得起來。'
     +'行政費已經併進 '+ADMIN_TO+' 教練的應匯金額裡。</div>'
     +(rows||'<div class="mini">本期沒有要匯的教練鐘點費。</div>')+grow
@@ -2126,6 +2133,9 @@ function perStat(pid){
  o.dueCoach=o.byCoach.reduce(function(a,c){return a+c.due;},0);
  o.cin=o.byCoach.reduce(function(a,c){return a+c.cin;},0);
  o.cout=o.byCoach.reduce(function(a,c){return a+c.cout;},0);
+ o.gearCinList=gearCarryIn(pid);o.gearCoutList=gearCarryOut(pid);
+ o.gearCin=reimSum(o.gearCinList);o.gearCout=reimSum(o.gearCoutList);
+ o.gearDue=o.gear+o.gearCin;o.cout+=o.gearCout;
  return o;
 }
 /* 行政費統一撥給誰 */
@@ -2137,8 +2147,10 @@ function bills(){return EXP().filter(function(x){return x.sys!=='payout'&&x.sys!
 /* 補發：某期已匯但金額不足（例如事後補登課程），差額併到下一期薪資一起匯。
    sys='carry'，spid＝原本那期，pid＝併入哪一期，target＝教練。不是新支出，也不動現金，只搬應付金額 */
 function carries(){return EXP().filter(function(x){return x.sys==='carry';});}
-function carryIn(pid,c){return carries().filter(function(x){return x.pid===pid&&(!c||x.target===c);});}
-function carryOut(pid,c){return carries().filter(function(x){return x.spid===pid&&(!c||x.target===c);});}
+function carryIn(pid,c){return carries().filter(function(x){return x.pkind!=='gear'&&x.pid===pid&&(!c||x.target===c);});}
+function gearCarryIn(pid){return carries().filter(function(x){return x.pkind==='gear'&&x.pid===pid;});}
+function gearCarryOut(pid){return carries().filter(function(x){return x.pkind==='gear'&&x.spid===pid;});}
+function carryOut(pid,c){return carries().filter(function(x){return x.pkind!=='gear'&&x.spid===pid&&(!c||x.target===c);});}
 function refunds(){return EXP().filter(function(x){return x.sys==='refund';});}
 function refundsOfPer(pid){return refunds().filter(function(x){return x.date&&pidOf(x.date)===pid;});}
 function refundSess(name){
@@ -2371,7 +2383,7 @@ function buildPeriod(wb,n){
   ws.mergeCells(r,1,r,8);
   xCell(ws,r,1,'本期教練應匯合計　'+money(s.dueCoach)
    +'　｜　'+GEAR_TO+' 器材使用費　'+money(s.gear)
-   +'　｜　應付總額　'+money(s.dueCoach+s.gear),
+   +'　｜　應付總額　'+money(s.dueCoach+s.gearDue),
    {bold:true,align:'center',fill:NAVY,color:'FFFFFFFF',size:11});
   ws.getRow(r).height=26;
  }
@@ -2419,10 +2431,10 @@ function buildPeriod(wb,n){
  ws.mergeCells(r,4,r,5);xCell(ws,r,4,'匯款狀況',{bold:true,align:'center',fill:'FFEDEAE0'});
  r++;
  var pd=payoutsOfPer(n).reduce(function(a,x){return a+(+x.amount||0);},0);
- var due=s.dueCoach+s.gear;
+ var due=s.dueCoach+s.gearDue;
  var L=[['本期提撥',s.fund],['減：行政管理費',-s.admin],
    ['減：其他支出',-s.exOut],['加：其他收入',s.exIn],['可運用餘額',s.avail]];
- var R=[[(s.reim||s.cin)?'教練應匯合計（含'+(s.reim?'代墊 '+money(s.reim):'')+(s.reim&&s.cin?'、':'')+(s.cin?'上期補發 '+money(s.cin):'')+'）':'教練應匯合計',s.dueCoach],[GEAR_TO+' 器材使用費',s.gear],
+ var R=[[(s.reim||s.cin)?'教練應匯合計（含'+(s.reim?'代墊 '+money(s.reim):'')+(s.reim&&s.cin?'、':'')+(s.cin?'上期補發 '+money(s.cin):'')+'）':'教練應匯合計',s.dueCoach],[GEAR_TO+' 器材使用費'+(s.gearCin?'（含上期補發 '+money(s.gearCin)+'）':''),s.gearDue],
    ['應付總額',due],['已匯出',pd],[s.cout?'尚未匯出（另 '+money(s.cout)+' 併入下期補發）':'尚未匯出',due-pd-s.cout]];
  for(var i=0;i<L.length;i++){
   var last=(i===L.length-1);
@@ -2554,12 +2566,12 @@ function repAll(){
    run+=s.avail;
    T.cnt+=s.cnt;T.pay+=s.pay;T.coach+=s.coach;T.gear+=s.gear;
    T.admin+=s.admin;T.fund+=s.fund;T.avail+=s.avail;T.exOut+=s.exOut;T.exIn+=s.exIn;
-   var duep=s.dueCoach+s.gear;
+   var duep=s.dueCoach+s.gearDue;
    var paidp=payoutsOfPer(s.n).reduce(function(a,x){return a+(+x.amount||0);},0);
    xRow(ws,r++,[pidShort(s.pid),s.from,s.to,s.cnt,s.pay,s.coach,s.gear,s.admin,
     s.exOut,s.exIn,s.fund,s.avail,run,duep,paidp,duep-paidp],
     {money:[4,5,6,7,8,9,10,11,12,13,14,15],center:[0,1,2,3]});});
-  var TD=stats.reduce(function(a,s){return a+s.dueCoach+s.gear;},0);
+  var TD=stats.reduce(function(a,s){return a+s.dueCoach+s.gearDue;},0);
   var TP=payouts().reduce(function(a,x){return a+(+x.amount||0);},0);
   xRow(ws,r++,['合計','','',T.cnt,T.pay,T.coach,T.gear,T.admin,T.exOut,T.exIn,T.fund,T.avail,run,
    TD,TP,TD-TP],
@@ -2788,10 +2800,10 @@ function bind(){
       item:pidShort(pn2)+' '+tg+(kd==='gear'?' 器材使用費':' 薪資')};
     DB.expenses.push(o);touch('expenses',o);persist();render();return;}
    if(a==='carry'){
-    var cp=b.dataset.p,ct=b.dataset.t,ca=+b.dataset.a||0,np=pidNext(cp);
-    for(var gi=0;gi<36&&payoutOf(np,'coach',ct);gi++)np=pidNext(np);
-    if(!confirm(pidLabel(cp)+' '+ct+' 教練還差 '+money(ca)+'。\n要把這筆差額併入 '+pidLabel(np)+' 的薪資一起補發嗎？\n（不會動到現金，等 '+pidLabel(np)+' 匯款時一起匯出）'))return;
-    var co={id:uid(),del:0,sys:'carry',pkind:'coach',target:ct,spid:cp,pid:np,amount:ca,date:today(),
+    var cp=b.dataset.p,ct=b.dataset.t,ca=+b.dataset.a||0,np=pidNext(cp),ck=b.dataset.k||'coach';
+    for(var gi=0;gi<36&&payoutOf(np,ck,ct);gi++)np=pidNext(np);
+    if(!confirm(pidLabel(cp)+' '+ct+(b.dataset.k==='gear'?'':' 教練')+'還差 '+money(ca)+'。\n要把這筆差額併入 '+pidLabel(np)+' 的薪資一起補發嗎？\n（不會動到現金，等 '+pidLabel(np)+' 匯款時一起匯出）'))return;
+    var co={id:uid(),del:0,sys:'carry',pkind:ck,target:ct,spid:cp,pid:np,amount:ca,date:today(),
       kind:'',cat:'',item:pidShort(cp)+' 補發',note:''};
     DB.expenses.push(co);touch('expenses',co);persist();render();return;}
    if(a==='carryundo'){
