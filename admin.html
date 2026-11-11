@@ -275,7 +275,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.11';
+var APPVER='2026.11.11b';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -502,6 +502,9 @@ function unitsOf(l){
  return Math.max(0.5,Math.round(m/30)/2);
 }
 function nUnits(ls){return ls.reduce(function(a,l){return a+unitsOf(l);},0);}
+function uTag(l){var u=unitsOf(l);return u!==1?'<span class="tag t" style="margin-left:6px">'+durMin(l)+' 分＝'+u+' 堂</span>':'';}
+/* N 堂（M 次）：堂數和次數不一樣時兩個都寫 */
+function uCount(ls){var u=nUnits(ls);return u+' 堂'+(u!==ls.length?'（'+ls.length+' 次）':'');}
 function amt(l,k){var u=unitsOf(l);if(k==='admin')return adminFee(l)*u;var r=rate(l.plan);return r?(+r[k]||0)*u:0;}
 function headMismatch(l){var n=(l.students||[]).length;return n>0&&n!==planHead(l.plan);}
 function clash(l){
@@ -1236,7 +1239,7 @@ function stuLessons(name){
      var grp=(l.students||[]).length>1;
      return '<div class="buy" data-edit="mv" data-id="'+l.id+'" data-nm="'+esc(name)+'">'
       +'<div><div class="l">'+l.date.replace(/-/g,'/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）'
-      +esc(l.start)+'–'+esc(l.end)+'</div>'
+      +esc(l.start)+'–'+esc(l.end)+uTag(l)+'</div>'
       +'<div class="m">'+esc(l.coach)+'教練　'+esc(l.venue)
       +(grp?'　同班 '+l.students.length+' 人':'')+'</div></div>'
       +'<div class="rr" style="display:flex;align-items:center;gap:8px">'
@@ -1264,17 +1267,17 @@ function stuLessons(name){
    var t=today();
    var fut=fin.filter(function(l){return l.date>=t;});
    return '<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">'
-    +(fut.length?'<div class="warnbar" style="margin-bottom:10px">有 '+fut.length
-      +' 堂日期還沒到，卻已經標成「已完成」，可能是按錯了。'
+    +(fut.length?'<div class="warnbar" style="margin-bottom:10px">有 '+uCount(fut)
+      +'日期還沒到，卻已經標成「已完成」，可能是按錯了。'
       +'<div class="row" style="margin-top:8px"><button class="btn sm" data-act="undoFuture" data-nm="'
-      +esc(name)+'">全部改回未上（'+fut.length+' 堂）</button></div></div>':'')
+      +esc(name)+'">全部改回未上（'+uCount(fut)+'）</button></div></div>':'')
     +'<details'+(fut.length?' open':'')+'><summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--ink2)">'
-    +'已完成 '+fin.length+' 堂（點開可以改回）</summary>'
+    +'已完成 '+uCount(fin)+'（點開可以改回）</summary>'
     +fin.map(function(l){
       var isFut=l.date>=t;
       return '<div class="buy" style="cursor:default">'
        +'<div><div class="l">'+l.date.replace(/-/g,'/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）'
-       +esc(l.start)+'–'+esc(l.end)+'</div>'
+       +esc(l.start)+'–'+esc(l.end)+uTag(l)+'</div>'
        +'<div class="m">'+esc(l.coach)+'教練'+(isFut?'　<span class="warnline">日期還沒到</span>':'')+'</div></div>'
        +'<div class="rr"><button class="btn sec sm" data-act="undoDone" data-id="'+l.id+'" data-nm="'
        +esc(name)+'">'+(isFut?'改回未上':'改回並改期')+'</button></div></div>';}).join('')
@@ -1406,14 +1409,14 @@ function fRefund(name){
  +' ＋ 可排 '+openOf(name)+'）　累計繳費 '+money(paidOf(name))
  +'　單堂約 '+money(unit)+'</div>'
  +'<div class="grid2"><div><label>退費堂數</label>'
- +'<input type="number" id="r_n" value="'+left+'" min="1" max="'+left+'"></div>'
+ +'<input type="number" id="r_n" value="'+left+'" min="0.5" step="0.5" max="'+left+'"></div>'
  +'<div><label>退費金額</label><input type="number" id="r_amt" value="'+(unit*left)+'"></div></div>'
  +'<div class="grid2"><div><label>退費日期</label><input type="date" id="r_date" value="'+today()+'"></div>'
  +'<div><label>退費方式</label><select id="r_method">'
  +['轉帳','現金','其他'].map(function(v){return '<option>'+v+'</option>';}).join('')+'</select></div></div>'
  +'<label>原因</label><input id="r_note" value="" placeholder="例如 教練離職、家長申請退費">'
  +'</div>'
- +(future.length?'<div class="warnbar">這位學員還有 <b>'+future.length+'</b> 堂已排定的課。'
+ +(future.length?'<div class="warnbar">這位學員還有 <b>'+uCount(future)+'</b>已排定的課。'
    +'退費後會一併截止（團班只會把他從名單移除，其他同學不受影響）。</div>':'')
  +'<div class="mini">退費會記成現金支出，帳戶餘額跟著減少；已經上過的課不受影響，損益表也不會被改動。</div>'
  +'<div class="row" style="margin-top:18px">'
@@ -1585,14 +1588,14 @@ function fSwapCoach(name){
  var cur=lastCoachOf(name);
  openSheet(head('更換教練')
  +'<div class="fbox"><div class="ttl">'+esc(name)+'</div>'
- +'<div class="mini" style="margin:10px 0 0">目前還沒上的課共 '+todo.length+' 堂'
- +(shared.length?'，其中 '+shared.length+' 堂是團班或一對二，需要個別處理':'')+'。</div>'
+ +'<div class="mini" style="margin:10px 0 0">目前還沒上的課共 '+uCount(todo)
+ +(shared.length?'，其中 '+uCount(shared)+'是團班或一對二，需要個別處理':'')+'。</div>'
  +'<label>換成哪位教練</label><select id="f_newc">'
  +COACHES.map(function(c){return '<option'+(cur===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select>'
  +'<div class="mini">只會更換「只有這位學員」的課共 <b>'+solo.length+'</b> 堂，日期時間都不變。</div></div>'
  +(shared.length?'<div class="warnbar">團班和一對二的課不會被更換，請點那一堂用「改期」裡的教練欄個別處理。</div>':'')
  +'<div class="row" style="margin-top:18px">'
- +'<button class="btn" data-act="doSwap" data-nm="'+esc(name)+'"'+(solo.length?'':' disabled')+'>確認更換 '+solo.length+' 堂</button>'
+ +'<button class="btn" data-act="doSwap" data-nm="'+esc(name)+'"'+(solo.length?'':' disabled')+'>確認更換 '+uCount(solo)+'</button>'
  +'<button class="btn sec" data-act="close">取消</button></div>');
 }
 
@@ -2867,7 +2870,7 @@ function bind(){
     var fut=lessonsOf(nmR).filter(function(l){
      return l.status==='已排定'||l.status==='請假改期';});
     if(!confirm('確認退 '+nmR+' '+rn+' 堂、'+money(ra)+' 嗎？'
-      +(fut.length?'\n同時會截止 '+fut.length+' 堂已排定的課。':'')))return;
+      +(fut.length?'\n同時會截止 '+uCount(fut)+'已排定的課。':'')))return;
     var ro={id:uid(),del:0,sys:'refund',student:nmR,sessions:rn,amount:ra,
       date:val('r_date')||today(),method:val('r_method'),note:val('r_note'),
       kind:'支出',cat:'學費退費',item:nmR+' 退費 '+rn+' 堂'};
@@ -2879,7 +2882,7 @@ function bind(){
      }else l.del=1;
      touch('lessons',l);});
     persist();closeSheet();render();
-    alert(nmR+' 已退費 '+money(ra)+'，截止 '+fut.length+' 堂課。');
+    alert(nmR+' 已退費 '+money(ra)+'，截止 '+uCount(fut)+'的課。');
     return;}
    if(a==='swap'){return fSwapCoach(b.dataset.nm);}
    if(a==='doSwap'){
