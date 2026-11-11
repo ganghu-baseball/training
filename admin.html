@@ -275,7 +275,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.11b';
+var APPVER='2026.11.11c';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -496,12 +496,34 @@ var UNIT_FROM='2026-11-11';
 function isGrpPlan(p){return (p||'').indexOf('團班')===0;}
 function durMin(l){var m=t2m(l.end)-t2m(l.start);return m>0?m:60;}
 function unitsOf(l){
+ if(l&&l.u!==undefined&&l.u!==null&&l.u!==''&&+l.u>0)return +l.u;
  if(!l||isGrpPlan(l.plan)||(l.date||'')<UNIT_FROM||!l.start||!l.end)return 1;
  var m=t2m(l.end)-t2m(l.start);
  if(!(m>0))return 1;
  return Math.max(0.5,Math.round(m/30)/2);
 }
 function nUnits(ls){return ls.reduce(function(a,l){return a+unitsOf(l);},0);}
+/* 事後補算堂數的課（l.uNote）：當初結算用 1 堂，現在照 l.u 算，差額要補 */
+function adjOfPer(pid){
+ var list=LES().filter(function(l){return l.status!=='取消'&&l.uNote&&pidOf(l.date)===pid;})
+  .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;});
+ var o={list:list,pay:0,coach:0,gear:0,fund:0,admin:0,byCoach:{}};
+ list.forEach(function(l){
+  var k=unitsOf(l)-1,r=rate(l.plan)||{};
+  o.pay+=(+r.pay||0)*k;o.coach+=(+r.coach||0)*k;o.gear+=(+r.gear||0)*k;
+  o.fund+=(+r.fund||0)*k;o.admin+=adminFee(l)*k;
+  o.byCoach[l.coach]=(o.byCoach[l.coach]||0)+(+r.coach||0)*k;});
+ return o;
+}
+function adjText(a){
+ return '本期有 '+a.list.length+' 堂課事後補算堂數：'
+  +a.list.map(function(l){return (l.students||[]).join('、')+' '+l.date.slice(5).replace('-','/')+' '+l.start+'–'+l.end+'（'+(l.uNote||'')+'）';}).join('；')
+  +'。當初結算時金額算少了，應補：'
+  +Object.keys(a.byCoach).map(function(c){return c+' 教練鐘點 '+money(a.byCoach[c]);}).join('、')
+  +(a.admin?'、行政費 '+money(a.admin)+'（給 '+ADMIN_TO+'）':'')
+  +(a.gear?'、器材使用費 '+money(a.gear)+'（給 '+GEAR_TO+'）':'')
+  +'；公積金多提撥 '+money(a.fund)+'，學費收入多 '+money(a.pay)+'。';
+}
 function uTag(l){var u=unitsOf(l);return u!==1?'<span class="tag t" style="margin-left:6px">'+durMin(l)+' 分＝'+u+' 堂</span>':'';}
 /* N 堂（M 次）：堂數和次數不一樣時兩個都寫 */
 function uCount(ls){var u=nUnits(ls);return u+' 堂'+(u!==ls.length?'（'+ls.length+' 次）':'');}
@@ -910,7 +932,7 @@ function lesRow(l){
  +'<div><div class="nm">'+l.date.slice(5).replace('-','/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）'+esc(l.start)+'–'+esc(l.end)
  +(l.rid?' <span class="tag t">重複</span>':'')+'</div>'
  +'<div class="meta">'+esc(l.coach)+'教練　'+esc(l.students.join('、')||'未填學員')+'</div>'
- +'<div class="meta">'+esc(l.plan)+(r?'　'+money(amt(l,'pay')):'')+'　行政費 '+money(amt(l,'admin'))+(unitsOf(l)!==1?'　<span class="tag t">'+durMin(l)+' 分鐘＝'+unitsOf(l)+' 堂</span>':'')+'</div>'
+ +'<div class="meta">'+esc(l.plan)+(r?'　'+money(amt(l,'pay')):'')+'　行政費 '+money(amt(l,'admin'))+(unitsOf(l)!==1?'　<span class="tag t">'+durMin(l)+' 分鐘＝'+unitsOf(l)+' 堂</span>':'')+(l.uNote?'　<span class="tag r">補算</span>':'')+'</div>'
  +(ck?'<div class="meta warnline">和同教練的其他課撞時段　'
    +'<button class="btn sm" data-act="mergeOne" data-id="'+l.id+'" style="margin-left:6px">合併</button></div>':'')
  +(mm?'<div class="meta warnline">學員 '+l.students.length+' 人與方案（'+planHead(l.plan)+' 人）不符，行政費已依實際人數算</div>':'')
@@ -1000,6 +1022,10 @@ function vSet(){
    +pidLabel(x)+'</option>';}).join('')+'</select>'
  +'<div class="mini">區間 '+R.from.replace(/-/g,'/')+' ～ '+R.to.replace(/-/g,'/')
  +'　結算發薪日 '+pidPay(setP).replace(/-/g,'/')+'　本期 '+nUnits(ls)+' 堂</div></div>'
+ +(function(){var a=adjOfPer(setP);if(!a.list.length)return '';
+   return '<div class="warnbar"><b>這期金額之前算錯了，要補匯</b><br>'+esc(adjText(a))
+    +'<br>已匯款的教練，下面「本期匯款確認」會出現差額，按「差額併入下期補發」就會併到下一次還沒匯款的期別一起匯；'
+    +GEAR_TO+' 的器材使用費請另外補給。</div>';})()
  +'<div class="sec-t">教練請款</div><div class="card"><table><tr><th>教練</th><th>堂數</th><th>鐘點費</th><th>行政費</th>'+(hasR?'<th>代墊</th>':'')+'<th>應匯</th></tr>'+rowsC
  +'<tr><td><b>合計</b></td><td><b>'+ls.length+'</b></td><td><b>'+money(tot('coach'))+'</b></td>'
  +'<td><b>'+money(tot('admin'))+'</b></td>'+(hasR?'<td><b>'+money(SP.reim)+'</b></td>':'')
@@ -2334,6 +2360,10 @@ function buildPeriod(wb,n){
  xTitle(ws,'港湖特訓班　'+pidLabel(n)+' 教練薪資單',
   sub+'　結算發薪日 '+pidPay(n).replace(/-/g,'/'),8);
  var r=5;
+ var adj=adjOfPer(n);
+ if(adj.list.length){ws.mergeCells(r,1,r,8);
+  var ac=xCell(ws,r,1,'※ 金額更正：'+adjText(adj),{bold:true,color:'FFC0392B',fill:'FFFDECEA',size:10});
+  ac.alignment={horizontal:'left',vertical:'middle',wrapText:true,indent:1};ws.getRow(r).height=58;r+=2;}
  var any=false;
  s.byCoach.forEach(function(c){if(c.due>0){any=true;r=paySlip(ws,r,s,c);}});
  if(!any)xCell(ws,r,1,'本期沒有課程紀錄',{});
@@ -2352,6 +2382,9 @@ function buildPeriod(wb,n){
  xWidths(ws,[26,16,4,26,16]);
  xTitle(ws,pidLabel(n)+'　營運與收支狀況',sub,5);
  r=5;
+ if(adj.list.length){ws.mergeCells(r,1,r,5);
+  var ac2=xCell(ws,r,1,'※ 金額更正：'+adjText(adj),{bold:true,color:'FFC0392B',fill:'FFFDECEA',size:10});
+  ac2.alignment={horizontal:'left',vertical:'middle',wrapText:true,indent:1};ws.getRow(r).height=70;r+=2;}
  function pair(label,a,b,c2,d2,o1,o2){
   xCell(ws,r,1,label,o1||{});
   xCell(ws,r,2,a,{money:true,align:'right',bold:(o1&&o1.bold)});
@@ -2756,6 +2789,7 @@ function bind(){
     DB.expenses.push(o);touch('expenses',o);persist();render();return;}
    if(a==='carry'){
     var cp=b.dataset.p,ct=b.dataset.t,ca=+b.dataset.a||0,np=pidNext(cp);
+    for(var gi=0;gi<36&&payoutOf(np,'coach',ct);gi++)np=pidNext(np);
     if(!confirm(pidLabel(cp)+' '+ct+' 教練還差 '+money(ca)+'。\n要把這筆差額併入 '+pidLabel(np)+' 的薪資一起補發嗎？\n（不會動到現金，等 '+pidLabel(np)+' 匯款時一起匯出）'))return;
     var co={id:uid(),del:0,sys:'carry',pkind:'coach',target:ct,spid:cp,pid:np,amount:ca,date:today(),
       kind:'',cat:'',item:pidShort(cp)+' 補發',note:''};
