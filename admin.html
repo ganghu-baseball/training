@@ -275,7 +275,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.11d';
+var APPVER='2026.11.16';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1140,8 +1140,8 @@ function vSet(){
  +'<div class="sec-t">財務報表</div><div class="card">'
  +'<button class="btn full" data-act="repP">'+svg('set',16)+' 匯出本期財報（'+pidShort(setP)+'）</button>'
  +'<button class="btn nav full" data-act="repA" style="margin-top:9px">'+svg('set',16)+' 匯出累計財報（全部期別）</button>'
- +'<div class="mini">本期財報只有三張表：薪資單（每位教練一張，含應付／應扣／實領）、'
- +'營運總表（收支、公積金、匯款狀況、帳戶餘額）、上課明細。可以直接整份傳給教練。'
+ +'<div class="mini">本期財報只有一張「營運總表」，從上往下依序是：每位教練的收入來源與應匯、'
+ +'各教練薪資單（含上課明細）、本期匯款總覽、收支與公積金、其他收支與代墊、報名收款與帳戶餘額。可以直接整份傳給教練。'
  +'累計財報把每一期的收入、教練鐘點費、器材費、行政費和公積金餘額整理在一起，附教練與學員彙總。</div></div>'
  +'<div class="sec-t">雲端同步</div><div class="card">'
  +(!sbReady()
@@ -2362,174 +2362,178 @@ function paySlip(ws,r,s,c){
 }
 
 function buildPeriod(wb,n){
- var s=perStat(n);
- var sub=s.from.replace(/-/g,'/')+' – '+s.to.replace(/-/g,'/')+'　共 '+s.cnt+' 堂課';
- var out=s.coach+s.gear+s.admin+s.exOut;
-
- /* 1. 薪資單 */
- var ws=wb.addWorksheet(pidShort(n)+' 薪資單');
- xWidths(ws,[22,9,15,20,5,15,24,15]);
- xTitle(ws,'港湖特訓班　'+pidLabel(n)+' 教練薪資單',
-  sub+'　結算發薪日 '+pidPay(n).replace(/-/g,'/'),8);
+ /* 一期一張表：總覽 → 各教練薪資單（含上課明細）→ 匯款總覽 → 收支與公積金 → 其他收支與代墊 → 報名收款與帳戶 */
+ var s=perStat(n),adj=adjOfPer(n),C=9;
+ var ws=wb.addWorksheet(pidShort(n)+' 營運總表');
+ xWidths(ws,[11,6,13,20,10,18,11,13,13]);
+ ws.pageSetup={paperSize:9,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,
+  margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.2,footer:0.2}};
+ xTitle(ws,'港湖特訓班　'+pidShort(n)+' 營運總表',
+  pidLabel(n)+'　'+s.from.replace(/-/g,'/')+' – '+s.to.replace(/-/g,'/')+'　共 '+s.cnt+' 堂　結算發薪日 '+pidPay(n).replace(/-/g,'/'),C);
  var r=5;
- var adj=adjOfPer(n);
- if(adj.list.length){ws.mergeCells(r,1,r,8);
-  var ac=xCell(ws,r,1,'※ 金額更正：'+adjText(adj),{bold:true,color:'FFC0392B',fill:'FFFDECEA',size:10});
-  ac.alignment={horizontal:'left',vertical:'middle',wrapText:true,indent:1};ws.getRow(r).height=58;r+=2;}
- var any=false;
- s.byCoach.forEach(function(c){if(c.due>0){any=true;r=paySlip(ws,r,s,c);}});
- if(!any)xCell(ws,r,1,'本期沒有課程紀錄',{});
- else{
-  ws.mergeCells(r,1,r,8);
-  xCell(ws,r,1,'本期教練應匯合計　'+money(s.dueCoach)
-   +'　｜　'+GEAR_TO+' 器材使用費　'+money(s.gear)
-   +'　｜　應付總額　'+money(s.dueCoach+s.gearDue),
-   {bold:true,align:'center',fill:NAVY,color:'FFFFFFFF',size:11});
-  ws.getRow(r).height=26;
- }
- ws.views=[{state:'frozen',ySplit:4}];
+ var wrapL=function(c){c.alignment={horizontal:'left',vertical:'middle',wrapText:true,indent:1};return c;};
+ var note=function(text){ws.mergeCells(r,1,r,C);wrapL(xCell(ws,r,1,text,{noBorder:true,size:9,color:'FF6E8794'}));r++;};
+ /* 金額一列：左邊文字（A–H 合併），右邊金額（I） */
+ var mrow=function(label,amount,o){
+  o=o||{};ws.mergeCells(r,1,r,C-1);
+  wrapL(xCell(ws,r,1,label,{bold:o.bold,fill:o.fill,color:o.color}));
+  xCell(ws,r,C,amount,{money:amount!=='',align:'right',bold:o.bold,fill:o.fill,color:o.color});
+  if(o.h)ws.getRow(r).height=o.h;
+  r++;};
+ var typ=function(l){return isGrpPlan(l.plan)?'團班':((l.plan||'').indexOf('一對二')===0?'一對二':'一對一');};
+ var TYP=['一對一','一對二','團班'];
+ var byType=function(ls,k){
+  var o={};TYP.forEach(function(t){o[t]={u:0,v:0};});
+  ls.forEach(function(l){var t=typ(l);o[t].u+=unitsOf(l);o[t].v+=amt(l,k);});
+  return o;};
+ var cell2=function(row,col,u,v){
+  var c=xCell(ws,row,col,u?(u+' 堂\n'+money(v)):'—',{align:'center'});
+  c.alignment={horizontal:'center',vertical:'middle',wrapText:true};};
+ var payStatus=function(kind,target){
+  var po=payoutOf(n,kind,target);
+  return po?((po.date||'').slice(5).replace('-','/')+' 已匯 '+money(po.amount)):'尚未匯出';};
+ var coaches=s.byCoach.filter(function(c){return c.due>0||c.cnt>0;});
 
- /* 2. 營運總表 */
- ws=wb.addWorksheet(pidShort(n)+' 營運總表');
- xWidths(ws,[26,16,4,26,16]);
- xTitle(ws,pidLabel(n)+'　營運與收支狀況',sub,5);
- r=5;
- if(adj.list.length){ws.mergeCells(r,1,r,5);
-  var ac2=xCell(ws,r,1,'※ 金額更正：'+adjText(adj),{bold:true,color:'FFC0392B',fill:'FFFDECEA',size:10});
-  ac2.alignment={horizontal:'left',vertical:'middle',wrapText:true,indent:1};ws.getRow(r).height=70;r+=2;}
- function pair(label,a,b,c2,d2,o1,o2){
-  xCell(ws,r,1,label,o1||{});
-  xCell(ws,r,2,a,{money:true,align:'right',bold:(o1&&o1.bold)});
-  xCell(ws,r,3,'',{noBorder:true});
-  if(c2!==undefined){xCell(ws,r,4,c2,o2||{});
-   xCell(ws,r,5,d2,{money:true,align:'right',bold:(o2&&o2.bold)});}
-  r++;
- }
- ws.mergeCells(r,1,r,2);xCell(ws,r,1,'收入',{bold:true,align:'center',fill:'FFEDEAE0'});
- ws.mergeCells(r,4,r,5);xCell(ws,r,4,'支出',{bold:true,align:'center',fill:'FFEDEAE0'});
+ if(adj.list.length){
+  ws.mergeCells(r,1,r,C);
+  wrapL(xCell(ws,r,1,'※ 金額更正：'+adjText(adj),{bold:true,color:'FFC0392B',fill:'FFFDECEA',size:10}));
+  ws.getRow(r).height=58;r+=2;}
+
+ /* 一、本期總覽 */
+ xSection(ws,r++,'一、本期總覽：每位教練的收入來源與應匯金額',C);
+ xHead(ws,r++,['教練','','一對一','一對二','團班','鐘點費小計','行政費＋代墊＋補發','本期應匯','匯款狀態']);
+ ws.mergeCells(r-1,1,r-1,2);
+ coaches.forEach(function(c){
+  var mine=s.ls.filter(function(l){return l.coach===c.c;}),bt=byType(mine,'coach');
+  ws.mergeCells(r,1,r,2);xCell(ws,r,1,c.c,{bold:true});
+  cell2(r,3,bt['一對一'].u,bt['一對一'].v);cell2(r,4,bt['一對二'].u,bt['一對二'].v);cell2(r,5,bt['團班'].u,bt['團班'].v);
+  xCell(ws,r,6,c.fee,{money:true,align:'right'});
+  xCell(ws,r,7,c.adminGet+c.reim+c.cin,{money:true,align:'right'});
+  xCell(ws,r,8,c.due,{money:true,align:'right',bold:true});
+  wrapL(xCell(ws,r,9,payStatus('coach',c.c),{size:9,color:payoutOf(n,'coach',c.c)?'FF2C7A52':'FFC0392B'}));
+  ws.getRow(r).height=34;r++;});
+ var all=byType(s.ls,'coach');
+ ws.mergeCells(r,1,r,2);xCell(ws,r,1,'合計',{bold:true,fill:WARM});
+ cell2(r,3,all['一對一'].u,all['一對一'].v);cell2(r,4,all['一對二'].u,all['一對二'].v);cell2(r,5,all['團班'].u,all['團班'].v);
+ [3,4,5].forEach(function(k){ws.getCell(r,k).fill={type:'pattern',pattern:'solid',fgColor:{argb:WARM}};ws.getCell(r,k).font={name:'Noto Sans TC',size:10,bold:true};});
+ xCell(ws,r,6,s.coach,{money:true,align:'right',bold:true,fill:WARM});
+ xCell(ws,r,7,s.dueCoach-s.coach,{money:true,align:'right',bold:true,fill:WARM});
+ xCell(ws,r,8,s.dueCoach,{money:true,align:'right',bold:true,fill:WARM});
+ xCell(ws,r,9,'',{fill:WARM});
+ ws.getRow(r).height=34;r++;
+ note('每格上面是堂數、下面是教練鐘點費。90 分鐘的一對一、一對二算 1.5 堂。「行政費」全隊統一撥給 '+ADMIN_TO+'，「代墊」是教練先幫忙付的採購，「補發」是前幾期少匯的差額。');
  r++;
- var rows=[
-  ['課程收入（家長付費）',s.pay,'教練鐘點費',s.coach],
-  ['其他收入',s.exIn,GEAR_TO+' 器材使用費',s.gear],
-  ['','','行政管理費',s.admin],
-  ['','','其他支出（器材採購等）',s.exOut]];
- rows.forEach(function(x){
-  xCell(ws,r,1,x[0],{});
-  xCell(ws,r,2,x[0]===''?'':x[1],{money:x[0]!=='',align:'right'});
-  xCell(ws,r,3,'',{noBorder:true});
-  xCell(ws,r,4,x[2],{});
-  xCell(ws,r,5,x[3],{money:true,align:'right'});
+
+ /* 二、各教練薪資單與上課明細 */
+ xSection(ws,r++,'二、各教練薪資單（上課明細）',C);
+ coaches.forEach(function(c){
+  var mine=s.ls.filter(function(l){return l.coach===c.c;});
+  ws.mergeCells(r,1,r,C);
+  var hc=xCell(ws,r,1,c.c+' 教練　本期應匯 '+money(c.due)+'　（'+payStatus('coach',c.c)+'）',
+   {bold:true,size:11,color:'FFFFFFFF',fill:'FF2E4A5B'});
+  wrapL(hc);ws.getRow(r).height=24;r++;
+  if(mine.length){
+   xHead(ws,r++,['日期','星期','時間','學員','類型','方案','堂數','家長付費','教練鐘點']);
+   mine.forEach(function(l){
+    xRow(ws,r++,[l.date.slice(5).replace('-','/'),DAYN[dowOf(l.date)].slice(1),l.start+'–'+l.end,
+     (l.students||[]).join('、'),typ(l),l.plan,unitsOf(l),amt(l,'pay'),amt(l,'coach')],
+     {money:[7,8],center:[0,1,2,4,6]});});
+   xRow(ws,r++,['小計','','','','','',nUnits(mine),
+     mine.reduce(function(a,l){return a+amt(l,'pay');},0),c.fee],
+     {money:[7,8],center:[0,6],bold:true,top:true,fill:WARM});
+  }
+  var bt=byType(mine,'coach');
+  TYP.forEach(function(t){if(bt[t].u)mrow('　'+t+'　'+bt[t].u+' 堂　鐘點費',bt[t].v);});
+  if(c.adminGet)mrow('　＋ 行政管理費（本期全隊 '+s.cnt+' 堂，統一撥給 '+ADMIN_TO+'）',c.adminGet);
+  (c.reimList||[]).forEach(function(x){
+   mrow('　＋ 代墊歸還：'+(x.item||x.cat)+'（'+(x.date||'').slice(5).replace('-','/')+' 先幫忙付）',+x.amount||0);});
+  (c.cinList||[]).forEach(function(x){
+   mrow('　＋ 上期補發：'+pidShort(x.spid)+' 少匯的差額'+(x.note?'（'+x.note+'）':''),+x.amount||0);});
+  mrow(c.c+' 教練　本期應匯合計',c.due,{bold:true,fill:'FFFFE9D6'});
+  if(c.cout)mrow('　（本期另有 '+money(c.cout)+' 差額，併到 '+pidShort(c.coutList[0].pid)+' 一起補發）','',{color:'FF6E8794'});
   r++;});
- pair('收入合計',s.pay+s.exIn,null,'支出合計',out,{bold:true,fill:WARM},{bold:true,fill:WARM});
- r++;
- ws.mergeCells(r,1,r,5);
- xCell(ws,r,1,'本期結餘（＝公積金可運用餘額）　'+money(s.pay+s.exIn-out),
-  {bold:true,size:12,align:'center',fill:'FFFFE9D6',color:'FFA8490A'});
- ws.getRow(r).height=26;r+=2;
 
- ws.mergeCells(r,1,r,2);xCell(ws,r,1,'公積金',{bold:true,align:'center',fill:'FFEDEAE0'});
- ws.mergeCells(r,4,r,5);xCell(ws,r,4,'匯款狀況',{bold:true,align:'center',fill:'FFEDEAE0'});
+ /* 三、本期匯款總覽 */
+ xSection(ws,r++,'三、本期匯款總覽（這一期要匯出去的錢）',C);
+ xHead(ws,r++,['付給誰','','','','','','應付','已匯','狀態']);
+ ws.mergeCells(r-1,1,r-1,6);
+ var outRow=function(label,due,kind,target){
+  var po=payoutOf(n,kind,target),paid=po?(+po.amount||0):0;
+  ws.mergeCells(r,1,r,6);wrapL(xCell(ws,r,1,label,{}));
+  xCell(ws,r,7,due,{money:true,align:'right'});
+  xCell(ws,r,8,paid,{money:true,align:'right'});
+  xCell(ws,r,9,po?(po.date||'').slice(5).replace('-','/')+' 已匯':'尚未匯出',{align:'center',size:9,color:po?'FF2C7A52':'FFC0392B'});
+  r++;return paid;};
+ var paidSum=0;
+ coaches.forEach(function(c){if(c.due>0)paidSum+=outRow(c.c+' 教練（鐘點費'+(c.adminGet?'＋行政費':'')+(c.reim?'＋代墊':'')+(c.cin?'＋補發':'')+'）',c.due,'coach',c.c);});
+ paidSum+=outRow(GEAR_TO+'　場地器材使用費'+(s.gearCin?'（含上期補發 '+money(s.gearCin)+'）':''),s.gearDue,'gear',GEAR_TO);
+ var dueAll=s.dueCoach+s.gearDue;
+ ws.mergeCells(r,1,r,6);xCell(ws,r,1,'本期應付總額',{bold:true,fill:WARM});
+ xCell(ws,r,7,dueAll,{money:true,align:'right',bold:true,fill:WARM});
+ xCell(ws,r,8,paidSum,{money:true,align:'right',bold:true,fill:WARM});
+ xCell(ws,r,9,'',{fill:WARM});r++;
+ mrow('尚未匯出'+(s.cout?'（另有 '+money(s.cout)+' 差額併入下期補發）':''),dueAll-paidSum-s.cout,{bold:true,color:dueAll-paidSum-s.cout>0?'FFC0392B':'FF2C7A52'});
  r++;
- var pd=payoutsOfPer(n).reduce(function(a,x){return a+(+x.amount||0);},0);
- var due=s.dueCoach+s.gearDue;
- var L=[['本期提撥',s.fund],['減：行政管理費',-s.admin],
-   ['減：其他支出',-s.exOut],['加：其他收入',s.exIn],['可運用餘額',s.avail]];
- var R=[[(s.reim||s.cin)?'教練應匯合計（含'+(s.reim?'代墊 '+money(s.reim):'')+(s.reim&&s.cin?'、':'')+(s.cin?'上期補發 '+money(s.cin):'')+'）':'教練應匯合計',s.dueCoach],[GEAR_TO+' 器材使用費'+(s.gearCin?'（含上期補發 '+money(s.gearCin)+'）':''),s.gearDue],
-   ['應付總額',due],['已匯出',pd],[s.cout?'尚未匯出（另 '+money(s.cout)+' 併入下期補發）':'尚未匯出',due-pd-s.cout]];
- for(var i=0;i<L.length;i++){
-  var last=(i===L.length-1);
-  xCell(ws,r,1,L[i][0],{bold:last,fill:last?WARM:''});
-  xCell(ws,r,2,L[i][1],{money:true,align:'right',bold:last,fill:last?WARM:''});
-  xCell(ws,r,3,'',{noBorder:true});
-  xCell(ws,r,4,R[i][0],{bold:last,fill:last?WARM:''});
-  xCell(ws,r,5,R[i][1],{money:true,align:'right',bold:last,fill:last?WARM:''});
-  r++;
- }
- r++;
- var cs=cashStat();
- ws.mergeCells(r,1,r,5);xCell(ws,r,1,'現金與帳戶餘額（全期間累計）',{bold:true,align:'center',fill:'FFEDEAE0'});
- r++;
- var refP=refundsOfPer(n).reduce(function(a,x){return a+(+x.amount||0);},0);
- [['本期學費退費',-refP],
-  ['累計收到（報名費＋其他收入）',cs.inc],
-  ['累計付出（已匯薪水、器材費、採購、退費）',-cs.out],
-  ['帳戶應有餘額',cs.bal]].forEach(function(x,i){
-  var last=i===3;
-  ws.mergeCells(r,1,r,4);
-  xCell(ws,r,1,x[0],{bold:last,fill:last?'FFFFE9D6':''});
-  xCell(ws,r,5,x[1],{money:true,align:'right',bold:last,fill:last?'FFFFE9D6':''});
-  r++;});
- xCell(ws,r,1,'這個數字應與實際銀行帳戶金額一致。',{noBorder:true,size:9,color:'FF6E8794'});
- r+=2;
 
- if(s.ex.length){
-  ws.mergeCells(r,1,r,5);xCell(ws,r,1,'本期其他收支明細',{bold:true,align:'center',fill:'FFEDEAE0'});r++;
-  ['日期','類別','','項目','金額'].forEach(function(h,i){
-   xCell(ws,r,i+1,h,{bold:true,size:9,align:'center',color:'FF6E8794',fill:'FFF5F3EC'});});
-  r++;
-  s.ex.forEach(function(x){
-   xCell(ws,r,1,x.date,{align:'center'});
-   xCell(ws,r,2,x.cat,{});
-   xCell(ws,r,3,'',{});
-   xCell(ws,r,4,x.item+(x.adv?'（'+x.adv+' 代墊）':''),{});
-   xCell(ws,r,5,(x.kind==='收入'?1:-1)*(+x.amount||0),{money:true,align:'right'});
-   r++;});
+ /* 四、本期收支與公積金 */
+ xSection(ws,r++,'四、本期收支與公積金',C);
+ mrow('課程收入（家長付費）',s.pay);
+ if(s.exIn)mrow('其他收入',s.exIn);
+ mrow('減：教練鐘點費',-s.coach);
+ mrow('減：'+GEAR_TO+' 場地器材使用費',-s.gear);
+ mrow('減：行政管理費',-s.admin);
+ mrow('減：其他支出（採購、代墊等，明細在第五段）',-s.exOut);
+ mrow('本期結餘（＝公積金本期可運用的錢）',s.avail,{bold:true,fill:'FFFFE9D6'});
+ note('家長付費＝教練鐘點＋器材使用費＋公積金，所以扣完之後剩下的，就是這一期公積金可以運用的錢。');
+ var cum=activePeriods().filter(function(p){return p<=n;}).reduce(function(a,p){return a+perStat(p).avail;},0);
+ mrow('公積金本期提撥',s.fund);
+ mrow('減：行政管理費',-s.admin);
+ mrow('減：其他支出',-s.exOut);
+ if(s.exIn)mrow('加：其他收入',s.exIn);
+ mrow('公積金本期可運用',s.avail,{bold:true});
+ mrow('公積金累計可運用（從第一期到這一期）',cum,{bold:true,fill:'FFFFE9D6'});
+ r++;
+
+ /* 五、其他收支與代墊明細 */
+ var ex=s.ex.slice();
+ s.reims.forEach(function(x){if(ex.indexOf(x)<0)ex.push(x);});
+ if(ex.length){
+  xSection(ws,r++,'五、其他收支與代墊明細（有人先幫忙付的錢也在這裡）',C);
+  xHead(ws,r++,['日期','類別','','項目','誰先付','','怎麼處理','','金額']);
+  ws.mergeCells(r-1,2,r-1,3);ws.mergeCells(r-1,5,r-1,6);ws.mergeCells(r-1,7,r-1,8);
+  ex.forEach(function(x){
+   var how=x.kind==='收入'?'收入公積金':(x.adv?('併入 '+pidShort(x.rpid)+' 薪資還給 '+x.adv+(reimDone(x)?'（已還）':'（待還）')):'公積金直接付');
+   xCell(ws,r,1,(x.date||'').slice(5).replace('-','/'),{align:'center'});
+   ws.mergeCells(r,2,r,3);xCell(ws,r,2,x.cat||'',{});
+   wrapL(xCell(ws,r,4,x.item||'',{}));
+   ws.mergeCells(r,5,r,6);xCell(ws,r,5,x.adv?x.adv+' 教練':'公積金',{});
+   ws.mergeCells(r,7,r,8);wrapL(xCell(ws,r,7,how,{size:9}));
+   xCell(ws,r,9,(x.kind==='收入'?1:-1)*(+x.amount||0),{money:true,align:'right'});
+   ws.getRow(r).height=28;r++;});
+  note('日期在本期的採購算進本期支出；教練代墊的錢，會併進指定那一期的薪資一起還，所以有時候會在別期的應匯裡看到。');
   r++;
  }
- if(s.reims.length){
-  ws.mergeCells(r,1,r,5);xCell(ws,r,1,'教練代墊款（併入本期薪資歸還）',{bold:true,align:'center',fill:'FFEDEAE0'});r++;
-  ['採購日期','代墊教練','','項目','金額'].forEach(function(h,i){
-   xCell(ws,r,i+1,h,{bold:true,size:9,align:'center',color:'FF6E8794',fill:'FFF5F3EC'});});
-  r++;
-  s.reims.forEach(function(x){
-   xCell(ws,r,1,x.date,{align:'center'});
-   xCell(ws,r,2,x.adv,{});
-   xCell(ws,r,3,'',{});
-   xCell(ws,r,4,(x.item||x.cat)+(reimDone(x)?'　已還':'　待還'),{});
-   xCell(ws,r,5,+x.amount||0,{money:true,align:'right'});
-   r++;});
-  ws.mergeCells(r,1,r,4);
-  xCell(ws,r,1,'代墊款合計（已含在教練應匯合計內）',{bold:true,fill:WARM});
-  xCell(ws,r,5,s.reim,{money:true,align:'right',bold:true,fill:WARM});
-  r+=2;
- }
+
+ /* 六、報名收款與帳戶餘額 */
+ xSection(ws,r++,'六、報名收款與帳戶餘額',C);
  var ps=payOfPer(n);
  if(ps.length){
-  ws.mergeCells(r,1,r,5);xCell(ws,r,1,'本期報名收款',{bold:true,align:'center',fill:'FFEDEAE0'});r++;
-  ['日期','學員','','購買方案','金額'].forEach(function(h,i){
-   xCell(ws,r,i+1,h,{bold:true,size:9,align:'center',color:'FF6E8794',fill:'FFF5F3EC'});});
-  r++;
+  xHead(ws,r++,['日期','學員','','','購買方案','','','','金額']);
+  ws.mergeCells(r-1,2,r-1,4);ws.mergeCells(r-1,5,r-1,8);
   ps.forEach(function(x){
-   xCell(ws,r,1,x.date,{align:'center'});
-   xCell(ws,r,2,x.student,{});
-   xCell(ws,r,3,'',{});
-   xCell(ws,r,4,x.plan,{});
-   xCell(ws,r,5,+x.due||0,{money:true,align:'right'});
-   r++;});
-  ws.mergeCells(r,1,r,4);
-  xCell(ws,r,1,'收款合計',{bold:true,fill:WARM});
-  xCell(ws,r,5,s.cash,{money:true,align:'right',bold:true,fill:WARM});
-  r+=2;
- }
- xCell(ws,r,1,'行政費：1 對 1 每堂 50、1 對 2 每堂 75、團班 4／5／6 人每堂 100／125／150，'
-  +'依該堂實際上課人數計算（115.08.16 第四次會議決議）。',{noBorder:true,size:9,color:'FF6E8794'});
- ws.views=[{state:'frozen',ySplit:4}];
-
- /* 3. 上課明細 */
- ws=wb.addWorksheet(pidShort(n)+' 上課明細');
- xWidths(ws,[12,6,13,20,26,6,12,12,12,12,10,10]);
- xTitle(ws,pidLabel(n)+'　上課明細',sub+'　教練可依此核對自己的堂數',12);
- r=5;
- xHead(ws,r++,['日期','星期','時間','教練','學員','人數','方案','家長付費',
-  '公積金提撥','器材使用費','教練實收','行政費']);
- s.ls.forEach(function(l){
-  xRow(ws,r++,[l.date,DAYN[dowOf(l.date)].slice(1),l.start+'–'+l.end,l.coach,
-   (l.students||[]).join('、'),(l.students||[]).length,l.plan,
-   amt(l,'pay'),amt(l,'fund'),amt(l,'gear'),amt(l,'coach'),adminFee(l)],
-   {money:[7,8,9,10,11],center:[1,2,5]});});
- xRow(ws,r++,['合計','','','','',s.cnt,'',s.pay,s.fund,s.gear,s.coach,s.admin],
-  {money:[7,8,9,10,11],center:[5],bold:true,top:true,fill:WARM});
- ws.views=[{state:'frozen',ySplit:5,xSplit:1}];
+   xCell(ws,r,1,(x.date||'').slice(5).replace('-','/'),{align:'center'});
+   ws.mergeCells(r,2,r,4);xCell(ws,r,2,x.student,{});
+   ws.mergeCells(r,5,r,8);xCell(ws,r,5,x.plan||'',{});
+   xCell(ws,r,9,+x.due||0,{money:true,align:'right'});r++;});
+  mrow('本期報名收款合計（'+ps.length+' 筆）',s.cash,{bold:true,fill:WARM});
+ }else mrow('本期報名收款','',{});
+ var cs=cashStat(),refP=refundsOfPer(n).reduce(function(a,x){return a+(+x.amount||0);},0);
+ if(refP)mrow('本期學費退費',-refP);
+ mrow('累計收到（報名費＋其他收入）',cs.inc);
+ mrow('累計付出（已匯薪水、器材費、採購、退費）',-cs.out);
+ mrow('帳戶應有餘額',cs.bal,{bold:true,fill:'FFFFE9D6'});
+ note('帳戶應有餘額應該跟銀行帳戶實際金額一致。行政費：1 對 1 每堂 50、1 對 2 每堂 75、團班 4／5／6 人每堂 100／125／150，依該堂實際上課人數計算（115.08.16 第四次會議決議）。');
+ ws.views=[{state:'frozen',ySplit:3}];
 }
 
 function repPeriod(n){
