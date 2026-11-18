@@ -2050,6 +2050,7 @@ function attSet(l,what,nm){
 }
 function saveRec(id,silent){
  var L2=byId(DB.lessons,id);if(!L2)return;
+ if(!silent&&L2.date>today()&&!confirm('這堂是 '+md(L2.date)+'（'+DAYN[dowOf(L2.date)].slice(1)+'），日期還沒到。\n確定要把紀錄存在這一堂嗎？\n\n如果是今天或之前上的課，請按「取消」，回到課表點那一堂。'))return;
  var st=val('r_start'),en=val('r_end');
  if(t2m(en)<=t2m(st))return alert('結束時間要比開始時間晚');
  var rec=readRecForm(),old=(L2.rec&&L2.rec.stu)||{};
