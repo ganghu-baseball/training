@@ -292,6 +292,9 @@ details.recst>summary::after{content:" ▾";color:var(--muted)}details.recst[ope
 .kv{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2);font-size:14px}
 .kv:last-child{border-bottom:0}.kv b{flex:0 0 76px;color:var(--muted);font-size:12px;font-weight:700;padding-top:2px}
 .kv span{flex:1;line-height:1.6}
+.subt{font-size:12px;font-weight:800;color:var(--teal);margin:16px 0 0;letter-spacing:.06em}
+.kbp{background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;font-weight:700;color:var(--ink2);cursor:pointer;font-family:inherit}
+.kbp.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .dayh{font-size:13px;font-weight:800;color:var(--ink2);margin:16px 0 8px;padding-left:8px;border-left:3px solid var(--line)}
 .dayh.on{border-left-color:var(--or);color:var(--or-d)}
 .more{display:block;width:100%;background:none;border:1px dashed var(--line);border-radius:11px;padding:9px;
@@ -339,7 +342,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.19';
+var APPVER='2026.11.19b';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -870,7 +873,8 @@ document.querySelectorAll('.tabbar button').forEach(function(b){
 });
 function vCoach(){
  if(!authed())return vCoachLogin();
- if(!ME||COACHES.indexOf(ME)<0)return vPickCoach();
+ ME=coachOfMail(SESS&&SESS.email);
+ if(!ME)return SYNCED?vNoBind():'<div class="empty" style="margin-top:30px">正在同步資料…</div>';
  return ({cw:vCoachWeek,cs:vCoachStu,cr:vCoachRec,cm:vCoachMe}[TAB]||vCoachWeek)();
 }
 function render(){
@@ -1300,6 +1304,18 @@ function vSet(){
  +'<div class="mini">本期財報只有一張「營運總表」，從上往下依序是：每位教練的收入來源與應匯、'
  +'各教練薪資單（含上課明細）、本期匯款總覽、收支與公積金、其他收支與代墊、報名收款與帳戶餘額。可以直接整份傳給教練。'
  +'累計財報把每一期的收入、教練鐘點費、器材費、行政費和公積金餘額整理在一起，附教練與學員彙總。</div></div>'
+ +'<div class="sec-t">上課紀錄</div><div class="card">'
+ +'<button class="btn full" data-act="repRec">'+svg('les',16)+' 匯出上課紀錄 Excel</button>'
+ +'<button class="btn sec full" data-act="impRec" style="margin-top:9px">'+svg('plus',16)+' 匯入上課紀錄 Excel</button>'
+ +'<input type="file" id="impfile" accept=".xlsx" style="display:none">'
+ +'<div class="mini">格式和原本的「港湖特訓班球員課堂訓練紀錄與教練教案知識庫」一樣（課堂紀錄、教案知識庫、使用指引三張表）。'
+ +'教練在網頁填的紀錄都會在裡面，隨時匯出就是最新的一份。</div></div>'
+ +'<div class="sec-t">教練帳號綁定</div><div class="card">'
+ +'<div class="mini" style="margin:0 0 4px">教練用這個 Email 登入教練端（coach.html），就只會看到自己的課和學員。</div>'
+ +COACHES.concat(FORMER_COACHES).map(function(c,i){var m=(DB.cfg.coachMail||{})[c]||'';
+   return '<label>'+esc(c)+(FORMER_COACHES.indexOf(c)>=0?'（已離開）':'')+'</label><input id="cm_'+i+'" type="email" value="'+esc(m)+'" placeholder="教練登入用的 Email">';}).join('')
+ +'<div class="row" style="margin-top:12px"><button class="btn sm" data-act="saveMail">儲存綁定</button></div>'
+ +'<div class="mini">教練端網址：https://ganghu-baseball.github.io/training/coach.html</div></div>'
  +'<div class="sec-t">雲端同步</div><div class="card">'
  +(!sbReady()
    ?'<div class="warnbar" style="margin-bottom:4px">目前資料只存在這支手機。填入下面兩欄並登入之後，資料會存到雲端資料庫，換手機或清快取都不會不見。</div>'
@@ -1609,21 +1625,24 @@ function toast(t){var e=document.getElementById('toast');if(!e)return;e.textCont
 /* ============ 上課紀錄與學員基本資料 ============ */
 /* 學員基本資料存在 s.profile；上課紀錄存在那堂課 l.rec＝{topic[],topicx,menu,gear[],gearx,by,at,stu:{姓名:{issue,parts[],fix,cue,hw,next}}}
    教練改了上課時間會留 l.adj＝{from:'原本時間',by,at,ok}，行政確認後 ok=1 */
-var REC_TOPIC=['打擊','投球','守備','捕手','跑壘','傳接球','選球判斷','體能'];
+var REC_TOPIC=['打擊','投球','守備','捕手','跑壘','傳接球','選球判斷','肌力體能','敏捷協調','綜合練習'];
+var SCORES=['優秀','良好','尚可','不佳','差'];
+var LEVELS=['U8','U10','U12','U15','U18'];
 var REC_GEAR=['打擊座（T座）','拋球','發球機','輕量球','重量球','加重棒','短棒','彈力帶','藥球','角錐','敏捷梯','擊球網','平衡墊','錄影／慢動作'];
 var REC_PARTS=['頭','肩','肘','髖','臀','前腳','後腳','下盤','腳部','手部','軀幹','判斷與感知'];
 var POS=['投手','捕手','一壘','二壘','三壘','游擊','外野'];
 var HANDS=['右投右打','右投左打','左投左打','左投右打','右投兩打','左投兩打'];
 function stuByName(n){return STU().filter(function(x){return x.name===n;})[0]||null;}
-function profOk(s){var p=s&&s.profile;return !!(p&&p.grade&&p.hand&&p.pos&&p.pos.length&&p.goal);}
-function chips(id,opts,sel){sel=sel||[];
- return '<div class="picks" id="'+id+'">'+opts.map(function(o){
+function profOk(s){var p=s&&s.profile;return !!(p&&p.level&&p.grade&&p.hand&&p.pos&&p.pos.length&&p.goal);}
+function chips(id,opts,sel,one){sel=sel||[];if(typeof sel==='string')sel=[sel];
+ return '<div class="picks'+(one?' one':'')+'" id="'+id+'">'+opts.map(function(o){
   return '<button type="button" class="pick'+(sel.indexOf(o)>=0?' on':'')+'" data-v="'+esc(o)+'">'+esc(o)+'</button>';}).join('')+'</div>';}
 function picked(id){return [].map.call(document.querySelectorAll('#'+id+' .pick.on'),function(b){return b.dataset.v;});}
 function ta(id,v,ph,rows){return '<textarea id="'+id+'" rows="'+(rows||2)+'" placeholder="'+esc(ph||'')+'">'+esc(v||'')+'</textarea>';}
 function profForm(px,s){
  var p=s.profile||{};
- return '<div class="grid2"><div><label>生日</label><input type="date" id="'+px+'birth" value="'+esc(p.birth||'')+'"></div>'
+ return '<label>層級組別 *</label>'+chips(px+'level',LEVELS,p.level,1)
+ +'<div class="grid2"><div><label>生日</label><input type="date" id="'+px+'birth" value="'+esc(p.birth||'')+'"></div>'
  +'<div><label>學校年級 *</label><input id="'+px+'grade" value="'+esc(p.grade||'')+'" placeholder="例如 國小五年級"></div></div>'
  +'<div class="grid2"><div><label>所屬球隊</label><input id="'+px+'team" value="'+esc(p.team!==undefined?p.team:(s.ganghu==='否'?'':'港湖'))+'"></div>'
  +'<div><label>投打習慣 *</label><select id="'+px+'hand"><option value="">請選擇</option>'
@@ -1638,17 +1657,17 @@ function profForm(px,s){
 function readProf(px,old){
  var p={};for(var k in (old||{}))p[k]=old[k];
  ['birth','grade','team','hand','height','weight','years','injury','goal'].forEach(function(k){p[k]=val(px+k).trim();});
- p.pos=picked(px+'pos');
+ p.pos=picked(px+'pos');p.level=picked(px+'level')[0]||'';
  return p;
 }
 function profMissing(p){var m=[];
- if(!p.grade)m.push('學校年級');if(!p.hand)m.push('投打習慣');if(!p.pos||!p.pos.length)m.push('守備位置');if(!p.goal)m.push('上課目標');return m;}
+ if(!p.level)m.push('層級組別');if(!p.grade)m.push('學校年級');if(!p.hand)m.push('投打習慣');if(!p.pos||!p.pos.length)m.push('守備位置');if(!p.goal)m.push('上課目標');return m;}
 function ageOf(b){if(!b)return '';var d=pd(b),n=new Date(),a=n.getFullYear()-d.getFullYear();
  if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a>0&&a<40?a+' 歲':'';}
 function profView(s){
  var p=s.profile||{};
  var kv=function(k,v){return v?'<div class="kv"><b>'+k+'</b><span>'+esc(v).replace(/\n/g,'<br>')+'</span></div>':'';};
- return kv('學校年級',p.grade+(ageOf(p.birth)?'（'+ageOf(p.birth)+'）':''))+kv('球隊',p.team)+kv('投打',p.hand)
+ return kv('層級組別',p.level)+kv('學校年級',p.grade+(ageOf(p.birth)?'（'+ageOf(p.birth)+'）':''))+kv('球隊',p.team)+kv('投打',p.hand)
   +kv('守備位置',(p.pos||[]).join('、'))+kv('身高體重',[p.height?p.height+' 公分':'',p.weight?p.weight+' 公斤':''].filter(Boolean).join('　'))
   +kv('球齡',p.years)+kv('身體狀況',p.injury)+kv('上課目標',p.goal)
   +kv('家長',[s.parent,s.phone].filter(Boolean).join('　'));
@@ -1661,7 +1680,10 @@ function fProfile(sid){
   +'<div><label>聯絡電話</label><input id="pf_phone" type="tel" value="'+esc(s.phone||'')+'"></div></div></div>'
   +'<div class="row" style="margin-top:16px"><button class="btn" data-act="saveProf" data-id="'+sid+'">'+svg('check',16)+' 儲存</button></div>');
 }
-function recsOf(name){return lessonsOf(name).filter(function(l){return !!l.rec;})
+/* 舊 Excel 匯入、但系統裡找不到那堂課的紀錄，存在學員 s.oldRecs，畫面上當成一堂課顯示 */
+function oldRecsOf(name){var s=stuByName(name);return ((s&&s.oldRecs)||[]).map(function(o,i){
+ return {id:'old'+i,old:1,date:o.date,start:o.start||'',end:o.end||'',coach:o.coach||'',students:[name],rec:o.rec};});}
+function recsOf(name){return lessonsOf(name).filter(function(l){return !!l.rec&&!!(l.rec.stu||{})[name]||(!!l.rec&&!(l.rec.stu));}).concat(oldRecsOf(name))
  .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?1:-1;});}
 function recWho(){return MODE==='coach'?ME:'行政';}
 function topicText(r){return ((r&&r.topic)||[]).concat(r&&r.topicx?[r.topicx]:[]).join('、');}
@@ -1675,6 +1697,7 @@ function fRec(lid){
  +'　<span class="tag'+(l.status==='已完成'?' g':'')+'">'+esc(l.status)+'</span></div>'
  +(r.at?'<div class="mini">上次儲存：'+esc(r.by||'')+'　'+new Date(r.at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</div>':'')
  +'</div>'
+ +attBlock(l)
  +'<div class="fbox"><div class="ttl">實際上課時間</div>'
  +'<div class="grid2"><div><label>開始</label><select id="r_start">'+timeOpts(l.start)+'</select></div>'
  +'<div><label>結束</label><select id="r_end">'+timeOpts(l.end)+'</select></div></div>'
@@ -1688,17 +1711,61 @@ function fRec(lid){
  +'<label>使用器材</label>'+chips('r_gear',REC_GEAR,r.gear)
  +'<input id="r_gearx" value="'+esc(r.gearx||'')+'" placeholder="其他器材" style="margin-top:8px"></div>'
  +ns.map(function(n,i){var x=(r.stu||{})[n]||{},open=ns.length<=2||!!(x.issue||x.fix||x.cue);
-   return '<details class="fbox recst"'+(open?' open':'')+'><summary class="ttl">'+esc(n)+'　動作診斷與修正處方'+(ns.length>2?'（點開填寫）':'')+'</summary>'
+   return '<details class="fbox recst"'+(open?' open':'')+'><summary class="ttl">'+esc(n)+'　個人紀錄'+(ns.length>2?'（點開填寫）':'')+'</summary>'
+   +'<div class="subt">動作診斷與修正處方</div>'
    +'<label>今天看到待修正的問題</label>'+ta('rs'+i+'_issue',x.issue,'例如 跨步時前肩太早打開，擊球點跑到身體後面')
    +'<label>重點修正部位</label>'+chips('rs'+i+'_parts',REC_PARTS,x.parts)
    +'<label>修正處方（用什麼方法修）</label>'+ta('rs'+i+'_fix',x.fix,'例如 前腳踩線練習＋側拋，先慢後快')
    +'<label>教練提示語（怎麼跟他說）</label>'+ta('rs'+i+'_cue',x.cue,'例如「肚臍最後才轉」「眼睛留在擊球點」')
-   +'<label>自主練習／回家功課</label>'+ta('rs'+i+'_hw',x.hw,'例如 每天空揮 30 下，對著鏡子看前肩')
-   +'<label>下次銜接進度</label>'+ta('rs'+i+'_next',x.next,'例如 下次加入發球機，練外角推打')
+   +'<div class="subt">球員反饋與教練評量</div>'
+   +'<label>球員課堂反饋與自評</label>'+ta('rs'+i+'_fb',x.fb,'例如 覺得揮棒比較輕鬆')
+   +'<label>教練課堂綜合評語</label>'+ta('rs'+i+'_cmt',x.cmt,'例如 理解快，需要多練習內化')
+   +'<label>當日掌握度</label>'+chips('rs'+i+'_score',SCORES,x.score,1)
+   +'<div class="subt">自主練習與後續銜接</div>'
+   +'<label>回家功課／自主訓練菜單</label>'+ta('rs'+i+'_hw',x.hw,'例如 每天空揮 30 下，對著鏡子看前肩')
+   +'<label>建議自主頻率</label><input id="rs'+i+'_freq" value="'+esc(x.freq||'')+'" placeholder="例如 一週 3 次，10 下 3 組">'
+   +'<label>下堂課銜接與觀察重點</label>'+ta('rs'+i+'_next',x.next,'例如 下次加入發球機，練外角推打')
    +'</details>';}).join('')
  +'<div class="row" style="margin-top:16px"><button class="btn" data-act="saveRec" data-id="'+l.id+'">'+svg('check',16)+' 儲存上課紀錄</button></div>'
  +'<div class="mini">'+(l.date>t0?'這堂日期還沒到，存檔不會改成已完成。':'存檔後這堂會標成「已完成」。')+'</div>';
  openSheet(h);
+}
+/* 出缺席：一對一整堂改；團班可以單獨標某位學員請假（從名單拿掉、之後補課） */
+function attBlock(l){
+ var t0=today(),fut=l.date>t0,ns=l.students||[],grp=ns.length>1||(l.leave||[]).length;
+ var st=l.status;
+ return '<div class="fbox"><div class="ttl">這堂有沒有上課</div>'
+ +(fut?'<div class="mini" style="margin:8px 0 0">日期還沒到，上完課再標記。學員事先請假可以先按「請假」。</div>':'')
+ +'<div class="row" style="margin-top:10px">'
+ +(fut?'':'<button class="btn sm'+(st==='已完成'?'':' sec')+'" data-act="attDone" data-id="'+l.id+'">'+svg('check',14)+' 有上課</button>')
+ +'<button class="btn sm'+(st==='請假改期'?' dan':' sec')+'" data-act="attLeave" data-id="'+l.id+'">'+(grp?'整堂請假／改期':'請假（之後補課）')+'</button>'
+ +(st!=='已排定'&&!(fut&&st==='請假改期')?'':'')
+ +'</div>'
+ +'<div class="mini">目前狀態：<b>'+esc(st)+'</b>'+(st==='請假改期'?'。行政會再排補課日期。':'')+'</div>'
+ +(grp?'<div style="margin-top:10px"><div class="mini" style="margin:0 0 6px">團班個別請假：點名字標成請假（從這堂名單拿掉，之後補課）。</div>'
+   +ns.map(function(n){return '<button class="btn sec sm" data-act="attStuLeave" data-id="'+l.id+'" data-nm="'+esc(n)+'" style="margin:0 6px 6px 0">'+esc(n)+'　有到 ✓</button>';}).join('')
+   +(l.leave||[]).map(function(x){return '<button class="btn dan sm" data-act="attStuBack" data-id="'+l.id+'" data-nm="'+esc(x.n)+'" style="margin:0 6px 6px 0">'+esc(x.n)+'　請假（點一下改回有到）</button>';}).join('')
+   +'</div>':'')
+ +'</div>';
+}
+function attSet(l,what,nm){
+ var t0=today();
+ if(what==='done'){if(l.date>t0)return alert('日期還沒到，上完課再標記');l.status='已完成';}
+ if(what==='leave'){if(!confirm((l.students||[]).length>1?'整堂（'+l.students.join('、')+'）都請假、之後補課？':'這堂請假、之後補課？'))return;l.status='請假改期';}
+ if(what==='stuLeave'){
+  if((l.students||[]).length<=1)return attSet(l,'leave');
+  l.students=l.students.filter(function(x){return x!==nm;});
+  l.leave=(l.leave||[]).filter(function(x){return x.n!==nm;});l.leave.push({n:nm,by:recWho(),at:today()});
+  l.gapOk=l.gapOk||[];if(l.gapOk.indexOf(nm)<0)l.gapOk.push(nm);
+  fixGroupPlan(l);}
+ if(what==='stuBack'){
+  l.leave=(l.leave||[]).filter(function(x){return x.n!==nm;});
+  if(l.students.indexOf(nm)<0)l.students.push(nm);
+  l.gapOk=(l.gapOk||[]).filter(function(x){return x!==nm;});
+  fixGroupPlan(l);}
+ l.att={by:recWho(),at:Date.now()};
+ touch('lessons',l);persist();render();fRec(l.id);
+ toast(what==='done'?'已標記有上課':(what==='stuBack'?nm+' 改回有到':'已標記請假'));
 }
 function saveRec(id){
  var L2=byId(DB.lessons,id);if(!L2)return;
@@ -1714,8 +1781,13 @@ function saveRec(id){
  if(t2m(en)<=t2m(st))return alert('結束時間要比開始時間晚');
  var rec={topic:topic,topicx:topicx,menu:val('r_menu').trim(),gear:picked('r_gear'),gearx:val('r_gearx').trim(),
   by:recWho(),at:Date.now(),stu:{}};
- ns2.forEach(function(n,i){rec.stu[n]={issue:val('rs'+i+'_issue').trim(),parts:picked('rs'+i+'_parts'),
-  fix:val('rs'+i+'_fix').trim(),cue:val('rs'+i+'_cue').trim(),hw:val('rs'+i+'_hw').trim(),next:val('rs'+i+'_next').trim()};});
+ var oldStu=(L2.rec&&L2.rec.stu)||{};
+ ns2.forEach(function(n,i){var o={};for(var k in (oldStu[n]||{}))o[k]=oldStu[n][k];
+  o.issue=val('rs'+i+'_issue').trim();o.parts=picked('rs'+i+'_parts');o.fix=val('rs'+i+'_fix').trim();o.cue=val('rs'+i+'_cue').trim();
+  o.fb=val('rs'+i+'_fb').trim();o.cmt=val('rs'+i+'_cmt').trim();o.score=picked('rs'+i+'_score')[0]||'';
+  o.hw=val('rs'+i+'_hw').trim();o.freq=val('rs'+i+'_freq').trim();o.next=val('rs'+i+'_next').trim();
+  rec.stu[n]=o;});
+ Object.keys(oldStu).forEach(function(n){if(!rec.stu[n])rec.stu[n]=oldStu[n];});
  profs.forEach(function(x){x[1].at=Date.now();x[1].by=recWho();x[0].profile=x[1];touch('students',x[0]);});
  if(st!==L2.start||en!==L2.end){
   if(MODE==='coach'){
@@ -1729,11 +1801,13 @@ function recCard(l,name){
  var gear=(r.gear||[]).concat(r.gearx?[r.gearx]:[]).join('、');
  var row=function(k,v){return v?'<div class="kv"><b>'+k+'</b><span>'+esc(v).replace(/\n/g,'<br>')+'</span></div>':'';};
  return '<details class="recv"><summary><div class="l">'+md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）'+esc(topicText(r)||'未填主題')+'</div>'
-  +'<div class="m">'+esc(l.coach)+' 教練　'+esc(l.start)+'–'+esc(l.end)
+  +'<div class="m">'+esc(l.coach)+' 教練　'+(l.start?esc(l.start)+'–'+esc(l.end):'')+(x.score?'　掌握度 '+esc(x.score):'')
   +((x.parts||[]).length?'　'+x.parts.map(function(p){return '<span class="tag t">'+esc(p)+'</span>';}).join(' '):'')+'</div></summary>'
-  +row('訓練菜單',r.menu)+row('器材',gear)+row('待修正問題',x.issue)+row('修正處方',x.fix)+row('教練提示語',x.cue)
-  +row('回家功課',x.hw)+row('下次銜接',x.next)
-  +'<div class="row" style="margin-top:8px"><button class="btn sec sm" data-act="openRec" data-id="'+l.id+'">看全部／修改</button></div></details>';
+  +row('訓練菜單',x.menu||r.menu)+row('器材',gear)+row('待修正問題',x.issue)+row('修正處方',x.fix)+row('教練提示語',x.cue)
+  +row('球員反饋',x.fb)+row('教練評語',x.cmt)+row('掌握度',x.score)
+  +row('回家功課',x.hw)+row('自主頻率',x.freq)+row('下次銜接',x.next)
+  +(l.old?'<div class="mini">從舊的上課紀錄 Excel 匯入（'+esc(x.nth||'')+'），系統裡沒有對應的那堂課。</div>'
+   :'<div class="row" style="margin-top:8px"><button class="btn sec sm" data-act="openRec" data-id="'+l.id+'">看全部／修改</button></div>')+'</details>';
 }
 function recSection(name){
  var rs=recsOf(name),s=stuByName(name);
@@ -1749,6 +1823,9 @@ function recSection(name){
 /* 同一份程式，網址是 coach.html 時進入教練模式：只看自己的課、學員剩幾堂、填上課紀錄，不顯示金額 */
 var cwMon=calMon;
 function setMe(c){ME=c;try{localStorage.setItem('gh_me',c);}catch(e){}}
+/* 登入的 Email 對應到哪位教練（行政端「結算 → 教練帳號綁定」設定，存在 cfg.coachMail＝{教練:Email}） */
+function coachOfMail(e){e=(e||'').trim().toLowerCase();if(!e)return '';var m=(DB.cfg&&DB.cfg.coachMail)||{};
+ for(var c in m)if((m[c]||'').trim().toLowerCase()===e)return c;return '';}
 function myLes(){return LES().filter(function(l){return l.coach===ME&&l.status!=='取消';});}
 function myStudents(){
  var m={},t0=today(),from=addD(t0,-60);
@@ -1776,6 +1853,13 @@ function vCoachLogin(){
  +'<label>密碼</label><input id="c_pw" type="password" autocomplete="current-password">'
  +'<div class="row" style="margin-top:14px"><button class="btn" data-act="login">登入</button></div>'
  +'<div class="mini">帳號由行政建立，忘記密碼請找建廷。登入一次之後，這支手機會記住。</div></div>';
+}
+function vNoBind(){
+ return '<div class="hello"><div><small>港湖特訓班</small><h2>帳號還沒綁定教練</h2></div></div>'
+ +'<div class="card"><div style="font-weight:700">'+esc((SESS&&SESS.email)||'')+'</div>'
+ +'<div class="mini">請建廷在行政端「結算 → 教練帳號綁定」把這個 Email 填到你的名字旁邊，綁定後重新整理這一頁就會看到你的課。</div>'
+ +'<div class="row" style="margin-top:12px"><button class="btn sec sm" data-act="syncNow">重新整理</button>'
+ +'<button class="btn sec sm" data-act="logout">登出</button></div></div>';
 }
 function vPickCoach(){
  return '<div class="hello"><div><small>第一次使用</small><h2>你是哪一位教練？</h2></div></div>'
@@ -1859,18 +1943,55 @@ function fCoachStu(sid){
    :'<div class="empty">還沒排下一堂</div>')
  +recSection(n));
 }
+var KBSEG='mine',KBQ='';
 function vCoachRec(){
  var from=addD(today(),-120);
  var ls=myLes().filter(function(l){return l.rec&&l.date>=from;}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?1:-1;});
- return '<h2>上課紀錄</h2><div class="hint">你近四個月填過的紀錄，點進去可以修改。</div>'
- +(ls.length?ls.map(function(l){return cLesCard(l,true);}).join(''):'<div class="empty">還沒有填過上課紀錄</div>');
+ return '<h2>上課紀錄</h2>'
+ +'<div class="seg"><button data-act="kbSeg" data-s="mine" class="'+(KBSEG==='mine'?'on':'')+'">我填的紀錄</button>'
+ +'<button data-act="kbSeg" data-s="kb" class="'+(KBSEG==='kb'?'on':'')+'">教練團知識庫</button></div>'
+ +(KBSEG==='kb'?vKB():
+  '<div class="hint">你近四個月填過的紀錄，點進去可以修改。</div>'
+  +(ls.length?ls.map(function(l){return cLesCard(l,true);}).join(''):'<div class="empty">還沒有填過上課紀錄</div>'));
+}
+/* 教練團知識庫：所有教練的上課紀錄（教練端不顯示學員姓名，只顯示組別），加上教案 */
+function allRecRows(){
+ var out=[];
+ LES().forEach(function(l){if(!l.rec)return;var r=l.rec,st=r.stu||{};
+  Object.keys(st).forEach(function(n){out.push({l:l,n:n,r:r,x:st[n]});});});
+ STU().forEach(function(s){oldRecsOf(s.name).forEach(function(l){var x=(l.rec.stu||{})[s.name]||{};out.push({l:l,n:s.name,r:l.rec,x:x});});});
+ return out.sort(function(a,b){return a.l.date<b.l.date?1:-1;});
+}
+function kbMatch(o,q){if(!q)return true;
+ var t=[o.r.menu,topicText(o.r),o.r.gearx,(o.r.gear||[]).join(' '),o.x.issue,(o.x.parts||[]).join(' '),o.x.fix,o.x.cue,o.x.hw,o.x.cmt,o.l.coach,o.x.menu].join(' ');
+ return q.split(/\s+/).every(function(w){return t.indexOf(w)>=0;});}
+function vKB(){
+ var rows=allRecRows().filter(function(o){return kbMatch(o,KBQ);}),kb=(DB.cfg&&DB.cfg.kb)||[];
+ var lv=function(n){var s=stuByName(n);return (s&&s.profile&&s.profile.level)||'';};
+ return '<div class="card" style="padding:11px 12px"><input id="kbq" placeholder="搜尋：倒棒、煞車、內角、藥球、髖…" value="'+esc(KBQ)+'">'
+ +'<div class="picks" style="margin-top:8px">'+REC_PARTS.map(function(p){return '<button type="button" class="kbp'+(KBQ===p?' on':'')+'" data-q="'+esc(p)+'">'+esc(p)+'</button>';}).join('')+'</div></div>'
+ +(kb.length&&!KBQ?'<div class="sec-t">教案（'+kb.length+'）</div>'+kb.map(function(k){
+   return '<details class="recv"><summary><div class="l">'+esc(k.area||'')+'　'+esc(k.drill||'')+'</div><div class="m">'+esc(k.issue||'')+'</div></summary>'
+    +'<div class="kv"><b>適用</b><span>'+esc(k.age||'')+'</span></div><div class="kv"><b>口訣</b><span>'+esc(k.cue||'')+'</span></div>'
+    +'<div class="kv"><b>做法</b><span>'+esc(k.steps||'')+'</span></div><div class="kv"><b>道具</b><span>'+esc(k.tools||'')+'</span></div>'
+    +'<div class="kv"><b>回家作業</b><span>'+esc(k.hw||'')+'</span></div><div class="kv"><b>提供</b><span>'+esc(k.by||'')+'</span></div></details>';}).join(''):'')
+ +'<div class="sec-t">課堂紀錄（'+rows.length+' 筆）</div>'
+ +rows.slice(0,60).map(function(o){
+   var x=o.x,r=o.r,who=MODE==='coach'&&o.l.coach!==ME?(lv(o.n)||'學員'):o.n+(lv(o.n)?'（'+lv(o.n)+'）':'');
+   var row=function(k,v){return v?'<div class="kv"><b>'+k+'</b><span>'+esc(v).replace(/\n/g,'<br>')+'</span></div>':'';};
+   return '<details class="recv"><summary><div class="l">'+esc(topicText(r)||'未填主題')+'</div>'
+    +'<div class="m">'+md(o.l.date)+'　'+esc(o.l.coach)+' 教練　'+esc(who)
+    +((x.parts||[]).length?'　'+x.parts.map(function(p){return '<span class="tag t">'+esc(p)+'</span>';}).join(' '):'')+'</div></summary>'
+    +row('待修正問題',x.issue)+row('修正處方',x.fix)+row('提示語',x.cue)+row('訓練菜單',x.menu||r.menu)
+    +row('器材',(r.gear||[]).concat(r.gearx?[r.gearx]:[]).join('、'))+row('回家功課',x.hw)+row('自主頻率',x.freq)+'</details>';}).join('')
+ +(rows.length>60?'<div class="mini">只列最近 60 筆，用上面的搜尋縮小範圍。</div>':'')
+ +(rows.length?'':'<div class="empty">沒有符合的紀錄</div>');
 }
 function vCoachMe(){
  return '<h2>設定</h2>'
  +'<div class="card"><small style="color:var(--muted);font-size:12px">目前身分</small>'
  +'<div style="font-size:18px;font-weight:800">'+esc(ME)+' 教練</div>'
- +'<label>換成其他教練</label><div class="qa">'+COACHES.filter(function(c){return c!==ME;}).map(function(c){
-   return '<button class="btn sec sm" data-act="pickMe" data-c="'+esc(c)+'">'+esc(c)+'</button>';}).join('')+'</div></div>'
+ +'<div class="mini">由登入的 Email 自動對應，要更改請找建廷。</div></div>'
  +'<div class="card"><small style="color:var(--muted);font-size:12px">登入帳號</small>'
  +'<div style="font-size:15px;font-weight:700">'+esc((SESS&&SESS.email)||'')+'</div>'
  +'<div class="row" style="margin-top:12px"><button class="btn sec sm" data-act="syncNow">立即同步</button>'
@@ -3121,6 +3242,194 @@ function buildPeriod(wb,n){
  box(b0,r-1);
 }
 
+/* ---- 上課紀錄 Excel：跟原本「港湖特訓班球員課堂訓練紀錄與教練教案知識庫.xlsx」同格式 ---- */
+function recExportRows(){
+ var rows=[],cnt={};
+ var ls=[];
+ LES().forEach(function(l){if(l.rec)Object.keys(l.rec.stu||{}).forEach(function(n){ls.push({l:l,n:n});});});
+ STU().forEach(function(s){oldRecsOf(s.name).forEach(function(l){ls.push({l:l,n:s.name});});});
+ ls.sort(function(a,b){return (a.l.date+(a.l.start||''))<(b.l.date+(b.l.start||''))?-1:1;});
+ ls.forEach(function(o){
+  var l=o.l,r=l.rec||{},x=(r.stu||{})[o.n]||{},s=stuByName(o.n),p=(s&&s.profile)||{};
+  cnt[o.n]=(cnt[o.n]||0)+1;
+  var cue=x.cue?(x.fix?x.fix+'\n':'')+'提示語：'+x.cue:(x.fix||'');
+  rows.push([o.n,p.level||x.level||'',l.date.replace(/-/g,'/'),x.nth||('第'+cnt[o.n]+'堂'),givenName(l.coach||''),
+   (r.topic||[]).join('&'),r.topicx||'',x.menu||r.menu||'',(r.gear||[]).concat(r.gearx?[r.gearx]:[]).join('、'),
+   x.issue||'',(x.parts||[]).join('、'),cue,x.fb||'',x.cmt||'',x.score||'',x.hw||'',x.freq||'',x.next||'']);});
+ return rows;
+}
+function repRec(){
+ loadXL().then(function(){
+  var wb=new ExcelJS.Workbook();wb.creator='港湖特訓班行政系統';wb.created=new Date();
+  var F='Noto Sans TC',thin={style:'thin',color:{argb:'FFD9D4C7'}};
+  var fillC=function(c,a){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:a}};};
+  /* 一、課堂紀錄 */
+  var ws=wb.addWorksheet('全體球員課堂訓練紀錄資料庫',{views:[{state:'frozen',ySplit:3,xSplit:1}]});
+  var W=[10,8,11,10,8,12,18,40,18,32,12,40,24,32,8,30,16,26];
+  ws.columns=W.map(function(w){return {width:w};});
+  ws.mergeCells(1,1,1,18);var t=ws.getCell(1,1);t.value='全體球員課堂訓練紀錄資料庫（'+today().replace(/-/g,'/')+' 由行政系統匯出）';
+  t.font={name:F,size:15,bold:true,color:{argb:'FFFFFFFF'}};fillC(t,'FF1B3240');t.alignment={vertical:'middle',indent:1};ws.getRow(1).height=30;
+  var secs=[[1,6,'一、基本資料與課堂屬性','FF2E4A5B'],[7,9,'二、訓練主題與核心內容 (Drills)','FF4E8676'],[10,12,'三、動作診斷與修正處方 (教練核心教學法)','FFA8490A'],
+   [13,15,'四、球員反饋與教練評量','FF6E5A9C'],[16,18,'五、自主練習與後續進度銜接','FF2C7A52']];
+  secs.forEach(function(x){ws.mergeCells(2,x[0],2,x[1]);var c=ws.getCell(2,x[0]);c.value=x[2];
+   c.font={name:F,size:11,bold:true,color:{argb:'FFFFFFFF'}};fillC(c,x[3]);c.alignment={vertical:'middle',horizontal:'center'};});
+  ws.getRow(2).height=22;
+  var H=['球員姓名','層級組別','上課日期','堂數','授課教練','訓練主類別','專項訓練主題','核心訓練菜單與操作細節 (Drills)','使用器材/輔助道具',
+   '待修正動作細節 / 盲點問題','重點修正部位','教練修正處方 / 提示語 (Coaching Cues)','球員課堂反饋與自評','教練課堂綜合評語','當日掌握度評分',
+   '回家功課 / 自主訓練菜單','建議自主頻率','下堂課銜接與觀察重點'];
+  H.forEach(function(h,i){var c=ws.getCell(3,i+1);c.value=h;c.font={name:F,size:10,bold:true,color:{argb:'FF15242E'}};fillC(c,'FFEDEAE0');
+   c.alignment={vertical:'middle',horizontal:'center',wrapText:true};c.border={top:thin,bottom:thin,left:thin,right:thin};});
+  ws.getRow(3).height=36;
+  var rows=recExportRows();
+  rows.forEach(function(v,k){var r=4+k;
+   v.forEach(function(x,i){var c=ws.getCell(r,i+1);c.value=x;c.font={name:F,size:10,bold:i===0};
+    c.alignment={vertical:'top',horizontal:(i<5||i===14)?'center':'left',wrapText:true};c.border={top:thin,bottom:thin,left:thin,right:thin};
+    if(k%2)fillC(c,'FFF8F6F0');});
+   var ln=Math.max.apply(null,v.map(function(x,i){return Math.ceil(String(x).length*2.1/(W[i]-1))+String(x).split('\n').length-1;}));
+   ws.getRow(r).height=Math.min(200,Math.max(20,ln*15));});
+  ws.autoFilter={from:{row:3,column:1},to:{row:3+Math.max(rows.length,1),column:18}};
+  /* 二、教案知識庫 */
+  var w2=wb.addWorksheet('教練教案與動作修正知識庫',{views:[{state:'frozen',ySplit:2}]});
+  var W2=[14,12,36,24,30,44,18,26,12];w2.columns=W2.map(function(w){return {width:w};});
+  w2.mergeCells(1,1,1,9);var t2=w2.getCell(1,1);t2.value='港湖社區棒球隊　專項技術缺陷、修正處方與精選教案模組庫（教練檢索字典）';
+  t2.font={name:F,size:14,bold:true,color:{argb:'FFFFFFFF'}};fillC(t2,'FF1B3240');t2.alignment={vertical:'middle',indent:1};w2.getRow(1).height=28;
+  ['專項領域','適用年齡層','常見動作缺陷 / 盲點描述','推薦核心訓練菜單 (Drill Name)','教練指導語口訣 (Coaching Cue)','具體操作步驟與修正機制','推薦輔助工具/道具','推薦回家自主作業','教案提供/推薦教練']
+   .forEach(function(h,i){var c=w2.getCell(2,i+1);c.value=h;c.font={name:F,size:10,bold:true};fillC(c,'FFEDEAE0');c.alignment={wrapText:true,vertical:'middle',horizontal:'center'};});
+  ((DB.cfg&&DB.cfg.kb)||[]).forEach(function(k,j){[k.area,k.age,k.issue,k.drill,k.cue,k.steps,k.tools,k.hw,k.by].forEach(function(x,i){
+   var c=w2.getCell(3+j,i+1);c.value=x||'';c.font={name:F,size:10};c.alignment={wrapText:true,vertical:'top'};});w2.getRow(3+j).height=60;});
+  w2.autoFilter={from:{row:2,column:1},to:{row:2,column:9}};
+  /* 三、使用指引 */
+  var w3=wb.addWorksheet('教練團搜尋與協作指引');w3.columns=[{width:30},{width:90}];
+  [['港湖社區棒球教練團　課堂日誌與訓練教案共享系統　使用指引',''],
+   ['這份檔案怎麼來的','由港湖特訓班行政系統匯出。教練在教練端（coach.html）上完課填的紀錄都會在第一張表，隨時匯出就是最新的一份，不用另外手打。'],
+   ['怎麼找其他教練的教法','用第 3 列的篩選箭頭：訓練主類別選「打擊」、層級組別選「U12」、授課教練選某位教練；或在「待修正動作細節」「教練修正處方」用關鍵字搜尋（例如 倒棒、煞車、接球）。教練端「上課紀錄 → 教練團知識庫」也可以直接搜尋。'],
+   ['填寫原則','待修正動作要寫具體（例如 跨步時前膝軟掉、重心前衝），提示語寫當天最有效的那一句，回家功課寫清楚動作、組數與次數，下堂課複查。'],
+   ['接手學員','學員換教練或升組別時，在「球員姓名」篩選他的名字，就能看到過去每一堂的盲點與修正處方。']]
+   .forEach(function(v,i){var a=w3.getCell(i+1,1),b=w3.getCell(i+1,2);a.value=v[0];b.value=v[1];
+    a.font={name:F,size:i?11:14,bold:true};b.font={name:F,size:11};a.alignment={vertical:'top',wrapText:true};b.alignment={vertical:'top',wrapText:true};
+    w3.getRow(i+1).height=i?60:28;});
+  return xSave(wb,'港湖特訓班球員課堂訓練紀錄與教練教案知識庫_'+today()+'.xlsx');
+ }).catch(function(e){alert('匯出失敗\n\n'+String(e.message||e));});
+}
+
+/* ---- 匯入舊的上課紀錄 Excel（同格式）：比對學員＋日期找到那堂課就掛上去，找不到課就存在學員的舊紀錄 ----
+   可以重複匯入：網頁上填過的不會被蓋掉；之前從 Excel 匯入的會用最新內容更新 */
+var IMP_COACH={'瑞祥':'盧瑞祥','原成':'鄭原成','凱文':'陳凱文','建廷':'陳建廷','威寰':'彭威寰','毅祥':'陳毅祥','子靖':'鐘子靖','小美':'謝長霖','長霖':'謝長霖'};
+var IMP_PART={'頭部':'頭','判斷、感知':'判斷與感知','判斷感知':'判斷與感知','腳步':'腳部'};
+var IMP=null;
+function impCoach(c){c=(c||'').trim();if(IMP_COACH[c])return IMP_COACH[c];
+ var all=COACHES.concat(FORMER_COACHES);for(var i=0;i<all.length;i++)if(all[i]===c||all[i].slice(1)===c)return all[i];return c;}
+function impTopics(c){
+ c=(c||'').replace(/敏捷、反應與手眼協調/g,'敏捷協調').replace(/捕手接拿/g,'捕手').replace(/肌力體能/g,'肌力體能');
+ var out=[],rest=[];
+ c.split(/[&＆\/、，,\s]+/).forEach(function(w){w=w.trim();if(!w)return;
+  if(REC_TOPIC.indexOf(w)>=0){if(out.indexOf(w)<0)out.push(w);}else rest.push(w);});
+ return {topic:out,rest:rest.join('、')};
+}
+function impCellText(v){
+ if(v===null||v===undefined)return '';
+ if(v instanceof Date)return v.toISOString().slice(0,10);
+ if(typeof v==='object'){if(v.richText)return v.richText.map(function(x){return x.text;}).join('');
+  if(v.text!==undefined)return impCellText(v.text);if(v.result!==undefined)return impCellText(v.result);return '';}
+ return String(v);
+}
+function impDate(t){
+ t=(t||'').trim();
+ if(/^\d{5}(\.\d+)?$/.test(t)){var d=new Date(Date.UTC(1899,11,30)+Math.floor(+t)*86400000);return d.toISOString().slice(0,10);}
+ var m=t.match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+ return m?m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2):t;
+}
+function impRead(buf){
+ var wb=new ExcelJS.Workbook();
+ return wb.xlsx.load(buf).then(function(){
+  var ws=wb.worksheets.filter(function(w){return w.name.indexOf('課堂訓練紀錄')>=0;})[0]||wb.worksheets[0];
+  var K=['name','level','date','nth','coach','cat','topic','menu','gear','issue','part','fix','fb','cmt','score','hw','freq','next'];
+  var recs=[],hdr=0;
+  ws.eachRow({includeEmpty:false},function(row,rn){
+   var v=[];for(var i=1;i<=18;i++)v.push(impCellText(row.getCell(i).value).trim());
+   if(!hdr){if(v[0]==='球員姓名')hdr=rn;return;}
+   if(!v[0])return;
+   var o={};K.forEach(function(k,i){o[k]=v[i];});o.date=impDate(o.date);recs.push(o);});
+  var kb=[],w2=wb.worksheets.filter(function(w){return w.name.indexOf('知識庫')>=0;})[0];
+  if(w2){var h2=0;w2.eachRow({includeEmpty:false},function(row,rn){
+   var v=[];for(var i=1;i<=9;i++)v.push(impCellText(row.getCell(i).value).trim());
+   if(!h2){if(v[0]==='專項領域')h2=rn;return;}
+   if(v[0])kb.push({area:v[0],age:v[1],issue:v[2],drill:v[3],cue:v[4],steps:v[5],tools:v[6],hw:v[7],by:v[8]});});}
+  if(!hdr)throw new Error('找不到「球員姓名」那一列，請確認是上課紀錄的 Excel');
+  return {recs:recs,kb:kb};
+ });
+}
+/* 算出要怎麼放（先不寫入） */
+function impPlan(D){
+ var P={lesson:[],old:[],noStu:{},skip:0,level:0,kb:D.kb||[]},used={};
+ D.recs.forEach(function(r){
+  var s=stuByName(r.name);
+  if(!s){(P.noStu[r.name]=P.noStu[r.name]||[]).push(r);return;}
+  var coach=impCoach(r.coach);
+  /* 同一天上兩堂（例如第一堂、第二堂）要分到不同的課，依開始時間排 */
+  var cand=LES().filter(function(l){return l.date===r.date&&l.status!=='取消'&&(l.students||[]).indexOf(r.name)>=0&&!used[l.id+'|'+r.name];})
+   .sort(function(a,b){return a.start<b.start?-1:1;});
+  var l=cand.filter(function(x){return x.coach===coach;})[0]||cand[0];
+  if(l)used[l.id+'|'+r.name]=1;
+  if(l){var ex=l.rec&&l.rec.stu&&l.rec.stu[r.name];
+   if(ex&&!ex.imp){P.skip++;return;}
+   P.lesson.push({l:l,r:r,coach:coach});}
+  else P.old.push({s:s,r:r,coach:coach});
+ });
+ return P;
+}
+function impStu(r){
+ var parts=(r.part||'').replace(/判斷、感知|判斷感知|判斷與感知/g,'判斷與感知').split(/[、,，\s]+/).map(function(x){x=x.trim();return IMP_PART[x]||x;}).filter(Boolean);
+ return {issue:r.issue,parts:parts,fix:r.fix,cue:'',fb:r.fb,cmt:r.cmt,score:r.score,hw:r.hw,freq:r.freq,next:r.next,nth:r.nth,level:r.level,menu:'',imp:1};
+}
+function impApply(P){
+ var touchedL={},touchedS={},n=0;
+ P.lesson.forEach(function(o){
+  var l=o.l,r=o.r,tp=impTopics(r.cat);
+  if(!l.rec||l.rec.imp){
+   if(!l.rec||!touchedL[l.id]){
+    var keep=(l.rec&&l.rec.stu)||{};
+    l.rec={topic:tp.topic,topicx:[tp.rest,r.topic].filter(Boolean).join('　'),menu:r.menu,gear:[],gearx:r.gear,by:o.coach,at:Date.now(),imp:1,stu:keep};}
+  }
+  var x=impStu(r);
+  if(l.rec.menu&&r.menu&&r.menu!==l.rec.menu)x.menu=r.menu;
+  l.rec.stu=l.rec.stu||{};l.rec.stu[r.name]=x;
+  touchedL[l.id]=l;n++;
+  /* 之前因為日期對不到存成舊紀錄的，現在對到課了就拿掉 */
+  var s0=stuByName(r.name);
+  if(s0&&s0.oldRecs){var b4=s0.oldRecs.length;
+   s0.oldRecs=s0.oldRecs.filter(function(q){var y=(q.rec&&q.rec.stu&&q.rec.stu[r.name])||{};return !(q.coach===o.coach&&y.nth===r.nth);});
+   if(s0.oldRecs.length!==b4)touchedS[s0.id]=s0;}});
+ P.old.forEach(function(o){
+  var s=o.s,r=o.r,tp=impTopics(r.cat);
+  s.oldRecs=(s.oldRecs||[]).filter(function(q){var y=(q.rec&&q.rec.stu&&q.rec.stu[s.name])||{};return !(q.date===r.date&&q.coach===o.coach&&y.nth===r.nth);});
+  var st={};st[s.name]=impStu(r);
+  s.oldRecs.push({date:r.date,coach:o.coach,rec:{topic:tp.topic,topicx:[tp.rest,r.topic].filter(Boolean).join('　'),menu:r.menu,gear:[],gearx:r.gear,by:o.coach,imp:1,stu:st}});
+  touchedS[s.id]=s;n++;});
+ /* 層級組別補進基本資料 */
+ P.lesson.concat(P.old).forEach(function(o){var s=o.s||stuByName(o.r.name);
+  if(s&&o.r.level&&!(s.profile&&s.profile.level)){s.profile=s.profile||{};s.profile.level=o.r.level;touchedS[s.id]=s;}});
+ if(P.kb.length){DB.cfg.kb=P.kb;touchCfg();}
+ Object.keys(touchedL).forEach(function(id){touch('lessons',touchedL[id]);});
+ Object.keys(touchedS).forEach(function(id){touch('students',touchedS[id]);});
+ persist();
+ return n;
+}
+function fImport(){
+ var P=IMP,ns=Object.keys(P.noStu);
+ openSheet(head('匯入上課紀錄')
+ +'<div class="card"><div class="kv"><b>對到那堂課</b><span>'+P.lesson.length+' 筆（掛在系統裡那一堂課上）</span></div>'
+ +'<div class="kv"><b>只對到學員</b><span>'+P.old.length+' 筆（系統裡沒有那天的課，存成學員的舊紀錄）</span></div>'
+ +'<div class="kv"><b>略過</b><span>'+P.skip+' 筆（網頁上已經填過，以網頁為準）</span></div>'
+ +'<div class="kv"><b>教案</b><span>'+P.kb.length+' 筆</span></div>'
+ +(ns.length?'<div class="kv"><b>找不到學員</b><span>'+ns.map(function(n){return esc(n)+'（'+P.noStu[n].length+' 筆）';}).join('、')+'<br><small style="color:var(--muted)">先在「報名排課 → 只建立學員」加上這些名字，再匯入一次就會補上。</small></span></div>':'')
+ +'</div>'
+ +(P.old.length?'<details class="recv"><summary><div class="l">只對到學員的 '+P.old.length+' 筆</div><div class="m">日期可能打錯，或那天的課沒排進系統</div></summary>'
+   +P.old.map(function(o){return '<div class="kv"><b>'+esc(o.r.name)+'</b><span>'+esc(o.r.date)+'　'+esc(o.coach)+'　'+esc(o.r.nth)+'</span></div>';}).join('')+'</details>':'')
+ +'<div class="row" style="margin-top:16px"><button class="btn" data-act="impGo">'+svg('check',16)+' 確認匯入</button></div>'
+ +'<div class="mini">只會新增或更新上課紀錄，不會動到堂數、金額和課表。可以重複匯入，不會變成兩筆。</div>');
+}
+
 function repPeriod(n){
  loadXL().then(function(){
   var wb=new ExcelJS.Workbook();
@@ -3350,6 +3659,14 @@ function csvB(){
 /* ============ 綁定 ============ */
 function val(id){var e=document.getElementById(id);return e?e.value:'';}
 /* 只綁清單項目，讓局部重畫也能用 */
+function bindKB(){
+ var q=document.getElementById('kbq');
+ var comp=false;
+ if(q){q.addEventListener('compositionstart',function(){comp=true;});
+  q.addEventListener('compositionend',function(){comp=false;q.oninput();});}
+ if(q)q.oninput=function(){if(comp)return;KBQ=q.value.trim();var sv=q.selectionStart;render();var q2=document.getElementById('kbq');if(q2){q2.focus();try{q2.setSelectionRange(sv,sv);}catch(e){}}};
+ document.querySelectorAll('.kbp').forEach(function(b){b.onclick=function(){KBQ=KBQ===b.dataset.q?'':b.dataset.q;render();};});
+}
 function bindItems(){
  document.querySelectorAll('[data-edit]').forEach(function(c){
   c.onclick=function(){var t=c.dataset.edit;
@@ -3364,8 +3681,13 @@ function bindItems(){
  });
 }
 document.addEventListener('click',function(e){
- var p=e.target.closest&&e.target.closest('.pick');if(p){p.classList.toggle('on');e.preventDefault();}});
+ var p=e.target.closest&&e.target.closest('.pick');if(!p)return;
+ if(p.parentNode.classList.contains('one')){var was=p.classList.contains('on');
+  [].forEach.call(p.parentNode.querySelectorAll('.pick'),function(x){x.classList.remove('on');});if(!was)p.classList.add('on');}
+ else p.classList.toggle('on');
+ e.preventDefault();});
 function bind(){
+ bindKB();
  document.querySelectorAll('[data-act]').forEach(function(b){
   b.onclick=function(ev){
    ev.stopPropagation();
@@ -3385,6 +3707,24 @@ function bind(){
    if(a==='cwNext'){cwMon=addD(cwMon,7);return render();}
    if(a==='cwThis'){cwMon=calMonOf(today());return render();}
    if(a==='syncNow')return syncNow(true);
+   if(a==='attDone'||a==='attLeave'||a==='attStuLeave'||a==='attStuBack'){
+    var al=byId(DB.lessons,id);if(!al)return;
+    return attSet(al,{attDone:'done',attLeave:'leave',attStuLeave:'stuLeave',attStuBack:'stuBack'}[a],b.dataset.nm);}
+   if(a==='saveMail'){
+    var cm={};COACHES.concat(FORMER_COACHES).forEach(function(c,i){var v=val('cm_'+i).trim().toLowerCase();if(v)cm[c]=v;});
+    var seen={},dup='';Object.keys(cm).forEach(function(c){if(seen[cm[c]])dup=cm[c];seen[cm[c]]=1;});
+    if(dup)return alert(dup+' 綁定了兩位教練，請改掉其中一個');
+    DB.cfg.coachMail=cm;touchCfg();persist();render();toast('教練帳號綁定已儲存');return;}
+   if(a==='repRec')return repRec();
+   if(a==='impRec'){
+    var fi=document.getElementById('impfile');if(!fi)return;
+    fi.value='';fi.onchange=function(){var f=fi.files[0];if(!f)return;
+     toast('讀取中…');
+     loadXL().then(function(){return f.arrayBuffer();}).then(impRead).then(function(D){IMP=impPlan(D);fImport();})
+      .catch(function(e){alert('匯入失敗\n\n'+String(e.message||e));});};
+    fi.click();return;}
+   if(a==='impGo'){if(!IMP)return;var nn=impApply(IMP);IMP=null;closeSheet();render();alert('已匯入 '+nn+' 筆上課紀錄。');return;}
+   if(a==='kbSeg'){KBSEG=b.dataset.s;return render();}
    if(a==='adjOk'){var la=byId(DB.lessons,id);if(la&&la.adj){la.adj.ok=1;touch('lessons',la);persist();render();toast('已確認');}return;}
    if(a==='jump'){var tg2=document.getElementById(b.dataset.to);if(tg2)tg2.scrollIntoView({behavior:'smooth',block:'start'});return;}
    if(a==='homeRnAll'){HOMERN=true;return render();}
