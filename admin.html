@@ -1441,7 +1441,12 @@ function renewList(){
 function renewAsked(s){return s.renewAsk&&+s.renewAsk.b===boughtOf(s.name)?s.renewAsk.d:'';}
 /* 目前這一期（最早還沒用完的那筆繳費）以及這期上過的課 */
 function curPack(name){
- var bs=buysOf(name).slice().sort(function(a,b){return (a.date||'')<(b.date||'')?-1:1;});
+ /* 同一天繳的幾筆（例如兩筆單堂）當成同一期 */
+ var bs=[];
+ buysOf(name).slice().sort(function(a,b){return (a.date||'')<(b.date||'')?-1:1;}).forEach(function(p){
+  var q=bs[bs.length-1];
+  if(q&&q.date===p.date){q.sessions=(+q.sessions||0)+(+p.sessions||0);if(q.plan!==p.plan&&q.plan.indexOf(p.plan)<0)q.plan+='＋'+p.plan;}
+  else bs.push({date:p.date,plan:p.plan||'',sessions:+p.sessions||0});});
  var used=doneCount(name),cum=0,pk=null,start=0;
  for(var i=0;i<bs.length;i++){
   var n=+bs[i].sessions||0;
