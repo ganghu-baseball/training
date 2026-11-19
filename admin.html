@@ -274,6 +274,9 @@ padding:10px 11px;cursor:pointer;font-family:inherit;text-align:left;box-shadow:
 .todo button.red{border-color:#F2C6C0;background:var(--red-s)}
 .todo button.red svg{stroke:var(--red)}.todo button.red b{color:var(--red)}
 .todo button.ok b{color:var(--muted)}
+.todo.t3{grid-template-columns:repeat(3,1fr)}
+.todo.t3 button{flex-direction:column;align-items:flex-start;gap:4px;padding:10px 9px}
+.todo.t3 button small{font-size:10.5px}
 .item.today{border-left:4px solid var(--or)}
 .item.rn{border-left:4px solid var(--yellow)}
 .qa{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px}
@@ -372,6 +375,9 @@ color:var(--c,var(--ink2));background-color:#fff;background-position:right 11px 
 .subt{font-size:12px;font-weight:800;color:var(--teal);margin:16px 0 0;letter-spacing:.06em}
 .kbp{background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;font-weight:700;color:var(--ink2);cursor:pointer;font-family:inherit}
 .kbp.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.slot.me{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--or)}
+.slot.ro{cursor:default;opacity:.82}.slot.ro:hover{filter:none;box-shadow:none}
+.paycard .kv b{flex:0 0 92px}
 .dayh{font-size:13px;font-weight:800;color:var(--ink2);margin:16px 0 8px;padding-left:8px;border-left:3px solid var(--line)}
 .dayh.on{border-left-color:var(--or);color:var(--or-d)}
 .more{display:block;width:100%;background:none;border:1px dashed var(--line);border-radius:11px;padding:9px;
@@ -419,7 +425,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.19e';
+var APPVER='2026.11.19f';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -935,7 +941,7 @@ document.addEventListener('visibilitychange',function(){
 /* ============ 分頁 ============ */
 if(MODE==='coach'){document.getElementById('apph1').textContent='港湖特訓班・教練';document.title='港湖特訓班｜教練';}
 var TABS=MODE==='coach'
- ?[['cw','本週課程','cal'],['cs','我的學員','stu'],['cr','上課紀錄','les'],['cm','設定','set']]
+ ?[['cw','今天','home'],['ct','課表','cal'],['cs','我的學員','stu'],['cr','紀錄','les'],['cm','我的','set']]
  :[['home','總覽','home'],['stu','報名排課','stu'],['cal','課表','cal'],['set','結算','set']];
 var TABKEY=MODE==='coach'?'gh_ctab':'gh_tab';
 var TAB=TABS[0][0];
@@ -952,7 +958,7 @@ function vCoach(){
  if(!authed())return vCoachLogin();
  ME=coachOfMail(SESS&&SESS.email);
  if(!ME)return SYNCED?vNoBind():'<div class="empty" style="margin-top:30px">正在同步資料…</div>';
- return ({cw:vCoachWeek,cs:vCoachStu,cr:vCoachRec,cm:vCoachMe}[TAB]||vCoachWeek)();
+ return ({cw:vCoachWeek,ct:vCoachCal,cs:vCoachStu,cr:vCoachRec,cm:vCoachMe}[TAB]||vCoachWeek)();
 }
 function render(){
  document.getElementById('app').innerHTML=
@@ -2139,55 +2145,105 @@ function vPickCoach(){
    return '<button class="btn sec" data-act="pickMe" data-c="'+esc(c)+'">'+esc(c)+'</button>';}).join('')+'</div>'
  +'<div class="mini">選了之後只會看到自己的課，之後可以在「設定」更換。</div></div>';
 }
+var CW_MORE={},CTSEG='mine';
 function vCoachWeek(){
- var t0=today(),days=[];for(var i=0;i<7;i++)days.push(addD(cwMon,i));
- var mine=myLes();
- var wk=mine.filter(function(l){return days.indexOf(l.date)>=0;}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;});
- var tdy=mine.filter(function(l){return l.date===t0&&l.status!=='請假改期';});
+ var t0=today(),mine=myLes();
+ var tdy=mine.filter(function(l){return l.date===t0&&l.status!=='請假改期';}).sort(function(a,b){return a.start<b.start?-1:1;});
  var todo=mine.filter(function(l){return !l.rec&&l.date<=t0&&l.date>=addD(t0,-21)&&l.status!=='請假改期';})
   .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?1:-1;});
  var rn=myStudents().filter(function(s){var b=boughtOf(s.name);return b>0&&leftOf(s.name)<=RENEW_AT&&!(s.renewOff&&+s.renewOff===b);})
   .sort(function(a,b){return leftOf(a.name)-leftOf(b.name);});
- var thisWk=cwMon===calMonOf(t0);
  var tWeek=[];mine.filter(function(l){return l.date>=t0&&l.date<=addD(t0,7);}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;})
   .forEach(function(l){(l.students||[]).forEach(function(n){var c=cycInfo(l,n);if(c&&(c.pre||c.post)&&!c.doneTest)tWeek.push({l:l,n:n,k:c.pre?'前測':'後測',c:c});});});
- return '<div class="hello"><div><small>'+(+t0.slice(5,7))+' 月 '+(+t0.slice(8))+' 日　'+DAYN[dowOf(t0)]+'　'+esc(ME)+' 教練</small>'
- +'<h2>今天 '+(tdy.length?nUnits(tdy)+' 堂課':'沒有課')+'</h2></div></div>'
- +'<div class="todo">'
- +'<button data-act="jump" data-to="sec-ct" class="'+(tdy.length?'hot':'ok')+'">'+svg('cal')+'<span><b>'+tdy.length+'</b><small>今天的課</small></span></button>'
- +'<button data-act="jump" data-to="sec-cr" class="'+(todo.length?'red':'ok')+'">'+svg('edit')+'<span><b>'+todo.length+'</b><small>待填上課紀錄</small></span></button>'
- +'<button data-act="jump" data-to="sec-cn" class="'+(rn.length?'hot':'ok')+'">'+svg('msg')+'<span><b>'+rn.length+'</b><small>上課時提醒續報</small></span></button>'
- +'<button data-act="jump" data-to="sec-ctest" class="'+(tWeek.length?'hot':'ok')+'">'+svg('check')+'<span><b>'+tWeek.length+'</b><small>7 天內要檢測</small></span></button>'
+ var nxt=mine.filter(function(l){return l.date>t0&&l.status==='已排定';}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;})[0];
+ var lim=function(k,arr){return CW_MORE[k]?arr:arr.slice(0,3);};
+ var more=function(k,arr){return arr.length>3&&!CW_MORE[k]?'<button class="more" data-act="cwMore" data-k="'+k+'">再看 '+(arr.length-3)+' 個</button>':'';};
+ var chip=function(to,ic,n,lab,cls){return '<button data-act="jump" data-to="'+to+'" class="'+(n?cls:'ok')+'">'+svg(ic)+'<span><b>'+n+'</b><small>'+lab+'</small></span></button>';};
+ return '<div class="hello"><div><small>'+(+t0.slice(5,7))+' 月 '+(+t0.slice(8))+' 日　'+DAYN[dowOf(t0)]+'</small>'
+ +'<h2>'+esc(ME)+' 教練，'+(tdy.length?'今天 '+nUnits(tdy)+' 堂課':'今天沒有課')+'</h2></div></div>'
+ +'<div class="todo t3">'
+ +chip('sec-cr','edit',todo.length,'待填上課紀錄','red')
+ +chip('sec-ctest','check',tWeek.length,'7 天內要檢測','hot')
+ +chip('sec-cn','msg',rn.length,'上課時提醒續報','hot')
  +'</div>'
- +(tWeek.length?'<div class="sec-t" id="sec-ctest">接下來 7 天要做檢測</div><div class="mini" style="margin:-2px 0 10px">第 1 堂做前測、第 10 堂做後測。上那堂課時點進去，最上面就有「填寫檢測」。</div>'
-   +tWeek.map(function(o){return '<div class="item rn" data-edit="rec" data-id="'+o.l.id+'"><div class="top"><div><div class="nm">'+esc(o.n)+'　<span class="tag r">'+o.k+'</span></div>'
-    +'<div class="meta">'+md(o.l.date)+'（'+DAYN[dowOf(o.l.date)].slice(1)+'）'+o.l.start+'　第 '+o.c.n+' 堂</div></div></div></div>';}).join(''):'<div id="sec-ctest"></div>')
+ /* 今天 */
  +'<div class="sec-t" id="sec-ct">今天的課</div>'
- +(tdy.length?tdy.sort(function(a,b){return a.start<b.start?-1:1;}).map(function(l){return cLesCard(l);}).join('')
-   :'<div class="empty">今天沒有排課</div>')
- +'<div class="sec-t" id="sec-cr">還沒填上課紀錄（近三週）</div>'
- +(todo.length?'<div class="mini" style="margin:-2px 0 10px">上完課點進去填，全部選填，存了之後還可以修改。</div>'+todo.map(function(l){return cLesCard(l,true);}).join('')
-   :'<div class="empty">都填好了</div>')
- +'<div class="sec-t" id="sec-cn">上課時記得提醒家長</div>'
- +(rn.length?'<div class="mini" style="margin:-2px 0 10px">這些學員剩 '+RENEW_AT+' 堂以內。上課時跟家長提一下，要續報可以直接找建廷。</div>'
-   +rn.map(function(s){var nx=nextLesOf(s.name),lf=leftOf(s.name);
+ +(tdy.length?tdy.map(function(l){return cLesCard(l);}).join('')
+   :'<div class="empty">今天沒有排課'+(nxt?'<br><small>下一堂：'+md(nxt.date)+'（'+DAYN[dowOf(nxt.date)].slice(1)+'）'+esc(nxt.start)+'　'+esc((nxt.students||[]).join('、'))+'</small>':'')+'</div>')
+ /* 檢測 */
+ +(tWeek.length?'<div class="sec-t" id="sec-ctest">7 天內要做檢測</div>'
+   +lim('t',tWeek).map(function(o){return '<div class="item rn" data-edit="rec" data-id="'+o.l.id+'"><div class="top"><div><div class="nm">'+esc(o.n)+'　<span class="tag r">'+o.k+'</span></div>'
+    +'<div class="meta">'+md(o.l.date)+'（'+DAYN[dowOf(o.l.date)].slice(1)+'）'+o.l.start+'　第 '+o.c.n+' 堂</div></div></div></div>';}).join('')+more('t',tWeek)
+   :'<div id="sec-ctest"></div>')
+ /* 待填紀錄 */
+ +(todo.length?'<div class="sec-t" id="sec-cr">待填上課紀錄（'+todo.length+'）</div>'
+   +lim('r',todo).map(function(l){return cLesCard(l,true);}).join('')+more('r',todo)
+   :'<div id="sec-cr"></div>')
+ /* 提醒續報 */
+ +(rn.length?'<div class="sec-t" id="sec-cn">上課時提醒家長續報</div>'
+   +lim('n',rn).map(function(s){var nx=nextLesOf(s.name),lf=leftOf(s.name);
     return '<div class="item rn" data-edit="cstu" data-id="'+s.id+'"><div class="top"><div><div class="nm">'+esc(s.name)+'</div>'
-    +'<div class="meta">已上 '+doneCount(s.name)+' 堂'+(nx?'　下一堂 '+md(nx.date)+'（'+DAYN[dowOf(nx.date)].slice(1)+'）'+nx.start+(nx.coach!==ME?' '+esc(nx.coach):''):'　還沒排下一堂')+'</div></div>'
-    +'<div class="acts"><span class="tag'+(lf<=0?' r':'')+'">'+(lf<=0?'已上完':'剩 '+lf+' 堂')+'</span></div></div></div>';}).join('')
-   :'<div class="empty">目前沒有快上完課的學員</div>')
- +'<div class="sec-t">這一週的課</div>'
- +'<div class="card" style="padding:10px 12px"><div class="row" style="justify-content:space-between">'
- +'<button class="btn sec sm" data-act="cwPrev">← 上一週</button>'
- +'<b style="font-size:14px">'+md(days[0])+' – '+md(days[6])+(thisWk?'（本週）':'')+'</b>'
- +'<button class="btn sec sm" data-act="cwNext">下一週 →</button></div>'
- +(thisWk?'':'<div style="text-align:center;margin-top:8px"><button class="btn sec sm" data-act="cwThis">回到本週</button></div>')+'</div>'
- +(wk.length?days.map(function(ds){
-   var dl=wk.filter(function(l){return l.date===ds;});
-   if(!dl.length)return '';
-   return '<div class="dayh'+(ds===t0?' on':'')+'">'+md(ds)+'（'+DAYN[dowOf(ds)].slice(1)+'）　'+nUnits(dl)+' 堂</div>'
-    +dl.map(function(l){return cLesCard(l);}).join('');}).join('')
-   :'<div class="empty">這一週沒有排課</div>')
+    +'<div class="meta">'+(nx?'下一堂 '+md(nx.date)+'（'+DAYN[dowOf(nx.date)].slice(1)+'）'+nx.start:'還沒排下一堂')+'</div></div>'
+    +'<div class="acts"><span class="tag'+(lf<=0?' r':'')+'">'+(lf<=0?'已上完':'剩 '+lf+' 堂')+'</span></div></div></div>';}).join('')+more('n',rn)
+   :'<div id="sec-cn"></div>')
+ +(!todo.length&&!rn.length&&!tWeek.length?'<div class="mini" style="text-align:center;margin-top:14px">都處理好了，辛苦了！</div>':'')
  +'<div class="mini" style="text-align:center;margin:18px 0 4px">港湖特訓班教練端　版本 '+APPVER+'</div>';
+}
+/* 課表分頁：我的課／全隊課表（可以下載週課表圖片） */
+function vCoachCal(){
+ var t0=today(),days=[];for(var i=0;i<7;i++)days.push(addD(cwMon,i));
+ var thisWk=cwMon===calMonOf(t0);
+ var nav='<div class="card" style="padding:10px 12px"><div class="row" style="justify-content:space-between">'
+ +'<button class="btn sec sm" data-act="cwPrev">←</button>'
+ +'<b style="font-size:14px">'+md(days[0])+' – '+md(days[6])+(thisWk?'（本週）':'')+'</b>'
+ +'<button class="btn sec sm" data-act="cwNext">→</button></div>'
+ +(thisWk?'':'<div style="text-align:center;margin-top:8px"><button class="btn sec sm" data-act="cwThis">回到本週</button></div>')+'</div>';
+ var seg='<div class="seg"><button data-act="ctSeg" data-s="mine" class="'+(CTSEG==='mine'?'on':'')+'">我的課</button>'
+ +'<button data-act="ctSeg" data-s="team" class="'+(CTSEG==='team'?'on':'')+'">全隊課表</button></div>';
+ if(CTSEG==='mine'){
+  var wk=myLes().filter(function(l){return days.indexOf(l.date)>=0;}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;});
+  return '<h2>課表</h2>'+seg+nav
+  +(wk.length?days.map(function(ds){var dl=wk.filter(function(l){return l.date===ds;});if(!dl.length)return '';
+    return '<div class="dayh'+(ds===t0?' on':'')+'">'+md(ds)+'（'+DAYN[dowOf(ds)].slice(1)+'）　'+nUnits(dl)+' 堂</div>'+dl.map(function(l){return cLesCard(l);}).join('');}).join('')
+   :'<div class="empty">這一週沒有你的課</div>');
+ }
+ var slots=usedSlots(days),hours=[];slots.forEach(function(t){var h=t.slice(0,2);if(hours.indexOf(h)<0)hours.push(h);});hours.sort();
+ var cellOf=function(ds,h){return LES().filter(function(l){return l.date===ds&&l.status!=='取消'&&l.start.slice(0,2)===h;})
+  .sort(function(a,b){return a.start<b.start?-1:1;}).map(function(l){
+   var g=isGrpPlan(l.plan),me=l.coach===ME,odd=durMin(l)!==60||l.start.slice(3)!=='00';
+   return '<div class="slot'+(g?' grp':'')+(me?' me':' ro')+'"'+(me?' data-edit="rec" data-id="'+l.id+'" role="button" tabindex="0"':'')+'>'
+    +'<b>'+esc(l.coach)+(odd?'<i>'+esc(l.start+'–'+l.end)+'</i>':'')+'</b><small>'+esc((l.students||[]).join('、'))+'</small></div>';}).join('');};
+ return '<h2>課表</h2>'+seg+nav
+ +'<div class="card"><button class="btn full" data-act="ctPoster">'+svg('cal',16)+' 下載這週課表圖片</button>'
+ +'<div class="mini">和行政發在群組的是同一張圖，可以存到相簿或傳到 LINE。</div></div>'
+ +(hours.length&&LES().some(function(l){return days.indexOf(l.date)>=0&&l.status!=='取消';})
+  ?'<div class="card tt" style="padding:10px"><table><tr><th>時段</th>'
+   +days.map(function(ds){return '<th>'+DAYN[dowOf(ds)].slice(1)+'<br><small style="font-weight:400">'+md(ds)+'</small></th>';}).join('')+'</tr>'
+   +hours.map(function(h){return '<tr><th>'+h+':00</th>'+days.map(function(ds){return '<td>'+cellOf(ds,h)+'</td>';}).join('')+'</tr>';}).join('')
+   +'</table></div><div class="mini">橘色框是你的課，點一下可以填上課紀錄；其他教練的課只能看。左右滑可以看整週。</div>'
+  :'<div class="empty">這一週還沒有排課</div>');
+}
+/* 我的：這位教練自己的鐘點費（只看得到自己的） */
+function myPayHTML(){
+ var cur=pidOf(today()),pids=[cur,pidPrev(cur),pidPrev(pidPrev(cur))];
+ var rows=pids.map(function(pid){var st=perStat(pid),c=st.byCoach.filter(function(x){return x.c===ME;})[0];
+  return c?{pid:pid,st:st,c:c,po:payoutOf(pid,'coach',ME)}:null;}).filter(Boolean);
+ if(!rows.length)return '';
+ var a=rows[0],c=a.c,mine=a.st.ls.filter(function(l){return l.coach===ME;});
+ var line=function(k,v,o){return '<div class="kv"><b>'+k+'</b><span'+(o?' style="'+o+'"':'')+'>'+v+'</span></div>';};
+ return '<div class="sec-t">我的鐘點費</div><div class="card paycard">'
+ +'<div class="row" style="justify-content:space-between;align-items:flex-start"><div><small style="color:var(--muted);font-size:12px">'+esc(pidLabel(a.pid))+'</small>'
+ +'<div class="num" style="font-size:30px;color:var(--or-d);line-height:1.2">'+money(c.due)+'</div></div>'
+ +'<span class="tag '+(a.po?'g':'b')+'">'+(a.po?md(a.po.date||a.pid)+' 已匯':'預計 '+md(pidPay(a.pid))+' 發薪')+'</span></div>'
+ +line('本期堂數',c.cnt+' 堂')+line('鐘點費',money(c.fee))
+ +(c.adminGet?line('行政管理費',money(c.adminGet)):'')+(c.reim?line('代墊歸還',money(c.reim)):'')
+ +(c.cin?line(c.cin<0?'扣回上期多匯':'上期補發',(c.cin<0?'－':'＋')+money(Math.abs(c.cin)),'color:'+(c.cin<0?'var(--red)':'var(--green)')):'')
+ +(mine.length?'<details class="recv" style="margin-top:10px"><summary><div class="l">本期上課明細（'+mine.length+' 次）</div></summary>'
+   +mine.map(function(l){return line(md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）',esc(l.start+'–'+l.end)+'　'+esc((l.students||[]).join('、'))+'　'+unitsOf(l)+' 堂　'+money(amt(l,'coach')));}).join('')+'</details>':'')
+ +'<div class="mini">還沒上的課也先算進去了，實際金額以結算日為準。</div>'
+ +(rows.length>1?'<div style="border-top:1px solid var(--line);margin-top:10px;padding-top:6px">'+rows.slice(1).map(function(r){
+   return line(esc(pidShort(r.pid)),money(r.c.due)+'　<span class="tag '+(r.po?'g':'r')+'">'+(r.po?md(r.po.date||r.pid)+' 已匯':'未匯')+'</span>');}).join('')+'</div>':'')
+ +'</div>';
 }
 function calMonOf(ds){var d=pd(ds);d.setDate(d.getDate()-((d.getDay()+6)%7));return ymd(d);}
 var cstQ='';
@@ -2266,7 +2322,7 @@ function vKB(){
  +(rows.length?'':'<div class="empty">沒有符合的紀錄</div>');
 }
 function vCoachMe(){
- return '<h2>設定</h2>'
+ return '<h2>我的</h2>'+myPayHTML()+'<div class="sec-t">帳號</div>'
  +'<div class="card"><small style="color:var(--muted);font-size:12px">目前身分</small>'
  +'<div style="font-size:18px;font-weight:800">'+esc(ME)+' 教練</div>'
  +'<div class="mini">由登入的 Email 自動對應，要更改請找建廷。</div></div>'
@@ -4346,6 +4402,9 @@ function bind(){
     pp.at=Date.now();pp.by=recWho();ps2.profile=pp;ps2.parent=val('pf_parent').trim();ps2.phone=val('pf_phone').trim();
     touch('students',ps2);persist();closeSheet();render();toast('基本資料已儲存');return;}
    if(a==='pickMe'){setMe(b.dataset.c);return goTab('cw');}
+   if(a==='cwMore'){CW_MORE[b.dataset.k]=1;return render();}
+   if(a==='ctSeg'){CTSEG=b.dataset.s;return render();}
+   if(a==='ctPoster'){calMon=cwMon;return fPoster();}
    if(a==='cwPrev'){cwMon=addD(cwMon,-7);return render();}
    if(a==='cwNext'){cwMon=addD(cwMon,7);return render();}
    if(a==='cwThis'){cwMon=calMonOf(today());return render();}
