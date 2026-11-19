@@ -431,7 +431,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.20b';
+var APPVER='2026.11.20c';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -567,6 +567,8 @@ var SESS=load('sess',null);
 var SINCE=load('since',0),LASTSYNC=load('lastsync',''),SYNCST='off',SYNCMSG='';
 function sbReady(){return !!(SB.url&&SB.key);}
 function authed(){return !!(SESS&&SESS.access_token);}
+/* 教練端不用登入，用公開金鑰同步（資料庫只開放教練需要的部分） */
+function canSync(){return MODE==='coach'||authed();}
 
 /* 只保留未刪除的資料給畫面用（刪除採標記法，才能同步到雲端） */
 function alive(a){return a.filter(function(x){return !x.del;});}
@@ -584,7 +586,7 @@ function persistOnly(){save('students',DB.students);save('lessons',DB.lessons);
  save('payments',DB.payments);save('expenses',DB.expenses);save('coachdata',DB.coachdata);save('summary',DB.summary);save('cfg',DB.cfg);save('pend',PEND);}
 var syncT=null;
 function persist(){persistOnly();upPill();
- if(sbReady()&&authed()){clearTimeout(syncT);syncT=setTimeout(function(){syncNow();},2000);}}
+ if(sbReady()&&canSync()){clearTimeout(syncT);syncT=setTimeout(function(){syncNow();},2000);}}
 
 /* 舊資料轉入：學員身上的「購買堂數」轉成一筆報名紀錄 */
 if(!load('mig2',0)){
@@ -813,7 +815,7 @@ function upPill(){
  var e=document.getElementById('syncp');if(!e)return;
  var n=pendCount(),cls='',tx='未連線';
  if(!sbReady()){cls='';tx='未連線';}
- else if(!authed()){cls='pend';tx='請登入';}
+ else if(!canSync()){cls='pend';tx='請登入';}
  else if(SYNCST==='ing'){cls='ing';tx='同步中';}
  else if(SYNCST==='err'){cls='err';tx='同步失敗';}
  else if(n>0){cls='pend';tx='待同步 '+n;}
@@ -899,11 +901,11 @@ function mergeIn(recs){
  applySettings();applyCD();
 }
 
-var TB=MODE==='coach'?['students','lessons','cfg','coachdata','summary']:['students','lessons','payments','expenses','cfg','coachdata'];
+var TB=MODE==='coach'?['students_pub','lessons','cfg','coachdata','summary']:['students','lessons','payments','expenses','cfg','coachdata'];
 function syncNow(manual){
  if(!sbReady()){setST('off');
   if(manual)alert('還沒設定資料庫連線。到「結算」分頁最下面填入網址和金鑰。');return;}
- if(!authed()){setST('off');
+ if(!canSync()){setST('off');
   if(manual)alert('還沒登入。到「結算」分頁最下面輸入帳號密碼登入。');return;}
  if(SYNCST==='ing')return;
  setST('ing');
@@ -924,7 +926,7 @@ function syncNow(manual){
 
  Promise.all(jobs)
  .then(function(){return Promise.all(TB.map(function(c){
-   return sbPull(c).then(function(j){return {col:c,rows:j};});}));})
+   return sbPull(c).then(function(j){return {col:c==='students_pub'?'students':c,rows:j};});}));})
  .then(function(res){
   var recs={},maxts=SINCE;
   res.forEach(function(x){
@@ -958,7 +960,7 @@ function pushAll(){
 }
 window.addEventListener('online',function(){if(pendCount())syncNow();});
 document.addEventListener('visibilitychange',function(){
- if(!document.hidden&&sbReady()&&authed())syncNow();});
+ if(!document.hidden&&sbReady()&&canSync())syncNow();});
 
 /* ============ 第一階段：權限分離、教練資料表、審核中心、每日備份、修改紀錄、設定頁（2026-11-20） ============ */
 /* coachdata 表：教練寫的東西都放這裡，教練帳號只能寫這張表。
@@ -1152,15 +1154,13 @@ function vCfg(){
  var inp=function(id,v,w,t){return '<input id="'+id+'" value="'+esc(String(v===undefined?'':v))+'"'+(t?' type="'+t+'" inputmode="decimal"':'')+' style="'+(w?'width:'+w+';':'')+'padding:7px 8px;font-size:14px">';};
  return '<h2>設定</h2><div class="hint">改完按最下面的「儲存設定」才會生效。</div>'
  /* 教練與可排時段 */
- +'<div class="sec-t">教練與可排時段</div><div class="card tt" style="padding:10px"><table class="setT"><tr><th>教練</th><th>在職</th><th>薪水密碼</th>'
+ +'<div class="sec-t">教練與可排時段</div><div class="card tt" style="padding:10px"><table class="setT"><tr><th>教練</th><th>在職</th>'
  +days.map(function(d){return '<th>'+DAYN[d].slice(1)+'</th>';}).join('')+'</tr>'
  +allC.map(function(c,i){var av=(s.avail||{})[c.n]||{};
    return '<tr><td>'+inp('sc_n_'+i,c.n,'80px')+'</td><td><input type="checkbox" id="sc_on_'+i+'"'+(c.on?' checked':'')+' style="width:auto"></td>'
-   +'<td><input id="sc_pin_'+i+'" inputmode="numeric" maxlength="4" placeholder="'+((s.pins||{})[c.n]?'已設定':'4 位數')+'" style="width:76px;padding:7px 8px;font-size:14px"></td>'
    +days.map(function(d){return '<td>'+inp('sc_'+i+'_'+d,(av[d]||[]).join(','),'110px')+'</td>';}).join('')+'</tr>';}).join('')
  +'</table><div class="row" style="margin-top:8px"><button class="btn sec sm" data-act="setAddC">＋ 新增教練</button></div>'
- +'<div class="mini">時段寫法：13:00-21:00，一天兩段用逗號隔開，例如 13:00-15:00,18:00-21:00；沒空就留白。不在職的教練取消勾選，過去的課照樣算。'
- +'<br>薪水密碼：教練在教練端看「我的鐘點費」要輸入的 4 位數。留白代表不改；系統只存加密後的值，忘記了就重設一組。</div></div>'
+ +'<div class="mini">時段寫法：13:00-21:00，一天兩段用逗號隔開，例如 13:00-15:00,18:00-21:00；沒空就留白。不在職的教練取消勾選，過去的課照樣算。</div></div>'
  /* 費率 */
  +'<div class="sec-t">上課費率（每堂）</div><div class="card tt" style="padding:10px"><table class="setT"><tr><th>方案代碼</th><th>家長付</th><th>公積金</th><th>器材費</th><th>教練實收</th><th></th></tr>'
  +s.rates.map(function(r,i){var ok=+r.pay===(+r.fund)+(+r.gear)+(+r.coach);
@@ -1196,7 +1196,7 @@ function vCfg(){
 function readSettingsForm(){
  var s=SETX,allN=s.coaches.length+(s.former||[]).length,co=[],fo=[],av={};s.pins=s.pins||{};s._newPins={};
  for(var i=0;i<allN;i++){var n=val('sc_n_'+i).trim();if(!n)continue;
-  var pn=val('sc_pin_'+i).trim();if(pn)s._newPins[n]=pn;
+
   var on=document.getElementById('sc_on_'+i).checked;(on?co:fo).push(n);av[n]={};
   [1,2,3,4,5,6].forEach(function(d){var v=val('sc_'+i+'_'+d).replace(/[–—~～]/g,'-').replace(/\s/g,'');
    if(v)av[n][d]=v.split(/[,，、]/).filter(Boolean);});}
@@ -1212,7 +1212,7 @@ function pinOf(c){var st=(DB.cfg&&DB.cfg.settings)||{};return (st.pins||{})[c]||
 function pinHash(c,pin){return crypto.subtle.digest('SHA-256',new TextEncoder().encode('ghpin|'+c+'|'+pin)).then(function(b){
  return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');});}
 function payGate(){
- if(coachBound())return myPayHTML();
+ return myPayHTML();
  var h=pinOf(ME);
  if(!h)return '<div class="sec-t">我的鐘點費</div><div class="card"><div class="mini" style="margin:0">還沒設定看薪水的密碼。請建廷在行政端「設定 → 教練與可排時段」幫你設一組 4 位數密碼。</div></div>';
  var ok=false;try{ok=localStorage.getItem('ghc_pinok_'+ME)===h;}catch(e){}
@@ -1250,8 +1250,7 @@ function cfgCards(){return ''
   +(on?'<button class="btn sec sm" data-act="shPing">測試連線</button><button class="btn sec sm" data-act="shAll">全部重新同步</button>':'')+'</div>'
   +'<div class="mini">接好之後，教練在網頁按儲存，幾秒內就會出現在試算表最下面（多一欄「系統編號」用來對應，改紀錄會更新同一列）。教練原本手打的列不會被動到。</div></div>';})()
  +'<div class="sec-t">教練端登入</div><div class="card">'
- +'<label>共用教練帳號（全隊一起用，登入後自己選名字）</label><input id="cm_shared" type="email" value="'+esc((DB.cfg.coachShared||''))+'" placeholder="例如 ganghutraining@gmail.com">'
- +'<div class="mini">這個帳號要先在 Supabase 建好（Authentication → Users → Add user）。教練在自己手機登入一次就會記住，之後打開選名字就好。</div>'
+ +'<div class="mini" style="margin:0">教練端不用登入，打開網址選自己的名字就好。家長電話、繳費和收支不會出現在教練端。</div>'
  +'<details style="margin-top:12px"><summary class="mini" style="cursor:pointer">個別綁定（選用）：教練用自己的 Email 登入，就固定是他本人</summary>'
  +COACHES.concat(FORMER_COACHES).map(function(c,i){var m=(DB.cfg.coachMail||{})[c]||'';
    return '<label>'+esc(c)+(FORMER_COACHES.indexOf(c)>=0?'（已離開）':'')+'</label><input id="cm_'+i+'" type="email" value="'+esc(m)+'" placeholder="教練登入用的 Email">';}).join('')
@@ -1318,7 +1317,6 @@ document.querySelectorAll('.tabbar button').forEach(function(b){
 });
 function coachBound(){return !!(MYROLE&&MYROLE.role==='coach'&&MYROLE.coach);}
 function vCoach(){
- if(!authed())return vCoachLogin();
  if(coachBound())ME=MYROLE.coach;
  else{ME=(function(){try{return localStorage.getItem('gh_me')||'';}catch(e){return '';}})();
   if(ME&&COACHES.concat(FORMER_COACHES).indexOf(ME)<0)ME='';}
@@ -1329,7 +1327,7 @@ function render(){
  document.getElementById('app').innerHTML=
   (HASLS?'':'<div class="warnbar">目前是預覽模式，資料不會保留。把檔案上傳到網站後開啟才會存進手機。</div>')
   +(MODE==='coach'?vCoach():({home:vHome,stu:vStu,cal:vCal,set:vSet,cfg:vCfg}[TAB]||vHome)());
- var tb=document.getElementById('tabs');if(tb)tb.style.display=(MODE==='coach'&&!(authed()&&ME))?'none':'';
+ var tb=document.getElementById('tabs');if(tb)tb.style.display=(MODE==='coach'&&!ME)?'none':'';
  bind();
 }
 
@@ -2627,16 +2625,14 @@ function vKB(){
  +(rows.length?'':'<div class="empty">沒有符合的紀錄</div>');
 }
 function vCoachMe(){
- return '<h2>我的</h2>'+payGate()+'<div class="sec-t">帳號</div>'
+ return '<h2>我的</h2>'+payGate()+'<div class="sec-t">身分</div>'
  +'<div class="card"><small style="color:var(--muted);font-size:12px">目前身分</small>'
  +'<div style="font-size:18px;font-weight:800">'+esc(ME)+' 教練</div>'
  +(coachBound()?'<div class="mini">這個帳號固定是 '+esc(ME)+' 教練。</div>'
    :'<div class="row" style="margin-top:10px"><button class="btn sec sm" data-act="unpickMe">換成其他教練</button></div>')+'</div>'
- +'<div class="card"><small style="color:var(--muted);font-size:12px">登入帳號</small>'
- +'<div style="font-size:15px;font-weight:700">'+esc((SESS&&SESS.email)||'')+'</div>'
- +'<div class="row" style="margin-top:12px"><button class="btn sec sm" data-act="syncNow">立即同步</button>'
- +'<button class="btn sec sm" data-act="logout">登出</button></div>'
- +'<div class="mini">資料會自動同步。上完課在「本週課程」點那一堂就能填紀錄。</div></div>'
+ +'<div class="card"><div class="row" style="justify-content:space-between"><span class="mini" style="margin:0">'+(LASTSYNC?'上次同步 '+LASTSYNC:'還沒同步')+'</span>'
+ +'<button class="btn sec sm" data-act="syncNow">立即同步</button></div>'
+ +'<div class="mini">上完課在「今天」點那一堂就能填紀錄，存檔後會自動同步。</div></div>'
  +'<div class="card"><b>放到手機桌面</b><div class="mini" style="margin-top:4px">iPhone：用 Safari 打開這一頁，按下方「分享」→「加入主畫面」。Android：Chrome 右上角選單 →「加到主畫面」。之後就像 App 一樣從桌面打開。</div></div>'
  +'<div class="mini" style="text-align:center;margin:18px 0 4px">港湖特訓班教練端　版本 '+APPVER+'</div>';
 }
@@ -4767,7 +4763,7 @@ function bind(){
     var cm={};COACHES.concat(FORMER_COACHES).forEach(function(c,i){var v=val('cm_'+i).trim().toLowerCase();if(v)cm[c]=v;});
     var seen={},dup='';Object.keys(cm).forEach(function(c){if(seen[cm[c]])dup=cm[c];seen[cm[c]]=1;});
     if(dup)return alert(dup+' 綁定了兩位教練，請改掉其中一個');
-    var sh=val('cm_shared').trim().toLowerCase();
+    var sh='';
     if(sh&&Object.keys(cm).some(function(c){return cm[c]===sh;}))return alert('共用帳號不能同時綁給某一位教練');
     DB.cfg.coachMail=cm;DB.cfg.coachShared=sh;touchCfg();persist();render();
     saveRoles(cm,sh).then(function(){toast('教練帳號綁定已儲存');}).catch(function(){toast('已儲存，但角色表沒寫進去，請稍後再存一次');});return;}
@@ -5423,6 +5419,7 @@ function bind(){
  if(document.getElementById('mc')){drawCal();drawChips();}
 }
 document.getElementById('syncp').onclick=function(){
+ if(MODE==='coach'){syncNow(true);return;}
  if(!sbReady()||!authed()){TAB='set';
   document.querySelectorAll('.tabbar button').forEach(function(x){
    x.classList.toggle('on',x.dataset.t==='set');});
@@ -5435,5 +5432,5 @@ render();upPill();
 loadMyRole().then(function(r){
  if(r&&r.role==='coach'&&MODE==='admin'){location.replace('coach.html');return;}
  if(MODE==='coach')render();});
-if(sbReady()&&authed())syncNow();
+if(sbReady()&&canSync())syncNow();
 </script></body></html>
