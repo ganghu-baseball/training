@@ -425,7 +425,7 @@ var MEM={},HASLS=true;
 try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HASLS=false;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem('gh_'+k,s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem('gh_'+k):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.19f';
+var APPVER='2026.11.19g';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -472,10 +472,7 @@ var BUY=[
  {code:'團班一期四堂（每人）',unit:450,n:4,les:'團班4人'},
  {code:'體驗課-專業（首次）',unit:1200,n:1,les:'一對一-專業-套餐'},
  {code:'體驗課-菁英（首次）',unit:1300,n:1,les:'一對一-菁英-套餐'},
- {code:'體驗課-資深（首次）',unit:1400,n:1,les:'一對一-資深-套餐'},
- {code:'非港湖-專業-單堂',unit:1400,n:1,les:'非港湖-專業-單堂'},
- {code:'非港湖-菁英-單堂',unit:1500,n:1,les:'非港湖-菁英-單堂'},
- {code:'非港湖-資深-單堂',unit:1600,n:1,les:'非港湖-資深-單堂'}];
+ {code:'體驗課-資深（首次）',unit:1400,n:1,les:'一對一-資深-套餐'}];
 /* 教練可排時段（與「港湖特訓班資料庫.xlsx → 教練可排時段」一致）
    key 是星期，0＝週日 … 6＝週六；一天可以放多段。時段有異動時改這裡。 */
 var AVAIL={
@@ -695,7 +692,13 @@ function adjText(a){
 function uTag(l){var u=unitsOf(l);return u!==1?'<span class="tag t" style="margin-left:6px">'+durMin(l)+' 分＝'+u+' 堂</span>':'';}
 /* N 堂（M 次）：堂數和次數不一樣時兩個都寫 */
 function uCount(ls){var u=nUnits(ls);return u+' 堂'+(u!==ls.length?'（'+ls.length+' 次）':'');}
-function amt(l,k){var u=unitsOf(l);if(k==='admin')return adminFee(l)*u;var r=rate(l.plan);return r?(+r[k]||0)*u:0;}
+/* 非港湖球員：同級港湖價格每堂加 100 元（網站「課程與收費」公告），多的 100 元進公積金，教練鐘點費不變。
+   學員資料「港湖球員」選「否」就自動加；舊的「非港湖-…」方案代碼本身已含加價，不重複加 */
+var NH_ADD=100;
+function nhCount(l){if(/^非港湖/.test((l&&l.plan)||''))return 0;
+ return ((l&&l.students)||[]).filter(function(n){var s=stuByName(n);return s&&s.ganghu==='否';}).length;}
+function amt(l,k){var u=unitsOf(l);if(k==='admin')return adminFee(l)*u;var r=rate(l.plan);if(!r)return 0;
+ var v=(+r[k]||0)*u;if(k==='pay'||k==='fund')v+=NH_ADD*nhCount(l)*u;return v;}
 function headMismatch(l){var n=(l.students||[]).length;return n>0&&n!==planHead(l.plan);}
 function clash(l){
  if(l.status==='取消')return false;
@@ -2670,7 +2673,7 @@ function fMove(lid,name){
 /* ---- 新增報名（學員＋繳費＋排課 一次做完）---- */
 function fEnroll(sid){
  var s=sid?byId(DB.students,sid):null;
- calInit([]);
+ calInit([]);BUYWHO=s?s.name:'';
  openSheet(head(s?'續購並排課':'新增報名')
  +'<div class="fbox"><div class="ttl">'+(s?'學員':'學員資料')+'</div>'
  +(s?'<div style="font-size:19px;font-weight:800;margin:12px 0 2px">'+esc(s.name)+'</div>'
@@ -2709,23 +2712,26 @@ function fEnroll(sid){
 
 function fBuy(pid,name){
  var p=pid?DB.payments.filter(function(x){return x.id===pid;})[0]:null;
- var who=p?p.student:name;
+ var who=p?p.student:name;BUYWHO=who;
  openSheet(head(pid?'編輯報名紀錄':'新增報名／續購')
  +'<div class="fbox"><div class="ttl">'+esc(who)+'</div>'+buyBlock(p,'b_')+'</div>'
  +'<div class="row" style="margin-top:18px"><button class="btn" data-act="saveBuy" data-id="'+(pid||'')+'" data-nm="'+esc(who)+'">儲存</button>'
  +(pid?'<button class="btn dan" data-act="delBuy" data-id="'+pid+'">刪除</button>':'')+'</div>');
 }
 /* 選方案自動帶堂數與金額 */
+var BUYWHO='';
+function buyNH(){var g=document.getElementById('f_ganghu');if(g)return g.value==='否';var s=stuByName(BUYWHO);return !!(s&&s.ganghu==='否');}
+function buyUnit(b){return b.unit+(/^非港湖/.test(b.code)?0:(buyNH()?NH_ADD:0));}
 function upBuy(force){
  var b=buyPlan(val('b_plan'));if(!b)return;
  var n=document.getElementById('b_n'),due=document.getElementById('b_due');
  if(!n||!due)return;
  if(force||!n.value)n.value=b.n;
- due.value=b.unit*(+n.value||0);
+ due.value=buyUnit(b)*(+n.value||0);
 }
 function upBuyDue(){
  var b=buyPlan(val('b_plan'));if(!b)return;
- var due=document.getElementById('b_due');if(due)due.value=b.unit*(+val('b_n')||0);
+ var due=document.getElementById('b_due');if(due)due.value=buyUnit(b)*(+val('b_n')||0);
 }
 function readBuy(who){
  var d=+val('b_due')||0;
@@ -5065,6 +5071,7 @@ function bind(){
   sel.innerHTML=list.map(function(v){return '<option>'+v+'</option>';}).join('');};
  var bp=document.getElementById('b_plan');if(bp)bp.onchange=function(){upBuy(true);drawChips();};
  var bn=document.getElementById('b_n');if(bn)bn.oninput=function(){upBuyDue();drawChips();};
+ var fg=document.getElementById('f_ganghu');if(fg&&document.getElementById('b_due'))fg.onchange=function(){upBuyDue();};
  if(document.getElementById('mc')){drawCal();drawChips();}
 }
 document.getElementById('syncp').onclick=function(){
