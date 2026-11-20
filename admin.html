@@ -459,7 +459,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.20i';
+var APPVER='2026.11.20j';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -2244,6 +2244,8 @@ function appsScript(tok){
  "function hdr(r,k){var h=r.getAllHeaders();for(var x in h)if(x.toLowerCase()===k)return String(h[x]);return '';}",
  "function okSess(u){return /^https:\\/\\/www\\.googleapis\\.com\\/upload\\/drive\\//.test(u||'');}",
  "function nextOf(r){var m=/bytes=0-(\\d+)/.exec(hdr(r,'range'));return m?(+m[1]+1):0;}",
+ "function sortRows(sh,hr){var last=sh.getLastRow();if(last>hr+1)sh.getRange(hr+1,1,last-hr,sh.getLastColumn()).sort([{column:3,ascending:true},{column:5,ascending:true},{column:1,ascending:true}]);}",
+ "function ymd(v){return v instanceof Date?Utilities.formatDate(v,'Asia/Taipei','yyyy-MM-dd'):String(v).trim().replace(/\\//g,'-');}",
  "function done(r){var id=JSON.parse(r.getContentText()).id;try{DriveApp.getFileById(id).setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);}catch(x){}return out({ok:1,id:id});}",
  "function doPost(e){",
  "  var d=JSON.parse(e.postData.contents);",
@@ -2293,16 +2295,29 @@ function appsScript(tok){
  "    var sh=ss.getSheetByName(d.sheet);if(!sh)return out('no sheet');",
  "    var hr=1,top=sh.getRange(1,1,Math.min(10,sh.getLastRow()),1).getValues();",
  "    for(var i=0;i<top.length;i++){if(String(top[i][0]).trim()==='球員姓名'){hr=i+1;break;}}",
+ "    if(d.sort){sortRows(sh,hr);return out({ok:1});}",
+ "    if(d.fix){   // 用 姓名＋日期＋堂數＋教練 找到唯一一列；預設只寫空白格",
+ "      var lr=sh.getLastRow(),vals=sh.getRange(hr+1,1,lr-hr,18).getValues(),res=[];",
+ "      d.fix.forEach(function(f){var hit=[];",
+ "        for(var q=0;q<vals.length;q++){var ok=true;for(var c in f.m){var a=+c===3?ymd(vals[q][c-1]):String(vals[q][c-1]).trim();if(a!==String(f.m[c]).trim()){ok=false;break;}}if(ok)hit.push(q);}",
+ "        if(hit.length!==1){res.push({i:f.i,err:'找到 '+hit.length+' 列'});return;}",
+ "        var row=hr+1+hit[0],did=[];",
+ "        for(var c2 in f.set){var cur=vals[hit[0]][c2-1];if(f.force||cur===''||cur===null){sh.getRange(row,+c2).setValue(f.set[c2]);vals[hit[0]][c2-1]=f.set[c2];did.push(+c2);}}",
+ "        res.push({i:f.i,row:row,set:did});});",
+ "      return out({ok:1,res:res});",
+ "    }",
  "    var lastCol=sh.getLastColumn(),heads=sh.getRange(hr,1,1,lastCol).getValues()[0],kc=heads.indexOf('系統編號')+1;",
  "    if(!kc){kc=lastCol+1;sh.getRange(hr,kc).setValue('系統編號');}",
  "    var last=sh.getLastRow(),keys=last>hr?sh.getRange(hr+1,kc,last-hr,1).getValues().map(function(r){return String(r[0]);}):[];",
+ "    var added=false;",
  "    d.ops.forEach(function(op){",
  "      var k=keys.indexOf(op.key);",
  "      if(op.del){if(k>=0){sh.deleteRow(hr+1+k);keys.splice(k,1);}return;}",
  "      var v=op.row.slice(0,kc-1);while(v.length<kc-1)v.push('');v.push(op.key);",
  "      if(k>=0)sh.getRange(hr+1+k,1,1,v.length).setValues([v]);",
- "      else{sh.appendRow(v);keys.push(op.key);}",
+ "      else{sh.appendRow(v);keys.push(op.key);added=true;}",
  "    });",
+ "    if(added)sortRows(sh,hr);   // 新加的紀錄照日期排到該在的位置",
  "    var lg2=ss.getSheetByName('同步紀錄')||ss.insertSheet('同步紀錄');lg2.appendRow([new Date(),d.sheet,d.ops.length+' 筆']);",
  "  }finally{lock.releaseLock();}",
  "  return out('ok');",
@@ -3816,14 +3831,14 @@ function perStat(pid){
    fee:fee,
    adm:mine.reduce(function(a,l){return a+amt(l,'admin');},0),
    adminGet:adminGet,reimList:rl,reim:rm,
-   cinList:ci,cin:reimSum(ci),coutList:co,cout:reimSum(co),
+   cinList:ci,cin:reimSum(ci),coutList:co.filter(nw),cout:reimSum(co),
    due:fee+adminGet+rm+reimSum(ci)};
  });
  o.dueCoach=o.byCoach.reduce(function(a,c){return a+c.due;},0);
  o.cin=o.byCoach.reduce(function(a,c){return a+c.cin;},0);
  o.cout=o.byCoach.reduce(function(a,c){return a+c.cout;},0);
- o.gearCinList=gearCarryIn(pid);o.gearCoutList=gearCarryOut(pid);
- o.gearCin=reimSum(o.gearCinList);o.gearCout=reimSum(o.gearCoutList);
+ o.gearCinList=gearCarryIn(pid);o.gearCoutList=gearCarryOut(pid).filter(nw);
+ o.gearCin=reimSum(o.gearCinList);o.gearCout=reimSum(gearCarryOut(pid));
  o.gearDue=o.gear+o.gearCin;o.cout+=o.gearCout;
  return o;
 }
@@ -3836,8 +3851,10 @@ function bills(){return EXP().filter(function(x){return x.sys!=='payout'&&x.sys!
 /* 補發：某期已匯但金額不足（例如事後補登課程），差額併到下一期薪資一起匯。
    sys='carry'，spid＝原本那期，pid＝併入哪一期，target＝教練。不是新支出，也不動現金，只搬應付金額 */
 function carries(){return EXP().filter(function(x){return x.sys==='carry';});}
-function carryIn(pid,c){return carries().filter(function(x){return x.pkind!=='gear'&&x.pid===pid&&(!c||x.target===c);});}
-function gearCarryIn(pid){return carries().filter(function(x){return x.pkind==='gear'&&x.pid===pid;});}
+/* waive＝這筆差額決定不追回也不補（2026-11-20 建廷：呂奕辰 10/14 多算的那堂不扣回）：原期視為已處理，下一期不加減，財報不顯示 */
+function carryIn(pid,c){return carries().filter(function(x){return !x.waive&&x.pkind!=='gear'&&x.pid===pid&&(!c||x.target===c);});}
+function gearCarryIn(pid){return carries().filter(function(x){return !x.waive&&x.pkind==='gear'&&x.pid===pid;});}
+function nw(x){return !x.waive;}
 function gearCarryOut(pid){return carries().filter(function(x){return x.pkind==='gear'&&x.spid===pid;});}
 function carryOut(pid,c){return carries().filter(function(x){return x.pkind!=='gear'&&x.spid===pid&&(!c||x.target===c);});}
 function refunds(){return EXP().filter(function(x){return x.sys==='refund';});}
