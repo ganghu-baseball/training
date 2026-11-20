@@ -382,6 +382,12 @@ color:var(--c,var(--ink2));background-color:#fff;background-position:right 11px 
 .reqr:last-of-type{border-bottom:0}
 .setT td,.setT th{padding:4px 3px}.setT input{min-width:0}
 .tt .setT{min-width:760px}
+#upbar{display:none}
+#upbar.on{display:block;position:fixed;left:12px;right:12px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:9999;background:#1B3240;color:#fff;border-radius:14px;
+ padding:10px 14px 12px;box-shadow:0 8px 24px rgba(0,0,0,.25);overflow:hidden;font-size:14px}
+#upbar b{display:block}#upbar small{display:block;font-size:12px;opacity:.8;margin-top:2px}
+#upbar i{position:absolute;left:0;bottom:0;height:4px;background:#FE7F2D;transition:width .4s}
+#upbar.bad{background:#8E2B22}#upbar button{margin-top:8px;border:0;border-radius:8px;padding:5px 12px;font-weight:700;font-family:inherit}
 .qdone{padding:7px 12px;font-size:13px;gap:4px}
 a.btn{text-decoration:none}
 .tplbar{background:var(--or-s);border-radius:12px;padding:10px 12px;margin-bottom:10px}
@@ -453,7 +459,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.20g';
+var APPVER='2026.11.20h';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1789,7 +1795,6 @@ function openSheet(h){var sh0=document.getElementById('sheet');sh0.dataset.rec='
  document.getElementById('modal').classList.add('on');bind();}
 function closeSheet(force){
  var sh=document.getElementById('sheet');
- if(!force&&MB_BUSY&&!confirm('影片還在上傳，關掉會中斷上傳，確定要關掉嗎？'))return;
  if(!force&&sh.dataset.rec&&REC_DIRTY&&!confirm('剛剛填的還沒儲存，確定要關掉嗎？'))return;
  REC_DIRTY=false;sh.dataset.rec='';sh.oninput=null;
  document.getElementById('modal').classList.remove('on');}
@@ -2323,7 +2328,7 @@ function tplListHTML(){var ts=tplsOf(ME);
 /* 照片／短影片：存在 Supabase Storage 的 media（公開讀取，路徑是亂數），紀錄裡存 {p:路徑,t:'i'照片|'v'影片} */
 var MEDIA_B='media',REC_MEDIA={},REC_LID='';
 /* 2026-11-20 改成存到 Google 雲端硬碟：照片＝教練團課後填寫共享資料庫/上課紀錄照片/學員，影片＝上課影片分享/學員；紀錄裡存 {d:檔案id,t} */
-var DRIVE_REC='1OUKAzbFdqmiafwenZQzcWghwsyJYWGkk',DRIVE_VID='1BGYrPZIMutnmOUz_X4ydJSBjMLVQvRLU',VID_MAX=800,VCHUNK=10*1024*1024,MB_BUSY=0;
+var DRIVE_REC='1OUKAzbFdqmiafwenZQzcWghwsyJYWGkk',DRIVE_VID='1BGYrPZIMutnmOUz_X4ydJSBjMLVQvRLU',VID_MAX=800,VCHUNK=10*1024*1024;
 function waitMs(ms){return new Promise(function(ok){setTimeout(ok,ms);});}
 /* 影片分段上傳：每段 10 MB（256 KB 的倍數），中途斷線會問 Google 收到哪裡再接著傳 */
 function upVideo(file,name,stu,prog){
@@ -2336,7 +2341,7 @@ function upVideo(file,name,stu,prog){
    if(r&&typeof r.next==='number'){if(prog)prog(r.next/total);return step(r.next,0);}
    throw new Error((r&&(r.err||r.raw))||'沒有回應');
   },function(e){
-   if(tries>=5)throw e;
+   if(tries>=8)throw e;
    return waitMs(2000*(tries+1)).then(function(){return gasPost({vstat:{sess:sess,total:total}});})
     .then(function(r){if(r&&r.id)return r;return step(r&&typeof r.next==='number'?r.next:start,tries+1);},
      function(){return step(start,tries+1);});
@@ -2381,18 +2386,51 @@ function mThumbs(list,i){return (list||[]).map(function(m){var u=mediaUrl(m.p||'
   :(m.t==='v'?'<video src="'+u+'#t=0.1" preload="metadata" muted playsinline></video><i>▶</i>':'<img src="'+u+'" loading="lazy" alt="">');
  return '<div class="mth"><a href="'+mLink(m)+'" target="_blank" rel="noopener">'+pic+'</a>'
   +(i>=0?'<button type="button" class="mx" data-act="mDel" data-i="'+i+'" data-p="'+esc(mKey(m))+'">×</button>':'')+'</div>';}).join('');}
-function mbInner(i){return mThumbs(REC_MEDIA[REC_NS[i]],i)+'<label class="madd">＋ 照片<br>或影片<input type="file" accept="image/*,video/*" multiple data-mi="'+i+'" style="display:none"></label>';}
-function mbRefresh(i,msg){var e=document.getElementById('mb'+i);if(!e)return;e.innerHTML=mbInner(i)+(msg?'<div class="mup">'+msg+'</div>':'');mbBind();bind();}
+/* 上傳佇列：每個檔案一個工作 {id,lid,stu,t,pct,st:'up'|'done'|'err'}，不跟著表單，關掉表單也會繼續傳 */
+var UPQ=[];
+function upBusy(){return UPQ.some(function(j){return j.st==='up';});}
+function upFail(e){var em=String((e&&e.message)||e);
+ if(/load failed|failed to fetch|networkerror|network request failed/i.test(em))em='連不上雲端硬碟的程式，可能是網路不穩。請稍後再試一次，還是不行請找建廷。';return em;}
+function upBar(){var el=document.getElementById('upbar');
+ if(!el){el=document.createElement('div');el.id='upbar';document.body.appendChild(el);}
+ var act=UPQ.filter(function(j){return j.st==='up';}),bad=UPQ.filter(function(j){return j.st==='err';}),ok=UPQ.filter(function(j){return j.st==='done';});
+ if(!UPQ.length){el.className='';el.innerHTML='';return;}
+ var pc=act.length?Math.floor(act.reduce(function(t,j){return t+j.pct;},0)/act.length*100):100;
+ el.className='on'+(bad.length&&!act.length?' bad':'');
+ el.innerHTML=act.length?'<b>⬆ 上傳中 '+pc+'%</b>'+(act.length>1?'（'+act.length+' 個）':'')+'<small>可以先儲存、做別的事；不要離開這個 App 或鎖螢幕</small><i style="width:'+pc+'%"></i>'
+  :(bad.length?'<b>上傳失敗 '+bad.length+' 個</b><small>'+esc(bad[0].err||'')+'</small><button type="button" data-act="upClr">知道了</button>'
+   :'<b>✓ 上傳完成</b><small>已經存進'+(ok.length>1?' '+ok.length+' 堂課的':'那堂課的')+'上課紀錄</small>');
+ bind();
+}
+window.addEventListener('beforeunload',function(e){if(upBusy()){e.preventDefault();e.returnValue='';}});
+/* 傳完：補進那堂課的紀錄並存檔；如果那一堂的表單正開著，也一起顯示 */
+function attachMedia(lid,n,m){
+ var l=byId(DB.lessons,lid);if(!l)return;
+ var open=document.getElementById('sheet').dataset.rec&&REC_LID===lid&&REC_NS.indexOf(n)>=0&&document.getElementById('mb'+REC_NS.indexOf(n));
+ if(open){REC_MEDIA[n]=(REC_MEDIA[n]||[]).filter(function(x){return mKey(x)!==mKey(m);}).concat([m]);}
+ var rec=l.rec?JSON.parse(JSON.stringify(l.rec)):{topic:[],topicx:'',menu:'',gear:[],gearx:'',stu:{}};
+ rec.stu=rec.stu||{};var x=rec.stu[n]=rec.stu[n]||{};
+ x.media=(x.media||[]).filter(function(y){return mKey(y)!==mKey(m);}).concat([m]);
+ if(!rec.at){rec.by=recWho();rec.at=Date.now();}
+ setRec(l,rec);persist();pushRec(l,[n]);
+ if(open)mbRefresh(REC_NS.indexOf(n));else if(!document.getElementById('sheet').dataset.rec)render();
+}
+function startUpload(file,lid,n){
+ var job={id:uid(),lid:lid,stu:n,t:/^video\//.test(file.type||'')?'v':'i',pct:0,st:'up'};UPQ.push(job);upBar();
+ upMedia(file,lid,n,function(pc){job.pct=pc;upBar();var mu=document.querySelector('.mup[data-job="'+job.id+'"]');if(mu)mu.innerHTML='上傳中<br>'+Math.floor(pc*100)+'%';})
+  .then(function(m){job.st='done';job.pct=1;attachMedia(lid,n,m);upBar();
+   setTimeout(function(){UPQ=UPQ.filter(function(x){return x!==job;});upBar();},5000);})
+  .catch(function(e){job.st='err';job.err=upFail(e);upBar();var e2=document.querySelector('.mup[data-job="'+job.id+'"]');if(e2)e2.remove();});
+}
+function mbInner(i){var n=REC_NS[i];
+ return mThumbs(REC_MEDIA[n],i)
+  +UPQ.filter(function(j){return j.st==='up'&&j.lid===REC_LID&&j.stu===n;}).map(function(j){return '<div class="mup" data-job="'+j.id+'">上傳中<br>'+Math.floor(j.pct*100)+'%</div>';}).join('')
+  +'<label class="madd">＋ 照片<br>或影片<input type="file" accept="image/*,video/*" multiple data-mi="'+i+'" style="display:none"></label>';}
+function mbRefresh(i){var e=document.getElementById('mb'+i);if(!e)return;e.innerHTML=mbInner(i);mbBind();bind();}
 function mbBind(){document.querySelectorAll('#sheet input[data-mi]').forEach(function(inp){inp.onchange=function(){
- var i=+inp.dataset.mi,n=REC_NS[i],fs=[].slice.call(inp.files||[]),k=0;if(!fs.length||!REC_LID)return;
- var next=function(){if(k>=fs.length){mbRefresh(i);toast('已加入，記得按「儲存」');return;}
-  var lab='上傳中'+(fs.length>1?' '+(k+1)+'/'+fs.length:'');mbRefresh(i,lab);MB_BUSY++;
-  upMedia(fs[k],REC_LID,n,function(pc){var mu=document.querySelector('#mb'+i+' .mup');if(mu)mu.innerHTML=lab+'<br>'+Math.floor(pc*100)+'%';})
-   .then(function(m){MB_BUSY--;REC_MEDIA[n]=(REC_MEDIA[n]||[]).concat([m]);REC_DIRTY=true;k++;next();})
-   .catch(function(e){MB_BUSY--;mbRefresh(i);var em=String(e.message||e);
-    if(/load failed|failed to fetch|networkerror|network request failed/i.test(em))em='上傳失敗：連不上雲端硬碟的程式。\n可能是網路不穩，或雲端程式的授權還沒完成。請稍後再試一次，還是不行請找建廷。';
-    alert(em);});};
- next();};});}
+ var i=+inp.dataset.mi,n=REC_NS[i],fs=[].slice.call(inp.files||[]);if(!fs.length||!REC_LID)return;
+ fs.forEach(function(f){startUpload(f,REC_LID,n);});mbRefresh(i);
+ toast(fs.some(function(f){return /^video\//.test(f.type||'');})?'影片在背景上傳，可以先儲存、關掉這頁':'上傳中…');};});}
 function rpPhotos(x){var ph=(x.media||[]).filter(function(m){return m.t==='i';}).slice(0,3);
  return ph.length?'<div class="rp-ph">'+ph.map(function(m){return m.d?'<img src="'+mThumb(m,800)+'" data-d="'+esc(m.d)+'" referrerpolicy="no-referrer" alt="">'
   :'<img src="'+mediaUrl(m.p)+'" crossorigin="anonymous" alt="">';}).join('')+'</div>':'';}
@@ -2523,7 +2561,7 @@ function fRec(lid,draft){
    return fld('待修正動作細節 / 盲點問題',ta('rs'+i+'_issue',x.issue,'點下面常見的問題，或自己描述',3)+qsel('rs'+i+'_issue',QP_ISSUE,'list',ord))
     +fld('重點修正部位',chips('rs'+i+'_parts',REC_PARTS,x.parts))
     +fld('教練修正處方 / 提示語 (Coaching Cues)',ta('rs'+i+'_fix',fixV(x),'例如 用前腳踩線練習修正；提示語「肚臍最後才轉」',3))
-    +fld('動作照片／短影片','<div class="mbox" id="mb'+i+'">'+mbInner(i)+'</div><div class="mini">存到雲端硬碟：照片放「上課紀錄照片」、影片放「上課影片分享」，各自依學員分資料夾。影片 3 分鐘以內（1080p 60fps 也可以）；上傳要一點時間，傳完之前請不要關掉畫面或切到別的 App。</div>');}))
+    +fld('動作照片／短影片','<div class="mbox" id="mb'+i+'">'+mbInner(i)+'</div><div class="mini">存到雲端硬碟：照片放「上課紀錄照片」、影片放「上課影片分享」，各自依學員分資料夾。影片 3 分鐘以內（1080p 60fps 也可以），會在背景上傳：選好就可以先按儲存、關掉這頁，傳完會自動補進這堂紀錄；只要不要離開這個 App 或鎖螢幕。</div>');}))
  /* 四、球員反饋與教練評量 */
  +recSec('四','球員反饋與教練評量','s4',per(function(n,i,x){
    return fld('球員課堂反饋與自評',ta('rs'+i+'_fb',x.fb,'例如 覺得揮棒比較輕鬆')+qsel('rs'+i+'_fb',QP_FB,'list'))
@@ -2607,7 +2645,6 @@ function attSet(l,what,nm){
 }
 function saveRec(id,silent){
  var L2=byId(DB.lessons,id);if(!L2)return;
- if(MB_BUSY)return alert('照片或影片還在上傳，等百分比跑完再儲存');
  if(!silent&&L2.date>today()&&!confirm('這堂是 '+md(L2.date)+'（'+DAYN[dowOf(L2.date)].slice(1)+'），日期還沒到。\n確定要把紀錄存在這一堂嗎？\n\n如果是今天或之前上的課，請按「取消」，回到課表點那一堂。'))return;
  var st=val('r_start'),en=val('r_end');
  if(t2m(en)<=t2m(st))return alert('結束時間要比開始時間晚');
@@ -4936,6 +4973,7 @@ function bind(){
     REC_MEDIA[mn]=(REC_MEDIA[mn]||[]).filter(function(m){return mKey(m)!==b.dataset.p;});REC_DIRTY=true;mbRefresh(mi);return;}
    if(a==='slipPdf'){var srs=MODE==='coach'?payRowsFromSummary():((buildSummary()['pay:'+ME]||{}).rows||[]);
     return slipPdf(ME,srs.filter(function(r){return String(r.pid)===b.dataset.p;})[0]);}
+   if(a==='upClr'){UPQ=UPQ.filter(function(j){return j.st!=='err';});upBar();return;}
    if(a==='slipAdm')return slipPdf(b.dataset.t,payRowOf(b.dataset.p,b.dataset.t));
    if(a==='calCopy'){copyText(calURL(ME),function(ok){toast(ok?'網址已複製':'複製失敗，請長按選取');});return;}
    if(a==='reqOk'||a==='reqNo'){var rq=cdRow(id);if(!rq)return;applyReq(rq,a==='reqOk');persist();render();toast(a==='reqOk'?'已同意，課表已更新':'已退回');return;}
