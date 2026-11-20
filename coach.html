@@ -459,7 +459,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.20h';
+var APPVER='2026.11.20i';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -2386,6 +2386,90 @@ function mThumbs(list,i){return (list||[]).map(function(m){var u=mediaUrl(m.p||'
   :(m.t==='v'?'<video src="'+u+'#t=0.1" preload="metadata" muted playsinline></video><i>▶</i>':'<img src="'+u+'" loading="lazy" alt="">');
  return '<div class="mth"><a href="'+mLink(m)+'" target="_blank" rel="noopener">'+pic+'</a>'
   +(i>=0?'<button type="button" class="mx" data-act="mDel" data-i="'+i+'" data-p="'+esc(mKey(m))+'">×</button>':'')+'</div>';}).join('');}
+/* 影片上傳前先在手機上壓縮：長邊縮到 1280（720p）、保留原本的幀率（60fps 照樣 60）、H.264 約 4 Mbps、聲音原封不動。
+   1 分鐘約 30 MB。手機不支援、檔案太小或壓不小，就直接傳原檔。勾「保留原畫質」也傳原檔。 */
+var VLIB={box:'https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js',mux:'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.min.js'};
+var VZ={long:1280,bps:4000000,min:20*1024*1024,max:450*1024*1024};
+function loadJS(u){return new Promise(function(ok,no){var o=document.querySelector('script[data-src="'+u+'"]');if(o&&o.dataset.ok)return ok();
+ var sc=document.createElement('script');sc.src=u;sc.dataset.src=u;sc.onload=function(){sc.dataset.ok=1;ok();};sc.onerror=function(){no(new Error('壓縮工具載入失敗'));};document.head.appendChild(sc);});}
+function keepOrig(){try{return localStorage.getItem('gh_morig')==='1';}catch(e){return false;}}
+function vDesc(trak){var es=trak.mdia.minf.stbl.stsd.entries;
+ for(var i=0;i<es.length;i++){var b=es[i].avcC||es[i].hvcC||es[i].vpcC||es[i].av1C;
+  if(b){var DS=MP4Box.DataStream||window.DataStream,st=new DS(undefined,0,DS.BIG_ENDIAN);b.write(st);return new Uint8Array(st.buffer,8);}}}
+function aDesc(trak){try{return trak.mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].descs[0].data;}catch(e){return null;}}
+/* iPhone 的 .mov 聲音設定藏在 QuickTime 的 wave 裡，mp4box 讀不到：直接從檔案裡找 esds 解出 AudioSpecificConfig；再不行就依取樣率和聲道自己組 */
+async function aDescMov(file,trak,sr,chn){
+ try{var e=trak.mdia.minf.stbl.stsd.entries[0],u=new Uint8Array(await file.slice(e.start,e.start+e.size).arrayBuffer()),p=-1;
+  for(var i=0;i<u.length-4;i++)if(u[i]===0x65&&u[i+1]===0x73&&u[i+2]===0x64&&u[i+3]===0x73){p=i+8;break;}
+  if(p>0){var rd=function(){var t=u[p++],l=0,c;do{c=u[p++];l=(l<<7)|(c&0x7f);}while(c&0x80&&p<u.length);return {t:t,l:l};};
+   for(var g=0;g<6&&p<u.length;g++){var d=rd();
+    if(d.t===3){p+=2;var f=u[p++];if(f&0x80)p+=2;if(f&0x40)p+=u[p]+1;if(f&0x20)p+=2;}
+    else if(d.t===4)p+=13;
+    else if(d.t===5)return u.slice(p,p+d.l);
+    else break;}}}catch(x){}
+ var fi=[96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350].indexOf(sr);
+ if(fi<0||!chn||chn>7)return null;
+ return new Uint8Array([(2<<3)|(fi>>1),((fi&1)<<7)|(chn<<3)]);
+}
+async function shrinkVideo(file,prog){
+ if(keepOrig()||file.size<VZ.min||file.size>VZ.max)return null;
+ if(!window.VideoDecoder||!window.VideoEncoder||!window.VideoFrame||!window.EncodedVideoChunk)return null;
+ await loadJS(VLIB.box);await loadJS(VLIB.mux);
+ /* 1. 拆出影像和聲音 */
+ var mp=MP4Box.createFile(),info=null,vt=null,at=null,vs=[],as=[],bad=null;
+ mp.onError=function(e){bad=new Error('讀不懂這個影片格式 '+e);};
+ mp.onReady=function(i){info=i;vt=i.videoTracks[0]||null;
+  at=(i.audioTracks||[]).filter(function(t){return /^mp4a/.test(t.codec);})[0]||null;
+  if(vt)mp.setExtractionOptions(vt.id,'v',{nbSamples:500});if(at)mp.setExtractionOptions(at.id,'a',{nbSamples:500});mp.start();};
+ mp.onSamples=function(id,u,sm){var a=u==='v'?vs:as;for(var q=0;q<sm.length;q++)a.push(sm[q]);};
+ var CH=8*1024*1024;
+ for(var off=0;off<file.size;off+=CH){var ab=await file.slice(off,Math.min(off+CH,file.size)).arrayBuffer();ab.fileStart=off;mp.appendBuffer(ab);
+  if(bad)throw bad;if(prog)prog(0.1*Math.min(1,(off+CH)/file.size));}
+ mp.flush();
+ if(!info||!vt)throw new Error('找不到影像');
+ if(vs.length<vt.nb_samples)throw new Error('影像不完整 '+vs.length+'/'+vt.nb_samples);
+ var trak=mp.getTrackById(vt.id),dur=vt.duration/vt.timescale,fps=Math.min(60,Math.round(vt.nb_samples/dur))||30;
+ var w=vt.video.width,h=vt.video.height,k0=Math.min(1,VZ.long/Math.max(w,h));
+ var W=Math.round(w*k0/2)*2,H=Math.round(h*k0/2)*2;
+ if(k0===1&&file.size*8/dur<VZ.bps*1.3)return null;                // 本來就不大，不用壓
+ var m=vt.matrix||[65536,0,0,0,65536,0,0,0,1073741824],rot=((Math.round(Math.atan2(m[1],m[0])*180/Math.PI)%360)+360)%360;
+ if([0,90,180,270].indexOf(rot)<0)rot=0;
+ var dc={codec:vt.codec,codedWidth:w,codedHeight:h,description:vDesc(trak)};
+ if(!(await VideoDecoder.isConfigSupported(dc)).supported)return null;
+ var ec=null,cands=['avc1.640034','avc1.64002A','avc1.4D402A','avc1.42E02A'];
+ for(var ci=0;ci<cands.length&&!ec;ci++){var c0={codec:cands[ci],width:W,height:H,bitrate:VZ.bps,framerate:fps,avc:{format:'avc'}};
+  try{if((await VideoEncoder.isConfigSupported(c0)).supported)ec=c0;}catch(e){}}
+ if(!ec)return null;
+ var ad=at?(aDesc(mp.getTrackById(at.id))||await aDescMov(file,mp.getTrackById(at.id),at.audio.sample_rate,at.audio.channel_count)):null;
+ if(at&&(!ad||!as.length))throw new Error('聲音讀不到');
+ /* 2. 重新編碼 */
+ var tgt=new Mp4Muxer.ArrayBufferTarget();
+ var mux=new Mp4Muxer.Muxer({target:tgt,fastStart:'in-memory',firstTimestampBehavior:'offset',
+  video:{codec:'avc',width:W,height:H,rotation:rot,frameRate:fps},
+  audio:at?{codec:'aac',numberOfChannels:at.audio.channel_count,sampleRate:at.audio.sample_rate}:undefined});
+ var cv=document.createElement('canvas');cv.width=W;cv.height=H;var g=cv.getContext('2d');
+ var err=null,n=0,total=vs.length,gop=fps*2;
+ var enc=new VideoEncoder({output:function(ch,meta){mux.addVideoChunk(ch,meta);},error:function(e){err=e;}});enc.configure(ec);
+ var dec=new VideoDecoder({output:function(fr){
+   try{g.drawImage(fr,0,0,W,H);var vf=new VideoFrame(cv,{timestamp:fr.timestamp,duration:fr.duration||undefined});
+    enc.encode(vf,{keyFrame:n%gop===0});vf.close();}catch(e){err=e;}
+   fr.close();n++;if(prog&&n%10===0)prog(0.1+0.88*n/total);},error:function(e){err=e;}});
+ dec.configure(dc);
+ for(var i=0;i<vs.length;i++){var sp=vs[i];vs[i]=null;
+  dec.decode(new EncodedVideoChunk({type:sp.is_sync?'key':'delta',timestamp:Math.round(sp.cts*1e6/sp.timescale),duration:Math.round(sp.duration*1e6/sp.timescale),data:sp.data}));
+  while(dec.decodeQueueSize>8||enc.encodeQueueSize>8){if(err)throw err;await waitMs(3);}
+  if(err)throw err;}
+ await dec.flush();await enc.flush();if(err)throw err;
+ dec.close();enc.close();
+ if(n<total*0.98)throw new Error('影格不完整 '+n+'/'+total);
+ for(var ai=0;ai<as.length;ai++){var a=as[ai];
+  mux.addAudioChunkRaw(a.data,'key',Math.round(a.cts*1e6/a.timescale),Math.round(a.duration*1e6/a.timescale),
+   ai===0?{decoderConfig:{codec:'mp4a.40.2',numberOfChannels:at.audio.channel_count,sampleRate:at.audio.sample_rate,description:ad}}:undefined);}
+ mux.finalize();
+ var out=new File([tgt.buffer],(file.name||'video').replace(/\.[^.]+$/,'')+'.mp4',{type:'video/mp4'});
+ if(prog)prog(1);
+ return out.size<file.size*0.85?out:null;
+}
 /* 上傳佇列：每個檔案一個工作 {id,lid,stu,t,pct,st:'up'|'done'|'err'}，不跟著表單，關掉表單也會繼續傳 */
 var UPQ=[];
 function upBusy(){return UPQ.some(function(j){return j.st==='up';});}
@@ -2397,7 +2481,8 @@ function upBar(){var el=document.getElementById('upbar');
  if(!UPQ.length){el.className='';el.innerHTML='';return;}
  var pc=act.length?Math.floor(act.reduce(function(t,j){return t+j.pct;},0)/act.length*100):100;
  el.className='on'+(bad.length&&!act.length?' bad':'');
- el.innerHTML=act.length?'<b>⬆ 上傳中 '+pc+'%</b>'+(act.length>1?'（'+act.length+' 個）':'')+'<small>可以先儲存、做別的事；不要離開這個 App 或鎖螢幕</small><i style="width:'+pc+'%"></i>'
+ var zz=act.some(function(j){return j.ph==='壓縮中';});
+ el.innerHTML=act.length?'<b>'+(zz?'🗜 影片壓縮中 ':'⬆ 上傳中 ')+pc+'%</b>'+(act.length>1?'（'+act.length+' 個）':'')+'<small>可以先儲存、做別的事；不要離開這個 App 或鎖螢幕</small><i style="width:'+pc+'%"></i>'
   :(bad.length?'<b>上傳失敗 '+bad.length+' 個</b><small>'+esc(bad[0].err||'')+'</small><button type="button" data-act="upClr">知道了</button>'
    :'<b>✓ 上傳完成</b><small>已經存進'+(ok.length>1?' '+ok.length+' 堂課的':'那堂課的')+'上課紀錄</small>');
  bind();
@@ -2415,19 +2500,26 @@ function attachMedia(lid,n,m){
  setRec(l,rec);persist();pushRec(l,[n]);
  if(open)mbRefresh(REC_NS.indexOf(n));else if(!document.getElementById('sheet').dataset.rec)render();
 }
+function jobTxt(j){return (j.ph||'上傳中')+'<br>'+Math.floor(j.pct*100)+'%';}
 function startUpload(file,lid,n){
- var job={id:uid(),lid:lid,stu:n,t:/^video\//.test(file.type||'')?'v':'i',pct:0,st:'up'};UPQ.push(job);upBar();
- upMedia(file,lid,n,function(pc){job.pct=pc;upBar();var mu=document.querySelector('.mup[data-job="'+job.id+'"]');if(mu)mu.innerHTML='上傳中<br>'+Math.floor(pc*100)+'%';})
+ var vid=/^video\//.test(file.type||''),job={id:uid(),lid:lid,stu:n,t:vid?'v':'i',pct:0,st:'up',ph:vid&&!keepOrig()&&file.size>=VZ.min?'壓縮中':'上傳中'};UPQ.push(job);upBar();
+ var tick=function(pc){job.pct=pc;upBar();var mu=document.querySelector('.mup[data-job="'+job.id+'"]');if(mu)mu.innerHTML=jobTxt(job);};
+ (vid&&job.ph==='壓縮中'?shrinkVideo(file,tick).catch(function(e){job.zerr=String(e&&e.message||e);return null;}):Promise.resolve(null))
+  .then(function(f2){job.ph='上傳中';job.pct=0;job.orig=file.size;job.size=(f2||file).size;tick(0);return upMedia(f2||file,lid,n,tick);})
   .then(function(m){job.st='done';job.pct=1;attachMedia(lid,n,m);upBar();
    setTimeout(function(){UPQ=UPQ.filter(function(x){return x!==job;});upBar();},5000);})
   .catch(function(e){job.st='err';job.err=upFail(e);upBar();var e2=document.querySelector('.mup[data-job="'+job.id+'"]');if(e2)e2.remove();});
 }
 function mbInner(i){var n=REC_NS[i];
  return mThumbs(REC_MEDIA[n],i)
-  +UPQ.filter(function(j){return j.st==='up'&&j.lid===REC_LID&&j.stu===n;}).map(function(j){return '<div class="mup" data-job="'+j.id+'">上傳中<br>'+Math.floor(j.pct*100)+'%</div>';}).join('')
+  +UPQ.filter(function(j){return j.st==='up'&&j.lid===REC_LID&&j.stu===n;}).map(function(j){return '<div class="mup" data-job="'+j.id+'">'+jobTxt(j)+'</div>';}).join('')
   +'<label class="madd">＋ 照片<br>或影片<input type="file" accept="image/*,video/*" multiple data-mi="'+i+'" style="display:none"></label>';}
 function mbRefresh(i){var e=document.getElementById('mb'+i);if(!e)return;e.innerHTML=mbInner(i);mbBind();bind();}
-function mbBind(){document.querySelectorAll('#sheet input[data-mi]').forEach(function(inp){inp.onchange=function(){
+function mbBind(){
+ document.querySelectorAll('#sheet input.morig').forEach(function(cb){cb.onchange=function(){
+  try{localStorage.setItem('gh_morig',cb.checked?'1':'0');}catch(e){}
+  document.querySelectorAll('#sheet input.morig').forEach(function(x){x.checked=cb.checked;});};});
+ document.querySelectorAll('#sheet input[data-mi]').forEach(function(inp){inp.onchange=function(){
  var i=+inp.dataset.mi,n=REC_NS[i],fs=[].slice.call(inp.files||[]);if(!fs.length||!REC_LID)return;
  fs.forEach(function(f){startUpload(f,REC_LID,n);});mbRefresh(i);
  toast(fs.some(function(f){return /^video\//.test(f.type||'');})?'影片在背景上傳，可以先儲存、關掉這頁':'上傳中…');};});}
@@ -2561,7 +2653,8 @@ function fRec(lid,draft){
    return fld('待修正動作細節 / 盲點問題',ta('rs'+i+'_issue',x.issue,'點下面常見的問題，或自己描述',3)+qsel('rs'+i+'_issue',QP_ISSUE,'list',ord))
     +fld('重點修正部位',chips('rs'+i+'_parts',REC_PARTS,x.parts))
     +fld('教練修正處方 / 提示語 (Coaching Cues)',ta('rs'+i+'_fix',fixV(x),'例如 用前腳踩線練習修正；提示語「肚臍最後才轉」',3))
-    +fld('動作照片／短影片','<div class="mbox" id="mb'+i+'">'+mbInner(i)+'</div><div class="mini">存到雲端硬碟：照片放「上課紀錄照片」、影片放「上課影片分享」，各自依學員分資料夾。影片 3 分鐘以內（1080p 60fps 也可以），會在背景上傳：選好就可以先按儲存、關掉這頁，傳完會自動補進這堂紀錄；只要不要離開這個 App 或鎖螢幕。</div>');}))
+    +fld('動作照片／短影片','<div class="mbox" id="mb'+i+'">'+mbInner(i)+'</div><div class="mini">存到雲端硬碟：照片放「上課紀錄照片」、影片放「上課影片分享」，各自依學員分資料夾。影片 3 分鐘以內，會先在手機上壓成 720p（幀率照舊，60fps 還是 60fps）再背景上傳：選好就可以先按儲存、關掉這頁，傳完會自動補進這堂紀錄；只要不要離開這個 App 或鎖螢幕。'
+     +'<label class="tall" style="margin-top:6px"><input type="checkbox" class="morig"'+(keepOrig()?' checked':'')+'> 保留原畫質（不壓縮，檔案大、上傳比較久）</label></div>');}))
  /* 四、球員反饋與教練評量 */
  +recSec('四','球員反饋與教練評量','s4',per(function(n,i,x){
    return fld('球員課堂反饋與自評',ta('rs'+i+'_fb',x.fb,'例如 覺得揮棒比較輕鬆')+qsel('rs'+i+'_fb',QP_FB,'list'))
