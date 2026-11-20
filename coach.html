@@ -453,7 +453,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.20d';
+var APPVER='2026.11.20e';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1273,7 +1273,9 @@ function cfgCards(){return ''
   +'<label>檢測資料庫試算表的網址</label><input id="sh_test" value="'+esc(sc.test||'')+'" placeholder="https://script.google.com/macros/s/…/exec">'
   +'<div class="row" style="margin-top:12px"><button class="btn sm" data-act="shSave">儲存網址</button>'
   +(on?'<button class="btn sec sm" data-act="shPing">測試連線</button><button class="btn sec sm" data-act="shAll">全部重新同步</button>':'')+'</div>'
-  +'<div class="mini">接好之後，教練在網頁按儲存，幾秒內就會出現在試算表最下面（多一欄「系統編號」用來對應，改紀錄會更新同一列）。教練原本手打的列不會被動到。</div></div>';})()
+  +'<div class="mini">接好之後，教練在網頁按儲存，幾秒內就會出現在試算表最下面（多一欄「系統編號」用來對應，改紀錄會更新同一列）。教練原本手打的列不會被動到。'
+  +'<br><br>上課照片和影片也是透過「上課紀錄」這支程式存到雲端硬碟（照片：教練團課後填寫共享資料庫／上課紀錄照片，影片：上課影片分享）。程式有更新時，要把新的程式碼貼上，再到「部署 → 管理部署作業 → 編輯 → 版本選新版本 → 部署」，第一次會要求授權雲端硬碟。'
+  +(on?'<div class="row" style="margin-top:8px"><button class="btn sec sm" data-act="shDrive">測試雲端硬碟</button></div>':'')+'</div></div>';})()
  +'<div class="sec-t">教練端登入</div><div class="card">'
  +'<div class="mini" style="margin:0">教練端不用登入，打開網址選自己的名字就好。家長電話、繳費和收支不會出現在教練端。</div>'
  +'<details style="margin-top:12px"><summary class="mini" style="cursor:pointer">個別綁定（選用）：教練用自己的 Email 登入，就固定是他本人</summary>'
@@ -2226,32 +2228,52 @@ function pushAllSheets(){
  return Promise.all(jobs).then(function(){return {rec:rec.length,test:tst.length};});
 }
 function appsScript(tok){
- return "/* 港湖特訓班：網頁上課紀錄／檢測 即時同步到這份 Google 試算表 */\n"
- +"var TOKEN='"+tok+"';\n"
- +"function doPost(e){\n"
- +"  var d=JSON.parse(e.postData.contents);\n"
- +"  if(d.token!==TOKEN)return ContentService.createTextOutput('bad token');\n"
- +"  var lock=LockService.getScriptLock();lock.waitLock(20000);\n"
- +"  try{\n"
- +"    var ss=SpreadsheetApp.getActiveSpreadsheet();\n"
- +"    if(d.ping){var lg=ss.getSheetByName('同步紀錄')||ss.insertSheet('同步紀錄');lg.appendRow([new Date(),'連線測試成功']);return ContentService.createTextOutput('ok');}\n"
- +"    var sh=ss.getSheetByName(d.sheet);if(!sh)return ContentService.createTextOutput('no sheet');\n"
- +"    var hr=1,top=sh.getRange(1,1,Math.min(10,sh.getLastRow()),1).getValues();\n"
- +"    for(var i=0;i<top.length;i++){if(String(top[i][0]).trim()==='球員姓名'){hr=i+1;break;}}\n"
- +"    var lastCol=sh.getLastColumn(),heads=sh.getRange(hr,1,1,lastCol).getValues()[0],kc=heads.indexOf('系統編號')+1;\n"
- +"    if(!kc){kc=lastCol+1;sh.getRange(hr,kc).setValue('系統編號');}\n"
- +"    var last=sh.getLastRow(),keys=last>hr?sh.getRange(hr+1,kc,last-hr,1).getValues().map(function(r){return String(r[0]);}):[];\n"
- +"    d.ops.forEach(function(op){\n"
- +"      var k=keys.indexOf(op.key);\n"
- +"      if(op.del){if(k>=0){sh.deleteRow(hr+1+k);keys.splice(k,1);}return;}\n"
- +"      var v=op.row.slice(0,kc-1);while(v.length<kc-1)v.push('');v.push(op.key);\n"
- +"      if(k>=0)sh.getRange(hr+1+k,1,1,v.length).setValues([v]);\n"
- +"      else{sh.appendRow(v);keys.push(op.key);}\n"
- +"    });\n"
- +"    var lg2=ss.getSheetByName('同步紀錄')||ss.insertSheet('同步紀錄');lg2.appendRow([new Date(),d.sheet,d.ops.length+' 筆']);\n"
- +"  }finally{lock.releaseLock();}\n"
- +"  return ContentService.createTextOutput('ok');\n"
- +"}\n";
+ return ["/* 港湖特訓班：網頁上課紀錄／檢測 即時同步到這份 Google 試算表；上課照片、影片存到雲端硬碟 */",
+ "var TOKEN='"+tok+"';",
+ "var PHOTO_PARENT='"+DRIVE_REC+"';   // 教練團課後填寫共享資料庫（照片放在裡面的「上課紀錄照片」）",
+ "var VIDEO_FOLDER='"+DRIVE_VID+"';   // 教練團課後填寫共享資料庫 / 上課影片分享",
+ "function out(o){return typeof o==='string'?ContentService.createTextOutput(o):ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}",
+ "function sub(parent,name){var it=parent.getFoldersByName(name);return it.hasNext()?it.next():parent.createFolder(name);}",
+ "function photoRoot(){return sub(DriveApp.getFolderById(PHOTO_PARENT),'上課紀錄照片');}",
+ "function doPost(e){",
+ "  var d=JSON.parse(e.postData.contents);",
+ "  if(d.token!==TOKEN)return out('bad token');",
+ "  if(d.up){",
+ "    var u=d.up,vid=u.kind==='v';",
+ "    if(!/^(image|video)\\//.test(u.mime||''))return out({err:'只能放照片或影片'});",
+ "    var lk=LockService.getScriptLock();lk.waitLock(20000);var fd;",
+ "    try{fd=sub(vid?DriveApp.getFolderById(VIDEO_FOLDER):photoRoot(),u.stu||'未分類');}finally{lk.releaseLock();}",
+ "    var f=fd.createFile(Utilities.newBlob(Utilities.base64Decode(u.b64),u.mime,u.name));",
+ "    try{f.setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);}catch(x){}",
+ "    return out({ok:1,id:f.getId()});",
+ "  }",
+ "  if(d.get){",
+ "    var g=DriveApp.getFileById(d.get),ok=false,rid=photoRoot().getId(),ps=g.getParents();",
+ "    while(ps.hasNext()){var pp=ps.next().getParents();while(pp.hasNext())if(pp.next().getId()===rid)ok=true;}",
+ "    if(!ok)return out({err:'denied'});",
+ "    var b=g.getBlob();return out({mime:b.getContentType(),b64:Utilities.base64Encode(b.getBytes())});",
+ "  }",
+ "  var lock=LockService.getScriptLock();lock.waitLock(20000);",
+ "  try{",
+ "    var ss=SpreadsheetApp.getActiveSpreadsheet();",
+ "    if(d.ping){var lg=ss.getSheetByName('同步紀錄')||ss.insertSheet('同步紀錄');lg.appendRow([new Date(),'連線測試成功']);return out(d.drive?{ok:1,photo:photoRoot().getName(),video:DriveApp.getFolderById(VIDEO_FOLDER).getName()}:'ok');}",
+ "    var sh=ss.getSheetByName(d.sheet);if(!sh)return out('no sheet');",
+ "    var hr=1,top=sh.getRange(1,1,Math.min(10,sh.getLastRow()),1).getValues();",
+ "    for(var i=0;i<top.length;i++){if(String(top[i][0]).trim()==='球員姓名'){hr=i+1;break;}}",
+ "    var lastCol=sh.getLastColumn(),heads=sh.getRange(hr,1,1,lastCol).getValues()[0],kc=heads.indexOf('系統編號')+1;",
+ "    if(!kc){kc=lastCol+1;sh.getRange(hr,kc).setValue('系統編號');}",
+ "    var last=sh.getLastRow(),keys=last>hr?sh.getRange(hr+1,kc,last-hr,1).getValues().map(function(r){return String(r[0]);}):[];",
+ "    d.ops.forEach(function(op){",
+ "      var k=keys.indexOf(op.key);",
+ "      if(op.del){if(k>=0){sh.deleteRow(hr+1+k);keys.splice(k,1);}return;}",
+ "      var v=op.row.slice(0,kc-1);while(v.length<kc-1)v.push('');v.push(op.key);",
+ "      if(k>=0)sh.getRange(hr+1+k,1,1,v.length).setValues([v]);",
+ "      else{sh.appendRow(v);keys.push(op.key);}",
+ "    });",
+ "    var lg2=ss.getSheetByName('同步紀錄')||ss.insertSheet('同步紀錄');lg2.appendRow([new Date(),d.sheet,d.ops.length+' 筆']);",
+ "  }finally{lock.releaseLock();}",
+ "  return out('ok');",
+ "}",""].join("\n");
 }
 
 /* ============ 第二階段（2026-11-20）：常用菜單、照片影片、檢測趨勢、薪資單、行事曆提醒 ============ */
@@ -2272,38 +2294,59 @@ function tplListHTML(){var ts=tplsOf(ME);
 
 /* 照片／短影片：存在 Supabase Storage 的 media（公開讀取，路徑是亂數），紀錄裡存 {p:路徑,t:'i'照片|'v'影片} */
 var MEDIA_B='media',REC_MEDIA={},REC_LID='';
+/* 2026-11-20 改成存到 Google 雲端硬碟：照片＝教練團課後填寫共享資料庫/上課紀錄照片/學員，影片＝上課影片分享/學員；紀錄裡存 {d:檔案id,t} */
+var DRIVE_REC='1OUKAzbFdqmiafwenZQzcWghwsyJYWGkk',DRIVE_VID='1BGYrPZIMutnmOUz_X4ydJSBjMLVQvRLU',VID_MAX=30;
+function mThumb(m,w){return m.d?'https://drive.google.com/thumbnail?id='+encodeURIComponent(m.d)+'&sz=w'+(w||400):mediaUrl(m.p);}
+function mLink(m){return m.d?'https://drive.google.com/file/d/'+encodeURIComponent(m.d)+'/view':mediaUrl(m.p);}
+function mKey(m){return m.d||m.p;}
+function blobB64(bl){return new Promise(function(ok,no){var r=new FileReader();r.onload=function(){ok(String(r.result).split(',')[1]||'');};
+ r.onerror=function(){no(new Error('讀不到這個檔案'));};r.readAsDataURL(bl);});}
+function gasPost(body){var c=sheetCfg();
+ return fetch(c.rec,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:c.tok},body))})
+  .then(function(r){return r.text();}).then(function(t){try{return JSON.parse(t);}catch(e){return {raw:t};}});}
 function mediaUrl(path){return SB.url+'/storage/v1/object/public/'+MEDIA_B+'/'+path;}
 function shrinkImg(file){return new Promise(function(ok,no){var u=URL.createObjectURL(file),im=new Image();
  im.onload=function(){var k=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');
   c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);
   c.toBlob(function(b){if(b)ok(b);else no(new Error('照片轉換失敗'));},'image/jpeg',0.82);};
  im.onerror=function(){URL.revokeObjectURL(u);no(new Error('讀不到這張照片，請換一張或改用截圖'));};im.src=u;});}
-function upMedia(file,lid){
- var vid=/^video\//.test(file.type||'');
+function upMedia(file,lid,stu){
+ var c=sheetCfg(),vid=/^video\//.test(file.type||'');
+ if(!c.rec||!c.tok)return Promise.reject(new Error('還沒接上雲端硬碟，請建廷到行政端「設定 → 即時同步到 Google 試算表」設定'));
  if(!vid&&!/^image\//.test(file.type||''))return Promise.reject(new Error('只能放照片或影片'));
- if(vid&&file.size>50*1024*1024)return Promise.reject(new Error('影片太大（'+Math.round(file.size/1048576)+' MB），請剪短到 50 MB 以內，大約 20～30 秒'));
+ if(vid&&file.size>VID_MAX*1024*1024)return Promise.reject(new Error('影片太大（'+Math.round(file.size/1048576)+' MB），請剪短到 '+VID_MAX+' MB 以內，大約 15～30 秒'));
+ var l=byId(DB.lessons,lid)||{};
  return (vid?Promise.resolve(file):shrinkImg(file)).then(function(bl){
   var ext=vid?(((file.name||'').split('.').pop()||'mp4').toLowerCase().replace(/[^a-z0-9]/g,'')||'mp4'):'jpg';
-  var path='rec/'+lid+'/'+uid()+'.'+ext;
-  return fetch(SB.url+'/storage/v1/object/'+MEDIA_B+'/'+path,{method:'POST',
-   headers:{apikey:SB.key,Authorization:'Bearer '+((SESS&&SESS.access_token)||SB.key),'Content-Type':vid?(file.type||'video/mp4'):'image/jpeg'},body:bl})
-  .then(function(r){if(r.ok)return {p:path,t:vid?'v':'i',at:Date.now()};
-   return r.text().then(function(t){throw new Error('上傳失敗，請再試一次\n'+String(t||r.status).slice(0,160));});});});}
-function mThumbs(list,i){return (list||[]).map(function(m){var u=mediaUrl(m.p);
- return '<div class="mth"><a href="'+u+'" target="_blank" rel="noopener">'
-  +(m.t==='v'?'<video src="'+u+'#t=0.1" preload="metadata" muted playsinline></video><i>▶</i>':'<img src="'+u+'" loading="lazy" alt="">')+'</a>'
-  +(i>=0?'<button type="button" class="mx" data-act="mDel" data-i="'+i+'" data-p="'+esc(m.p)+'">×</button>':'')+'</div>';}).join('');}
+  var name=(l.date||today())+'_'+(stu||'學員')+'_'+(l.coach||'')+'教練_'+uid().slice(-5)+'.'+ext;
+  return blobB64(bl).then(function(b64){
+   return gasPost({up:{kind:vid?'v':'i',mime:vid?(file.type||'video/mp4'):'image/jpeg',name:name,stu:stu||'未分類',b64:b64}});});})
+ .then(function(j){
+  if(j&&j.id)return {d:j.id,t:vid?'v':'i',at:Date.now()};
+  if(j&&j.raw==='no sheet')throw new Error('雲端硬碟的程式還沒更新。請建廷到行政端「設定 → 即時同步到 Google 試算表」複製新的程式碼，貼到上課紀錄試算表的 Apps Script，重新部署。');
+  throw new Error('上傳失敗，請再試一次'+(j&&(j.err||j.raw)?'\n'+String(j.err||j.raw).slice(0,160):''));});
+}
+function mThumbs(list,i){return (list||[]).map(function(m){var u=mediaUrl(m.p||'');
+ var pic=m.d?'<img src="'+mThumb(m)+'" loading="lazy" alt="" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'">'+(m.t==='v'?'<i>▶</i>':'')
+  :(m.t==='v'?'<video src="'+u+'#t=0.1" preload="metadata" muted playsinline></video><i>▶</i>':'<img src="'+u+'" loading="lazy" alt="">');
+ return '<div class="mth"><a href="'+mLink(m)+'" target="_blank" rel="noopener">'+pic+'</a>'
+  +(i>=0?'<button type="button" class="mx" data-act="mDel" data-i="'+i+'" data-p="'+esc(mKey(m))+'">×</button>':'')+'</div>';}).join('');}
 function mbInner(i){return mThumbs(REC_MEDIA[REC_NS[i]],i)+'<label class="madd">＋ 照片<br>或影片<input type="file" accept="image/*,video/*" multiple data-mi="'+i+'" style="display:none"></label>';}
 function mbRefresh(i,msg){var e=document.getElementById('mb'+i);if(!e)return;e.innerHTML=mbInner(i)+(msg?'<div class="mup">'+msg+'</div>':'');mbBind();bind();}
 function mbBind(){document.querySelectorAll('#sheet input[data-mi]').forEach(function(inp){inp.onchange=function(){
  var i=+inp.dataset.mi,n=REC_NS[i],fs=[].slice.call(inp.files||[]),k=0;if(!fs.length||!REC_LID)return;
  var next=function(){if(k>=fs.length){mbRefresh(i);toast('已加入，記得按「儲存」');return;}
   mbRefresh(i,'上傳中<br>'+(k+1)+' / '+fs.length);
-  upMedia(fs[k],REC_LID).then(function(m){REC_MEDIA[n]=(REC_MEDIA[n]||[]).concat([m]);REC_DIRTY=true;k++;next();})
+  upMedia(fs[k],REC_LID,n).then(function(m){REC_MEDIA[n]=(REC_MEDIA[n]||[]).concat([m]);REC_DIRTY=true;k++;next();})
    .catch(function(e){mbRefresh(i);alert(String(e.message||e));});};
  next();};});}
 function rpPhotos(x){var ph=(x.media||[]).filter(function(m){return m.t==='i';}).slice(0,3);
- return ph.length?'<div class="rp-ph">'+ph.map(function(m){return '<img src="'+mediaUrl(m.p)+'" crossorigin="anonymous" alt="">';}).join('')+'</div>':'';}
+ return ph.length?'<div class="rp-ph">'+ph.map(function(m){return m.d?'<img src="'+mThumb(m,800)+'" data-d="'+esc(m.d)+'" referrerpolicy="no-referrer" alt="">'
+  :'<img src="'+mediaUrl(m.p)+'" crossorigin="anonymous" alt="">';}).join('')+'</div>':'';}
+function rpInline(el){var c=sheetCfg(),ims=[].slice.call(el.querySelectorAll('img[data-d]'));if(!ims.length)return Promise.resolve();
+ if(!c.rec||!c.tok){ims.forEach(function(im){im.remove();});return Promise.resolve();}
+ return Promise.all(ims.map(function(im){return gasPost({get:im.dataset.d}).then(function(j){
+   if(j&&j.b64)im.src='data:'+(j.mime||'image/jpeg')+';base64,'+j.b64;else im.remove();}).catch(function(){im.remove();});}));}
 
 /* 檢測趨勢圖：每個數字項目有 2 次以上就畫折線 */
 function trSVG(pts,f){
@@ -2427,7 +2470,7 @@ function fRec(lid,draft){
    return fld('待修正動作細節 / 盲點問題',ta('rs'+i+'_issue',x.issue,'點下面常見的問題，或自己描述',3)+qsel('rs'+i+'_issue',QP_ISSUE,'list',ord))
     +fld('重點修正部位',chips('rs'+i+'_parts',REC_PARTS,x.parts))
     +fld('教練修正處方 / 提示語 (Coaching Cues)',ta('rs'+i+'_fix',fixV(x),'例如 用前腳踩線練習修正；提示語「肚臍最後才轉」',3))
-    +fld('動作照片／短影片','<div class="mbox" id="mb'+i+'">'+mbInner(i)+'</div><div class="mini">拍動作前後對比最有用。照片會自動縮小；影片請在 50 MB 以內（大約 20～30 秒）。</div>');}))
+    +fld('動作照片／短影片','<div class="mbox" id="mb'+i+'">'+mbInner(i)+'</div><div class="mini">存到雲端硬碟：照片放「上課紀錄照片」、影片放「上課影片分享」，各自依學員分資料夾。影片請在 30 MB 以內（大約 15～30 秒）。</div>');}))
  /* 四、球員反饋與教練評量 */
  +recSec('四','球員反饋與教練評量','s4',per(function(n,i,x){
    return fld('球員課堂反饋與自評',ta('rs'+i+'_fb',x.fb,'例如 覺得揮棒比較輕鬆')+qsel('rs'+i+'_fb',QP_FB,'list'))
@@ -4275,10 +4318,10 @@ function rpPdf(){
  if(!RP)return;toast('產生 PDF 中…');
  loadPDF().then(function(){
   var el=document.createElement('div');el.innerHTML=rpHTML(RP.s,RP.base,RP.post);
-  return html2pdf().set({margin:[10,10,12,10],filename:RP.s.name+'_成長報告_'+(RP.post?RP.post.date:today())+'.pdf',
+  return rpInline(el).then(function(){return html2pdf().set({margin:[10,10,12,10],filename:RP.s.name+'_成長報告_'+(RP.post?RP.post.date:today())+'.pdf',
    image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},
    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:['.rp-les','.rp-g tr','.rp-info','h2']}})
-   .from(el.firstChild).save();
+   .from(el.firstChild).save();});
  }).then(function(){toast('PDF 已下載');}).catch(function(e){alert('PDF 產生失敗\n\n'+String(e.message||e));});
 }
 
@@ -4836,7 +4879,7 @@ function bind(){
     persist();var tbar=document.getElementById('tplbar');if(tbar){tbar.outerHTML=tplBar(lsv);bind();}toast('已存成常用菜單「'+nmT+'」');return;}
    if(a==='tplDel'){var tdl=cdRow(b.dataset.t);if(!tdl||!confirm('刪除常用菜單「'+tdl.name+'」？'))return;cdDel(tdl.id);persist();render();toast('已刪除');return;}
    if(a==='mDel'){var mi=+b.dataset.i,mn=REC_NS[mi];if(!confirm('把這個照片／影片從紀錄拿掉？'))return;
-    REC_MEDIA[mn]=(REC_MEDIA[mn]||[]).filter(function(m){return m.p!==b.dataset.p;});REC_DIRTY=true;mbRefresh(mi);return;}
+    REC_MEDIA[mn]=(REC_MEDIA[mn]||[]).filter(function(m){return mKey(m)!==b.dataset.p;});REC_DIRTY=true;mbRefresh(mi);return;}
    if(a==='slipPdf'){var srs=MODE==='coach'?payRowsFromSummary():((buildSummary()['pay:'+ME]||{}).rows||[]);
     return slipPdf(ME,srs.filter(function(r){return String(r.pid)===b.dataset.p;})[0]);}
    if(a==='slipAdm')return slipPdf(b.dataset.t,payRowOf(b.dataset.p,b.dataset.t));
@@ -4893,6 +4936,10 @@ function bind(){
    if(a==='shPing'){var sc3=sheetCfg();var urls=[sc3.rec,sc3.test].filter(Boolean);if(!urls.length)return alert('還沒填網址');
     urls.forEach(function(u){fetch(u,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:sc3.tok,ping:1})});});
     alert('已送出測試。到 Google 試算表看有沒有多一張「同步紀錄」，裡面寫「連線測試成功」就代表接好了。');return;}
+   if(a==='shDrive'){gasPost({ping:1,drive:1}).then(function(j){
+     if(j&&j.ok)alert('雲端硬碟接好了 ✓\n照片會存到：'+j.photo+'\n影片會存到：'+j.video);
+     else alert('還沒接好：'+String((j&&(j.err||j.raw))||'沒有回應').slice(0,200)+'\n\n請確認新的程式碼已經貼上並部署成「新版本」。');})
+     .catch(function(e){alert('連不到 Apps Script：'+e.message);});return;}
    if(a==='shAll'){if(!confirm('把網頁上所有的上課紀錄和檢測重新送到 Google 試算表？\n（已經送過的會更新，不會重複；Excel 原本的列不會動）'))return;
     pushAllSheets().then(function(r){alert('已送出：上課紀錄 '+r.rec+' 筆、檢測 '+r.test+' 筆。');});return;}
    if(a==='openTest'){
