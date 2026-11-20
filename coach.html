@@ -382,6 +382,28 @@ color:var(--c,var(--ink2));background-color:#fff;background-position:right 11px 
 .reqr:last-of-type{border-bottom:0}
 .setT td,.setT th{padding:4px 3px}.setT input{min-width:0}
 .tt .setT{min-width:760px}
+.qdone{padding:7px 12px;font-size:13px;gap:4px}
+a.btn{text-decoration:none}
+.tplbar{background:var(--or-s);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.tplh{display:flex;justify-content:space-between;align-items:center;gap:8px}.tplh b{font-size:14px}
+.tplc{background:#fff;color:var(--or-d);border:1px solid var(--or);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.mbox,.mthumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.mthumbs{margin-top:10px}
+.mth{position:relative;width:84px;height:84px;border-radius:10px;overflow:hidden;background:#1B3240;flex:0 0 auto}
+.mth a{display:block;width:100%;height:100%}
+.mth img,.mth video{width:100%;height:100%;object-fit:cover;display:block}
+.mth i{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#fff;font-style:normal;font-size:22px;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.mth .mx{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:15px;line-height:24px;padding:0;cursor:pointer}
+.madd,.mup{width:84px;height:84px;border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;font-weight:700;color:var(--muted);flex:0 0 auto;padding:4px;line-height:1.4}
+.madd{border:1.5px dashed var(--line);background:#fff;cursor:pointer}.mup{background:var(--paper)}
+.trg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+.trc{border:1px solid #E4E1D6;border-radius:10px;padding:7px 8px 3px;background:#fff}
+.trh{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:12px}.trh b{font-weight:800;color:#15242E}.trh span{white-space:nowrap}
+.trc svg{width:100%;height:auto;display:block}
+.rp-ph{display:flex;gap:6px;margin-top:6px}.rp-ph img{width:32%;height:120px;object-fit:cover;border-radius:6px}
+.slipd{width:100%;border-collapse:collapse}.slipd th{background:#EDEAE0;color:#37525F;font-size:11px;padding:5px 6px;text-align:left}
+.slipd td{border-bottom:1px solid #EEE9DD;padding:6px;font-size:12px;text-align:left}.slipd .n{text-align:right}
+.slipd tr.tot td{font-weight:800;font-size:14px;color:#A8490A;border-top:2px solid #FE7F2D;border-bottom:0}
 .pickc{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pickc .btn{padding:16px 0;font-size:17px}
 .dayh{font-size:13px;font-weight:800;color:var(--ink2);margin:16px 0 8px;padding-left:8px;border-left:3px solid var(--line)}
 .dayh.on{border-left-color:var(--or);color:var(--or-d)}
@@ -431,7 +453,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.20c';
+var APPVER='2026.11.20d';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -940,7 +962,7 @@ function syncNow(manual){
     if(PEND[col][id]===snap[col][id])delete PEND[col][id];});});
   if(snap.cfg&&PEND.cfg===snap.cfg)PEND.cfg=0;
   LASTSYNC=new Date().toTimeString().slice(0,5);save('lastsync',LASTSYNC);
-  if(MODE!=='coach'){applyCD();autoComplete();}
+  if(MODE!=='coach'){applyCD();autoComplete();autoDoneReqs();}
   persistOnly();SYNCMSG='';setST('ok');render();
   if(MODE!=='coach'){
    if(pendCount())setTimeout(function(){syncNow();},800);
@@ -1043,6 +1065,13 @@ function applyReq(r,ok){
   touch('lessons',l);}
  cdPut(r.id,{st:ok?'ok':'no',dec:recWho(),decAt:Date.now()});
 }
+/* 「有上課」不用一筆一筆審：行政端同步時自動同意（日期還沒到的不動） */
+function autoDoneReqs(){
+ if(MODE!=='admin')return 0;var n=0,t0=today();
+ pendReqs().forEach(function(r){if(r.type!=='done')return;var l=byId(DB.lessons,r.lid);if(l&&l.date>t0)return;
+  applyReq(r,true);cdPut(r.id,{dec:'自動'});n++;});
+ if(n)persistOnly();return n;
+}
 function reqCenterHTML(){
  var ps=pendReqs();if(!ps.length)return '<div id="sec-req"></div>';
  return '<div class="sec-t" id="sec-req">待審核（'+ps.length+'）</div>'
@@ -1078,11 +1107,7 @@ function buildSummary(){
  STU().forEach(function(s){var b=boughtOf(s.name);if(b||lessonsOf(s.name).length)out['stu:'+s.name]={k:'sum',b:b};});
  var cur=pidOf(today()),pids=[cur,pidPrev(cur),pidPrev(pidPrev(cur))],sts=pids.map(perStat);
  acctCoaches(LES()).forEach(function(c){
-  out['pay:'+c]={k:'sum',rows:pids.map(function(pid,i){var st=sts[i],cc=st.byCoach.filter(function(x){return x.c===c;})[0];if(!cc)return null;
-   var po=payoutOf(pid,'coach',c);
-   return {pid:pid,label:pidLabel(pid),short:pidShort(pid),pay:pidPay(pid),due:cc.due,fee:cc.fee,cnt:cc.cnt,adminGet:cc.adminGet,reim:cc.reim,cin:cc.cin,
-    po:po?{date:po.date||'',amount:+po.amount||0}:null,
-    ls:st.ls.filter(function(l){return l.coach===c;}).map(function(l){return [l.date,l.start,l.end,(l.students||[]).join('、'),unitsOf(l),amt(l,'coach')];})};}).filter(Boolean)};});
+  out['pay:'+c]={k:'sum',rows:pids.map(function(pid,i){return payRowOf(pid,c,sts[i]);}).filter(Boolean)};});
  return out;
 }
 function pushSummary(){
@@ -1122,7 +1147,7 @@ function auditLabel(a){var r=a.rec||{};
  if(a.t==='students')return '學員 '+(r.name||'');
  if(a.t==='payments')return '繳費 '+(r.student||'')+' '+(r.plan||'')+' '+(r.due||'');
  if(a.t==='expenses')return '收支 '+(r.item||r.cat||'')+' '+(r.amount||'');
- if(a.t==='coachdata')return {rec:'上課紀錄',test:'檢測',prof:'基本資料',old:'舊紀錄',req:'申請'}[r.k]||'教練資料';
+ if(a.t==='coachdata')return {rec:'上課紀錄',test:'檢測',prof:'基本資料',old:'舊紀錄',req:'申請',tpl:'常用菜單'}[r.k]||'教練資料';
  return a.t;}
 var AUDIT=null;
 function loadAudit(){
@@ -1680,7 +1705,8 @@ function vSet(){
        +'</div>':'')+'</div>'
      +'<div class="rr"><div class="num" style="font-size:15px">'+money(c.due)+'</div>'
      +(po?'<span class="tag g">已匯</span> <button class="btn sec sm" data-act="payundo" data-id="'+po.id+'">取消</button>'
-        :'<span class="tag r">未匯</span>')+'</div></div>';}).join('');
+        :'<span class="tag r">未匯</span>')
+     +'<div style="margin-top:6px"><button class="btn sec sm" data-act="slipAdm" data-t="'+esc(c.c)+'" data-p="'+pn+'">薪資單 PDF</button></div></div></div>';}).join('');
    var gp=payoutOf(pn,'gear',GEAR_TO);
    var gdiff=gp?(+gp.amount||0)-st.gearDue+st.gearCout:0;
    var grow='<div class="buy"'+(gp?'':' data-act="payok" data-k="gear" data-t="'+GEAR_TO+'" data-p="'+pn+'" data-a="'+st.gearDue+'"')+'>'
@@ -2228,6 +2254,126 @@ function appsScript(tok){
  +"}\n";
 }
 
+/* ============ 第二階段（2026-11-20）：常用菜單、照片影片、檢測趨勢、薪資單、行事曆提醒 ============ */
+/* 常用菜單：coachdata 的 tpl:id，一位教練一組（教練端是自己，行政端是那堂課的教練） */
+function tplOwner(l){return MODE==='coach'?ME:((l&&l.coach)||'');}
+function tplsOf(c){return (DB.coachdata||[]).filter(function(r){return !r.del&&r.k==='tpl'&&r.coach===c;})
+ .sort(function(a,b){return (a.name||'')<(b.name||'')?-1:1;});}
+function tplBar(l){var ts=tplsOf(tplOwner(l));
+ return '<div class="tplbar" id="tplbar"><div class="tplh"><b>常用菜單</b><button type="button" class="btn sec sm" data-act="tplSave" data-id="'+l.id+'">＋ 把這次存成常用菜單</button></div>'
+ +(ts.length?'<div class="fills">'+ts.map(function(t){return '<button type="button" class="tplc" data-act="tplUse" data-id="'+l.id+'" data-t="'+t.id+'">'+esc(t.name)+'</button>';}).join('')+'</div>'
+  :'<div class="mini" style="margin:4px 0 0">把常用的一組主題、Drill、器材和回家功課存起來，下次點一下就帶入。</div>')+'</div>';}
+function tplListHTML(){var ts=tplsOf(ME);
+ return '<div class="sec-t">我的常用菜單</div><div class="card">'+(ts.length?ts.map(function(t){
+   return '<div class="kv" style="align-items:center"><b style="flex:0 1 auto;max-width:42%;color:var(--ink);font-size:14px;padding:0">'+esc(t.name)+'</b>'
+   +'<span style="font-size:12px;color:var(--muted)">'+esc([(t.topic||[]).join('、'),(t.menu||'').split('\n')[0]].filter(Boolean).join('　'))+'</span>'
+   +'<button class="btn sec sm" data-act="tplDel" data-t="'+t.id+'">刪除</button></div>';}).join('')
+  :'<div class="mini" style="margin:0">填上課紀錄時，在「訓練主題與核心內容」按「＋ 把這次存成常用菜單」，下次點一下就能帶入。</div>')+'</div>';}
+
+/* 照片／短影片：存在 Supabase Storage 的 media（公開讀取，路徑是亂數），紀錄裡存 {p:路徑,t:'i'照片|'v'影片} */
+var MEDIA_B='media',REC_MEDIA={},REC_LID='';
+function mediaUrl(path){return SB.url+'/storage/v1/object/public/'+MEDIA_B+'/'+path;}
+function shrinkImg(file){return new Promise(function(ok,no){var u=URL.createObjectURL(file),im=new Image();
+ im.onload=function(){var k=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');
+  c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);
+  c.toBlob(function(b){if(b)ok(b);else no(new Error('照片轉換失敗'));},'image/jpeg',0.82);};
+ im.onerror=function(){URL.revokeObjectURL(u);no(new Error('讀不到這張照片，請換一張或改用截圖'));};im.src=u;});}
+function upMedia(file,lid){
+ var vid=/^video\//.test(file.type||'');
+ if(!vid&&!/^image\//.test(file.type||''))return Promise.reject(new Error('只能放照片或影片'));
+ if(vid&&file.size>50*1024*1024)return Promise.reject(new Error('影片太大（'+Math.round(file.size/1048576)+' MB），請剪短到 50 MB 以內，大約 20～30 秒'));
+ return (vid?Promise.resolve(file):shrinkImg(file)).then(function(bl){
+  var ext=vid?(((file.name||'').split('.').pop()||'mp4').toLowerCase().replace(/[^a-z0-9]/g,'')||'mp4'):'jpg';
+  var path='rec/'+lid+'/'+uid()+'.'+ext;
+  return fetch(SB.url+'/storage/v1/object/'+MEDIA_B+'/'+path,{method:'POST',
+   headers:{apikey:SB.key,Authorization:'Bearer '+((SESS&&SESS.access_token)||SB.key),'Content-Type':vid?(file.type||'video/mp4'):'image/jpeg'},body:bl})
+  .then(function(r){if(r.ok)return {p:path,t:vid?'v':'i',at:Date.now()};
+   return r.text().then(function(t){throw new Error('上傳失敗，請再試一次\n'+String(t||r.status).slice(0,160));});});});}
+function mThumbs(list,i){return (list||[]).map(function(m){var u=mediaUrl(m.p);
+ return '<div class="mth"><a href="'+u+'" target="_blank" rel="noopener">'
+  +(m.t==='v'?'<video src="'+u+'#t=0.1" preload="metadata" muted playsinline></video><i>▶</i>':'<img src="'+u+'" loading="lazy" alt="">')+'</a>'
+  +(i>=0?'<button type="button" class="mx" data-act="mDel" data-i="'+i+'" data-p="'+esc(m.p)+'">×</button>':'')+'</div>';}).join('');}
+function mbInner(i){return mThumbs(REC_MEDIA[REC_NS[i]],i)+'<label class="madd">＋ 照片<br>或影片<input type="file" accept="image/*,video/*" multiple data-mi="'+i+'" style="display:none"></label>';}
+function mbRefresh(i,msg){var e=document.getElementById('mb'+i);if(!e)return;e.innerHTML=mbInner(i)+(msg?'<div class="mup">'+msg+'</div>':'');mbBind();bind();}
+function mbBind(){document.querySelectorAll('#sheet input[data-mi]').forEach(function(inp){inp.onchange=function(){
+ var i=+inp.dataset.mi,n=REC_NS[i],fs=[].slice.call(inp.files||[]),k=0;if(!fs.length||!REC_LID)return;
+ var next=function(){if(k>=fs.length){mbRefresh(i);toast('已加入，記得按「儲存」');return;}
+  mbRefresh(i,'上傳中<br>'+(k+1)+' / '+fs.length);
+  upMedia(fs[k],REC_LID).then(function(m){REC_MEDIA[n]=(REC_MEDIA[n]||[]).concat([m]);REC_DIRTY=true;k++;next();})
+   .catch(function(e){mbRefresh(i);alert(String(e.message||e));});};
+ next();};});}
+function rpPhotos(x){var ph=(x.media||[]).filter(function(m){return m.t==='i';}).slice(0,3);
+ return ph.length?'<div class="rp-ph">'+ph.map(function(m){return '<img src="'+mediaUrl(m.p)+'" crossorigin="anonymous" alt="">';}).join('')+'</div>':'';}
+
+/* 檢測趨勢圖：每個數字項目有 2 次以上就畫折線 */
+function trSVG(pts,f){
+ var W=200,H=86,L=10,R=10,T=16,B=16,n=pts.length;
+ var vs=pts.map(function(p){return p.v;}),mn=Math.min.apply(null,vs),mx=Math.max.apply(null,vs);if(mx===mn){mx+=1;mn-=1;}
+ var X=function(i){return n<2?W/2:L+(W-L-R)*i/(n-1);},Y=function(v){return T+(H-T-B)*(1-(v-mn)/(mx-mn));};
+ return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(tShort(f))+'">'
+ +'<line x1="'+L+'" x2="'+(W-R)+'" y1="'+(H-B)+'" y2="'+(H-B)+'" stroke="#E4E1D6"/>'
+ +'<polyline points="'+pts.map(function(p,i){return X(i).toFixed(1)+','+Y(p.v).toFixed(1);}).join(' ')+'" fill="none" stroke="#FE7F2D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>'
+ +pts.map(function(p,i){var x=X(i).toFixed(1),y=Y(p.v),last=i===n-1;
+   return '<circle cx="'+x+'" cy="'+y.toFixed(1)+'" r="3.4" fill="'+(last?'#FE7F2D':'#fff')+'" stroke="#FE7F2D" stroke-width="2"/>'
+    +'<text x="'+x+'" y="'+(y-6).toFixed(1)+'" font-size="10" font-weight="700" fill="#37525F" text-anchor="'+(n>1&&i===0?'start':(n>1&&last?'end':'middle'))+'">'+(Math.round(p.v*100)/100)+'</text>';}).join('')
+ +'<text x="'+L+'" y="'+(H-3)+'" font-size="9" fill="#9AA9B2">'+md(pts[0].d)+'</text>'
+ +(n>1?'<text x="'+(W-R)+'" y="'+(H-3)+'" font-size="9" fill="#9AA9B2" text-anchor="end">'+md(pts[n-1].d)+'</text>':'')+'</svg>';}
+function trendHTML(name,max){
+ var ts=testsOf(name);if(ts.length<2)return '';
+ var num=function(t,k){var x=parseFloat(tVal(t,k));return isFinite(x)?x:null;};
+ var fs=TF.filter(function(f){return (f[3]==='n'||f[3]==='nt')&&ts.filter(function(t){return num(t,f[0])!==null;}).length>=2;});
+ fs.sort(function(a,b){var ia=TKEY.indexOf(a[0]),ib=TKEY.indexOf(b[0]);return (ia<0?99:ia)-(ib<0?99:ib);});
+ fs=fs.slice(0,max||6);if(!fs.length)return '';
+ return '<div class="trg">'+fs.map(function(f){
+   var pts=ts.filter(function(t){return num(t,f[0])!==null;}).map(function(t){return {d:t.date,v:num(t,f[0])};}),a=pts[0],z=pts[pts.length-1];
+   return '<div class="trc"><div class="trh"><b>'+esc(tShort(f))+'</b><span>'+tDelta(f,String(a.v),String(z.v))+'</span></div>'+trSVG(pts,f)+'</div>';}).join('')+'</div>';}
+function trendBlock(name){var h=trendHTML(name,6);
+ return h?'<div style="margin:14px 0 6px;font-size:13px;font-weight:800;color:var(--ink2)">成長趨勢（第一次 → 最近一次）</div>'+h:'';}
+
+/* 薪資單 PDF：教練端「我的」自己下載，行政端在「本期匯款確認」每位教練旁邊也有 */
+function payRowOf(pid,c,st){st=st||perStat(pid);var cc=st.byCoach.filter(function(x){return x.c===c;})[0];if(!cc)return null;
+ var po=payoutOf(pid,'coach',c);
+ return {pid:pid,label:pidLabel(pid),short:pidShort(pid),pay:pidPay(pid),due:cc.due,fee:cc.fee,cnt:cc.cnt,adminGet:cc.adminGet,reim:cc.reim,cin:cc.cin,
+  po:po?{date:po.date||'',amount:+po.amount||0}:null,
+  ls:st.ls.filter(function(l){return l.coach===c;}).map(function(l){return [l.date,l.start,l.end,(l.students||[]).join('、'),unitsOf(l),amt(l,'coach')];})};}
+function slipHTML(c,a){
+ var line=function(k,v,cls){return '<tr'+(cls?' class="'+cls+'"':'')+'><td>'+k+'</td><td class="n">'+v+'</td></tr>';};
+ var ls=a.ls||[];
+ return '<div class="rp">'
+ +'<div class="rp-cover"><div class="rp-en">GANGHU BASEBALL TRAINING</div><div class="rp-tt">教練薪資單</div>'
+ +'<div class="rp-sub">港湖特訓班　・　'+esc(a.label||'')+'</div>'
+ +'<table class="rp-info"><tr><th>教練</th><td>'+esc(c)+'</td><th>發薪日</th><td>'+esc(String(a.pay||'').replace(/-/g,'/'))+'</td></tr>'
+ +'<tr><th>本期堂數</th><td>'+a.cnt+' 堂</td><th>匯款狀態</th><td>'+(a.po?'已匯'+(a.po.date?'（'+esc(String(a.po.date).replace(/-/g,'/'))+'）':''):'未匯')+'</td></tr></table></div>'
+ +'<h2 class="rp-h">一、本期金額</h2><table class="slipd"><tr><th>項目</th><th class="n">金額</th></tr>'
+ +line('鐘點費（'+a.cnt+' 堂）',money(a.fee))
+ +(a.adminGet?line('行政管理費',money(a.adminGet)):'')+(a.reim?line('代墊歸還',money(a.reim)):'')
+ +(a.cin?line(a.cin<0?'扣回上期多匯':'上期補發',(a.cin<0?'－':'＋')+money(Math.abs(a.cin))):'')
+ +line('本期應匯',money(a.due),'tot')+'</table>'
+ +(a.po&&a.po.amount&&a.po.amount!==a.due?'<p class="rp-none">實際匯款 '+money(a.po.amount)+'</p>':'')
+ +'<h2 class="rp-h">二、上課明細（'+ls.length+' 次）</h2>'
+ +(ls.length?'<table class="slipd"><tr><th>日期</th><th>時間</th><th>學員</th><th class="n">堂數</th><th class="n">鐘點費</th></tr>'
+   +ls.map(function(x){return '<tr><td>'+x[0].replace(/-/g,'/')+'（'+DAYN[dowOf(x[0])].slice(1)+'）</td><td>'+esc(x[1]+'–'+x[2])+'</td><td>'+esc(x[3])+'</td><td class="n">'+x[4]+'</td><td class="n">'+money(x[5])+'</td></tr>';}).join('')+'</table>'
+   :'<p class="rp-none">這期沒有上課。</p>')
+ +'<div class="rp-ft">港湖特訓班　・　港湖社區棒球隊　　製表日期 '+today().replace(/-/g,'/')+(a.po?'':'　・　還沒上的課也先列入，實際金額以結算日為準')+'</div></div>';}
+function slipPdf(c,a){if(!a)return alert('找不到這一期的資料');toast('產生 PDF 中…');
+ loadPDF().then(function(){var el=document.createElement('div');el.innerHTML=slipHTML(c,a);
+  return html2pdf().set({margin:[10,10,12,10],filename:c+'_薪資單_'+(a.short||a.pid)+'.pdf',image:{type:'jpeg',quality:0.95},
+   html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+   pagebreak:{mode:['css','legacy'],avoid:['tr','h2','.rp-info']}}).from(el.firstChild).save();})
+ .then(function(){toast('PDF 已下載');}).catch(function(e){alert('PDF 產生失敗\n\n'+String(e.message||e));});}
+
+/* 手機提醒：Supabase Edge Function「cal」產生這位教練的行事曆（.ics），手機訂閱一次就會自己更新 */
+function calURL(c){return SB.url+'/functions/v1/cal?c='+encodeURIComponent(c);}
+function calHTML(){var u=calURL(ME),w='webcal://'+u.replace(/^https?:\/\//,'');
+ return '<div class="sec-t">手機提醒</div><div class="card"><b>把我的課加到手機行事曆</b>'
+ +'<div class="mini" style="margin-top:4px">加一次就好，之後排課、改時間，手機行事曆會自己更新。上課前 30 分鐘提醒；課後 2 小時如果還沒填紀錄，會再提醒一次。</div>'
+ +'<div class="row" style="margin-top:10px"><a class="btn sm" href="'+esc(w)+'">'+svg('cal',14)+' iPhone 加入行事曆</a>'
+ +'<button class="btn sec sm" data-act="calCopy">複製網址（Android）</button></div>'
+ +'<details style="margin-top:10px"><summary class="mini" style="cursor:pointer;margin:0">怎麼設定</summary><div class="mini">'
+ +'iPhone：按「iPhone 加入行事曆」→「訂閱」→「加入」。提醒沒響的話：設定 → 行事曆（iOS 18 以後在 設定 → App → 行事曆）→ 帳號 → 已訂閱的行事曆 → 港湖特訓班，把「移除提醒」關掉。<br><br>'
+ +'Android：用電腦打開 Google 日曆，左邊「其他日曆」旁的＋ →「以網址新增」，貼上剛剛複製的網址。Google 日曆不會帶入提醒，要在這個日曆的設定裡加「活動通知」，例如 30 分鐘前。<br><br>'
+ +'手機多久更新一次由手機決定，通常幾個小時內。臨時改課還是以群組通知為準。</div></details></div>';}
+
 /* 上課紀錄表單：照「港湖特訓班球員課堂訓練紀錄」Excel 的五大區、欄位標題一個一個填，全部選填；存了之後點同一堂就能修改 */
 var REC_DIRTY=false,REC_NS=[],REC_CUR=0;
 var FREQS=['每天','一週 3 次','一週 2 次','一週 1 次','練習前熱身'];
@@ -2240,7 +2386,8 @@ function fld(label,html){return '<div class="rf"><label>'+label+'</label>'+html+
 function fRec(lid,draft){
  var l=byId(DB.lessons,lid);if(!l)return;
  var r=draft||l.rec||{},ns=(l.students||[]).slice(),has=!!l.rec,grp=ns.length>1;
- if(!draft)REC_CUR=0;REC_NS=ns;if(REC_CUR>=ns.length)REC_CUR=0;
+ if(!draft)REC_CUR=0;REC_NS=ns;if(REC_CUR>=ns.length)REC_CUR=0;REC_LID=lid;
+ REC_MEDIA={};ns.forEach(function(n){var y=(r.stu||{})[n];REC_MEDIA[n]=((y&&y.media)||[]).slice();});
  var X=function(n){return (r.stu||{})[n]||{};};
  var nm=function(n){return grp?'<div class="psname">'+esc(n)+'</div>':'';};
  var per=function(fn){return ns.length?ns.map(function(n,i){
@@ -2269,7 +2416,7 @@ function fRec(lid,draft){
       +fld('堂數','<input id="rs'+i+'_nth" value="'+esc(x.nth||nthOf(l,n))+'">');}))
  /* 二、訓練主題與核心內容 */
  +recSec('二','訓練主題與核心內容 (Drills)','s2',
-   (pl?'<button type="button" class="btn sec sm prevb" data-act="recPrev" data-id="'+l.id+'" data-from="'+pl.id+'">↺ 帶入上一堂（'+md(pl.date)+'）的主題、菜單、器材和回家功課</button>':'')
+   tplBar(l)+(pl?'<button type="button" class="btn sec sm prevb" data-act="recPrev" data-id="'+l.id+'" data-from="'+pl.id+'">↺ 帶入上一堂（'+md(pl.date)+'）的主題、菜單、器材和回家功課</button>':'')
    +fld('訓練主類別',chips('r_topic',REC_TOPIC,r.topic))
    +fld('專項訓練主題','<input id="r_topicx" value="'+esc(r.topicx||'')+'" placeholder="點下面的選項，或自己打">'+qsel('r_topicx',QP_TOPIC,'list',ord))
    +fld('核心訓練菜單與操作細節 (Drills)',ta('r_menu',r.menu,'點下面的 Drill 會自動編號，也可以補上組數、球數',4)+qsel('r_menu',QP_DRILL,'num',ord))
@@ -2279,7 +2426,8 @@ function fRec(lid,draft){
  +recSec('三','動作診斷與修正處方','s3',per(function(n,i,x){
    return fld('待修正動作細節 / 盲點問題',ta('rs'+i+'_issue',x.issue,'點下面常見的問題，或自己描述',3)+qsel('rs'+i+'_issue',QP_ISSUE,'list',ord))
     +fld('重點修正部位',chips('rs'+i+'_parts',REC_PARTS,x.parts))
-    +fld('教練修正處方 / 提示語 (Coaching Cues)',ta('rs'+i+'_fix',fixV(x),'例如 用前腳踩線練習修正；提示語「肚臍最後才轉」',3));}))
+    +fld('教練修正處方 / 提示語 (Coaching Cues)',ta('rs'+i+'_fix',fixV(x),'例如 用前腳踩線練習修正；提示語「肚臍最後才轉」',3))
+    +fld('動作照片／短影片','<div class="mbox" id="mb'+i+'">'+mbInner(i)+'</div><div class="mini">拍動作前後對比最有用。照片會自動縮小；影片請在 50 MB 以內（大約 20～30 秒）。</div>');}))
  /* 四、球員反饋與教練評量 */
  +recSec('四','球員反饋與教練評量','s4',per(function(n,i,x){
    return fld('球員課堂反饋與自評',ta('rs'+i+'_fb',x.fb,'例如 覺得揮棒比較輕鬆')+qsel('rs'+i+'_fb',QP_FB,'list'))
@@ -2298,6 +2446,7 @@ function fRec(lid,draft){
  openSheet(h);
  var sh=document.getElementById('sheet');sh.dataset.rec='1';REC_DIRTY=!!draft;
  sh.oninput=function(){REC_DIRTY=true;};
+ mbBind();
 }
 function readRecForm(){
  var rec={topic:picked('r_topic'),topicx:val('r_topicx').trim(),menu:val('r_menu').trim(),
@@ -2306,7 +2455,7 @@ function readRecForm(){
   rec.stu[n]={level:picked('rs'+i+'_level')[0]||'',nth:val('rs'+i+'_nth').trim(),
    issue:val('rs'+i+'_issue').trim(),parts:picked('rs'+i+'_parts'),fix:val('rs'+i+'_fix').trim(),cue:'',
    fb:val('rs'+i+'_fb').trim(),cmt:val('rs'+i+'_cmt').trim(),score:picked('rs'+i+'_score')[0]||'',
-   hw:val('rs'+i+'_hw').trim(),freq:val('rs'+i+'_freq').trim(),next:val('rs'+i+'_next').trim()};});
+   hw:val('rs'+i+'_hw').trim(),freq:val('rs'+i+'_freq').trim(),next:val('rs'+i+'_next').trim(),media:(REC_MEDIA[n]||[]).slice()};});
  return rec;
 }
 function recStuSwitch(i){
@@ -2388,6 +2537,7 @@ function recCard(l,name){
   +row('訓練菜單',x.menu||r.menu)+row('器材',gear)+row('待修正問題',x.issue)+row('修正處方',x.fix)+row('教練提示語',x.cue)
   +row('球員反饋',x.fb)+row('教練評語',x.cmt)+row('掌握度',x.score)
   +row('回家功課',x.hw)+row('自主頻率',x.freq)+row('下次銜接',x.next)
+  +((x.media||[]).length?'<div class="mthumbs">'+mThumbs(x.media,-1)+'</div>':'')
   +(l.old?'<div class="mini">從舊的上課紀錄 Excel 匯入（'+esc(x.nth||'')+'），系統裡沒有對應的那堂課。</div>'
    :'<div class="row" style="margin-top:8px"><button class="btn sec sm" data-act="openRec" data-id="'+l.id+'">看全部／修改</button></div>')+'</details>';
 }
@@ -2422,13 +2572,16 @@ function cLesCard(l,showDate){
  var t0=today(),past=l.date<=t0;
  var st=l.status==='請假改期'?'<span class="tag r">待改期</span>'
   :(l.rec?'<span class="tag g">已填・可修改</span>':(past?'<span class="tag r">待填紀錄</span>':'<span class="tag b">'+esc(l.status)+'</span>'));
+ var dn=reqsOf(l.id).some(function(r){return r.type==='done'&&r.st!=='no';});
+ var qd=l.status!=='已排定'?'':(dn?'<span class="tag g">已點名</span>'
+  :(MODE==='coach'&&past?'<button class="btn sm qdone" data-act="qDone" data-id="'+l.id+'">'+svg('check',14)+'有上課</button>':''));
  return '<div class="item'+(l.date===t0?' today':' pl')+'" data-edit="rec" data-id="'+l.id+'"><div class="top"><div>'
  +'<div class="nm">'+(showDate?md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）':'')+esc(l.start)+'–'+esc(l.end)
  +(unitsOf(l)!==1?' <span class="tag t">'+unitsOf(l)+' 堂</span>':'')+'</div>'
  +'<div class="meta">'+((l.students||[]).map(function(n){return esc(n)+stuLeftTag(n);}).join('、')||'未填學員')+'</div>'
  +'<div class="meta">'+esc((l.plan||'').replace(/-套餐|-單堂/,''))+'　'+esc(l.venue||'')+(l.rec?'　'+esc(topicText(l.rec)):'')+'</div>'
  +(cycTags(l).trim()?'<div class="meta" style="margin-top:5px">'+cycTags(l)+'</div>':'')+'</div>'
- +'<div class="acts">'+st+'</div></div></div>';
+ +'<div class="acts">'+st+qd+'</div></div></div>';
 }
 function vCoachLogin(){
  return '<div class="hello"><div><small>港湖特訓班</small><h2>教練登入</h2></div></div>'
@@ -2544,8 +2697,10 @@ function myPayHTML(){
  +((a.ls||[]).length?'<details class="recv" style="margin-top:10px"><summary><div class="l">本期上課明細（'+a.ls.length+' 次）</div></summary>'
    +a.ls.map(function(x){return line(md(x[0])+'（'+DAYN[dowOf(x[0])].slice(1)+'）',esc(x[1]+'–'+x[2])+'　'+esc(x[3])+'　'+x[4]+' 堂　'+money(x[5]));}).join('')+'</details>':'')
  +'<div class="mini">還沒上的課也先算進去了，實際金額以結算日為準。</div>'
+ +'<div class="row" style="margin-top:10px"><button class="btn sec sm" data-act="slipPdf" data-p="'+esc(a.pid)+'">'+svg('les',14)+' 下載薪資單 PDF</button></div>'
  +(rows.length>1?'<div style="border-top:1px solid var(--line);margin-top:10px;padding-top:6px">'+rows.slice(1).map(function(r){
-   return line(esc(r.short),money(r.due)+'　<span class="tag '+(r.po?'g':'r')+'">'+(r.po?(r.po.date?md(r.po.date)+' ':'')+'已匯':'未匯')+'</span>');}).join('')+'</div>':'')
+   return line(esc(r.short),money(r.due)+'　<span class="tag '+(r.po?'g':'r')+'">'+(r.po?(r.po.date?md(r.po.date)+' ':'')+'已匯':'未匯')+'</span>'
+    +' <button class="btn sec sm" data-act="slipPdf" data-p="'+esc(r.pid)+'" style="padding:3px 9px">PDF</button>');}).join('')+'</div>':'')
  +'</div>';
 }
 function calMonOf(ds){var d=pd(ds);d.setDate(d.getDate()-((d.getDay()+6)%7));return ymd(d);}
@@ -2633,6 +2788,7 @@ function vCoachMe(){
  +'<div class="card"><div class="row" style="justify-content:space-between"><span class="mini" style="margin:0">'+(LASTSYNC?'上次同步 '+LASTSYNC:'還沒同步')+'</span>'
  +'<button class="btn sec sm" data-act="syncNow">立即同步</button></div>'
  +'<div class="mini">上完課在「今天」點那一堂就能填紀錄，存檔後會自動同步。</div></div>'
+ +tplListHTML()+calHTML()
  +'<div class="card"><b>放到手機桌面</b><div class="mini" style="margin-top:4px">iPhone：用 Safari 打開這一頁，按下方「分享」→「加入主畫面」。Android：Chrome 右上角選單 →「加到主畫面」。之後就像 App 一樣從桌面打開。</div></div>'
  +'<div class="mini" style="text-align:center;margin:18px 0 4px">港湖特訓班教練端　版本 '+APPVER+'</div>';
 }
@@ -4037,6 +4193,7 @@ function testSection(name){
      return '<tr><td>'+esc(tShort(f))+'</td><td>'+esc(a)+'</td><td>'+esc(b)+'</td><td>'+tDelta(f,a,b)+'</td></tr>';}).join('')+'</table>'
     +(keys.length>8?'<div class="mini">只列前 8 項，完整對比在成長報告 PDF。</div>':'')
    :'<div class="mini" style="margin:0 0 6px">目前只有一次檢測，做完後測就會出現前後對比。</div>')
+  +trendBlock(name)
   +ts.slice().reverse().map(function(t){
     var sm=TKEY.filter(function(k){return tVal(t,k)!=='';}).slice(0,3).map(function(k){var f=TF.filter(function(x){return x[0]===k;})[0];return tShort(f)+' '+tVal(t,k)+(f[5]&&isFinite(parseFloat(tVal(t,k)))?' '+f[5]:'');}).join('　');
     return '<div class="buy" data-act="openTest" data-sid="'+s.id+'" data-tid="'+t.id+'"><div><div class="l"><span class="tag '+(t.kind==='後測'?'g':(t.kind==='前測'?'b':''))+'">'+esc(t.kind)+'</span> '+t.date.replace(/-/g,'/')+(t.nth?'　'+esc(t.nth):'')+'</div>'
@@ -4072,13 +4229,14 @@ function rpHTML(s,base,post){
  +'<div class="rp-q">「每一天始終如一，帶著同樣的努力與熱情」</div></div>'
  +'<h2 class="rp-h">一、前後測數據對比</h2>'
  +(cmp||'<p class="rp-none">這期還沒有檢測數據。</p>')
+ +(ts.length>=3&&trendHTML(name,6)?'<div class="rp-g"><div class="rp-gt">歷次檢測趨勢</div>'+trendHTML(name,6)+'</div>':'')
  +'<h2 class="rp-h">二、課堂訓練紀錄</h2>'
  +(ls.length?ls.map(function(l){var r=l.rec||{},x=(r.stu||{})[name]||{};
    var fix=[(x.parts||[]).length?'重點部位：'+x.parts.join('、'):'',x.fix||'',x.cue||''].filter(Boolean).join('\n');
    var hw=[x.hw,x.freq?'頻率：'+x.freq:''].filter(Boolean).join('\n');
    return '<div class="rp-les"><div class="rp-lh"><b>'+esc(x.nth||nthOf(l,name))+'</b>　'+l.date.replace(/-/g,'/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）　'+esc(l.coach)+' 教練</div>'
     +(l.rec?'<table class="rp-t3">'+row('今日訓練主題',[topicText(r)].filter(Boolean).join(''))+row('專項技術鑽研',x.menu||r.menu)
-     +row('教練觀測與修正',fix)+row('課後自主作業',hw)+row('下堂課觀察重點',x.next)+'</table>'
+     +row('教練觀測與修正',fix)+row('課後自主作業',hw)+row('下堂課觀察重點',x.next)+'</table>'+rpPhotos(x)
      :'<div class="rp-none">這堂沒有填寫紀錄</div>')+'</div>';}).join('')
    :'<p class="rp-none">這段期間還沒有上課紀錄。</p>')
  +'<h2 class="rp-h">三、階段性成效總結與未來規劃</h2><table class="rp-t3">'
@@ -4660,6 +4818,29 @@ function bind(){
    if(a==='openRec')return fRec(id);
    if(a==='saveRec')return saveRec(id);
    if(a==='recStu')return recStuSwitch(+b.dataset.i);
+   if(a==='qDone'){var lq=byId(DB.lessons,id);if(!lq)return;if(lq.date>today())return alert('日期還沒到，上完課再點');
+    makeReq(lq,'done');persist();render();toast('已點名：'+((lq.students||[]).join('、')||'這堂')+' 有上課');return;}
+   if(a==='tplUse'){var lu=byId(DB.lessons,id),tp=cdRow(b.dataset.t);if(!lu||!tp)return;
+    var du=readRecForm(),fl=du.topic.length||du.topicx||du.menu||du.gear.length;
+    if(fl&&!confirm('用「'+tp.name+'」覆蓋這堂的主題、菜單和器材？'))return;
+    du.topic=(tp.topic||[]).slice();du.topicx=tp.topicx||'';du.menu=tp.menu||'';du.gear=(tp.gear||[]).slice();du.gearx=tp.gearx||'';
+    REC_NS.forEach(function(n){if(!du.stu[n].hw)du.stu[n].hw=tp.hw||'';if(!du.stu[n].freq)du.stu[n].freq=tp.freq||'';});
+    var kp=REC_CUR;fRec(lu.id,du);recStuSwitch(Math.min(kp,REC_NS.length-1));REC_DIRTY=true;toast('已帶入「'+tp.name+'」，改一改就好');return;}
+   if(a==='tplSave'){var lsv=byId(DB.lessons,id);if(!lsv)return;
+    var dsv=readRecForm(),csv=REC_NS[REC_CUR],xsv=(csv&&dsv.stu[csv])||{};
+    if(!(dsv.topic.length||dsv.topicx||dsv.menu||dsv.gear.length||xsv.hw))return alert('先填主題、菜單、器材或回家功課，再存成常用菜單');
+    var nmT=prompt('幫這組菜單取個名字（例如：U10 下盤穩定）',dsv.topicx||dsv.topic.join('、'));if(!nmT||!nmT.trim())return;nmT=nmT.trim().slice(0,30);
+    var ow=tplOwner(lsv),ex=tplsOf(ow).filter(function(t){return t.name===nmT;})[0];
+    if(ex&&!confirm('已經有「'+nmT+'」了，要用這次的內容覆蓋嗎？'))return;
+    cdPut(ex?ex.id:'tpl:'+uid(),{k:'tpl',coach:ow,name:nmT,topic:dsv.topic,topicx:dsv.topicx,menu:dsv.menu,gear:dsv.gear,gearx:dsv.gearx,hw:xsv.hw||'',freq:xsv.freq||'',at:Date.now()});
+    persist();var tbar=document.getElementById('tplbar');if(tbar){tbar.outerHTML=tplBar(lsv);bind();}toast('已存成常用菜單「'+nmT+'」');return;}
+   if(a==='tplDel'){var tdl=cdRow(b.dataset.t);if(!tdl||!confirm('刪除常用菜單「'+tdl.name+'」？'))return;cdDel(tdl.id);persist();render();toast('已刪除');return;}
+   if(a==='mDel'){var mi=+b.dataset.i,mn=REC_NS[mi];if(!confirm('把這個照片／影片從紀錄拿掉？'))return;
+    REC_MEDIA[mn]=(REC_MEDIA[mn]||[]).filter(function(m){return m.p!==b.dataset.p;});REC_DIRTY=true;mbRefresh(mi);return;}
+   if(a==='slipPdf'){var srs=MODE==='coach'?payRowsFromSummary():((buildSummary()['pay:'+ME]||{}).rows||[]);
+    return slipPdf(ME,srs.filter(function(r){return String(r.pid)===b.dataset.p;})[0]);}
+   if(a==='slipAdm')return slipPdf(b.dataset.t,payRowOf(b.dataset.p,b.dataset.t));
+   if(a==='calCopy'){copyText(calURL(ME),function(ok){toast(ok?'網址已複製':'複製失敗，請長按選取');});return;}
    if(a==='reqOk'||a==='reqNo'){var rq=cdRow(id);if(!rq)return;applyReq(rq,a==='reqOk');persist();render();toast(a==='reqOk'?'已同意，課表已更新':'已退回');return;}
    if(a==='reqAll'){var pr=pendReqs();if(!confirm('全部同意這 '+pr.length+' 筆申請？'))return;pr.forEach(function(r){applyReq(r,true);});persist();render();toast('已全部同意');return;}
    if(a==='setAddC'){readSettingsForm();SETX.coaches.push('新教練');return render();}
