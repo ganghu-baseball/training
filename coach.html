@@ -453,7 +453,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.20f';
+var APPVER='2026.11.20g';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -2389,7 +2389,9 @@ function mbBind(){document.querySelectorAll('#sheet input[data-mi]').forEach(fun
   var lab='上傳中'+(fs.length>1?' '+(k+1)+'/'+fs.length:'');mbRefresh(i,lab);MB_BUSY++;
   upMedia(fs[k],REC_LID,n,function(pc){var mu=document.querySelector('#mb'+i+' .mup');if(mu)mu.innerHTML=lab+'<br>'+Math.floor(pc*100)+'%';})
    .then(function(m){MB_BUSY--;REC_MEDIA[n]=(REC_MEDIA[n]||[]).concat([m]);REC_DIRTY=true;k++;next();})
-   .catch(function(e){MB_BUSY--;mbRefresh(i);alert(String(e.message||e));});};
+   .catch(function(e){MB_BUSY--;mbRefresh(i);var em=String(e.message||e);
+    if(/load failed|failed to fetch|networkerror|network request failed/i.test(em))em='上傳失敗：連不上雲端硬碟的程式。\n可能是網路不穩，或雲端程式的授權還沒完成。請稍後再試一次，還是不行請找建廷。';
+    alert(em);});};
  next();};});}
 function rpPhotos(x){var ph=(x.media||[]).filter(function(m){return m.t==='i';}).slice(0,3);
  return ph.length?'<div class="rp-ph">'+ph.map(function(m){return m.d?'<img src="'+mThumb(m,800)+'" data-d="'+esc(m.d)+'" referrerpolicy="no-referrer" alt="">'
