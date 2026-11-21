@@ -419,6 +419,21 @@ a.btn{text-decoration:none}
 .slipd{width:100%;border-collapse:collapse}.slipd th{background:#EDEAE0;color:#37525F;font-size:11px;padding:5px 6px;text-align:left}
 .slipd td{border-bottom:1px solid #EEE9DD;padding:6px;font-size:12px;text-align:left}.slipd .n{text-align:right}
 .slipd tr.tot td{font-weight:800;font-size:14px;color:#A8490A;border-top:2px solid #FE7F2D;border-bottom:0}
+.cmsum{background:var(--paper);border-radius:12px;padding:10px 12px;margin-bottom:4px}
+.cmbar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--line2)}.cmbar i{display:block;height:100%}
+.cmbar i.g{background:var(--green)}.cmbar i.n{background:#B8C2C8}.cmbar i.r{background:var(--red)}
+.cmtxt{font-size:14px;margin-top:8px;font-weight:700;color:var(--ink2)}.cmtxt b{font-weight:800;margin-right:2px}
+.cmtxt b.g,.cmg.g{color:var(--green)}.cmtxt b.r,.cmg.r{color:var(--red)}.cmtxt b.n,.cmg.n{color:var(--muted)}
+.cmg{font-size:13px;font-weight:800;margin:14px 2px 6px}
+.cmr{border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:8px 11px;margin-bottom:6px;background:#fff}
+.cmr.g{border-left-color:var(--green)}.cmr.r{border-left-color:var(--red)}.cmr{border-left-color:#C9D1D6}
+.cmh{display:flex;justify-content:space-between;align-items:center;gap:8px}.cmh b{font-size:14.5px;font-weight:800}
+.cmv{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:2px;font-size:14px;color:var(--ink2)}
+.cmv b{font-size:16px;color:var(--ink)}.cmv em{font-style:normal;font-size:12.5px;color:var(--muted);font-weight:700;white-space:nowrap}
+.tag.n{background:#EEF1F3;color:#56666F}
+.trd{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.trd>summary{cursor:pointer;font-size:14px;font-weight:800;color:var(--or-d);list-style:none}
+.trd>summary::-webkit-details-marker{display:none}.trd>summary::before{content:'▸ '}.trd[open]>summary::before{content:'▾ '}
+.trd .trg{margin-top:10px}
 .kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px}
 .kpis>div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .kpis small{display:block;font-size:12px;color:var(--muted);font-weight:700}
@@ -497,7 +512,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.21d';
+var APPVER='2026.11.21e';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -2174,38 +2189,41 @@ function topicText(r){return ((r&&r.topic)||[]).concat(r&&r.topicx?[r.topicx]:[]
 /* ---- 分類快捷選單（點分類 → 下拉選單選項目，選了就帶進欄位） ----
    來源：打擊顧問課 Drill 01–24、投球課表（Driveline）、各教練在舊上課紀錄 Excel 常寫的練法 */
 var QP_TOPIC=[
- ['打擊',['揮棒機制','髖蓄力（髖內旋）','髖屈','後腳外扭','前腳回拉／煞車','肩髖分離','手臂拖延','擊球延伸','攻擊角度／仰角','揮棒軌跡','擊球時機','內外角擊球分區','揮棒決策／選球','揮棒速度','重心維持']],
- ['投球',['投球機制','下盤發力','軸心腳穩定','重心轉移','前腳煞車','肩髖分離','投球手臂路徑','前導手控制','出手點','放球方向／控球','揮臂速度','投球節奏','動力鏈傳導']],
- ['捕手',['捕手接球 framing','接球穩定性','阻殺','接拿轉換','擋球','捕手蹲姿','阻殺腳步']],
- ['守備',['守備腳步','滾地球','彈跳球','正反手接球','傳球準度','墊步傳球','一壘接球']],
- ['體能',['旋轉爆發力','核心穩定','核心抗旋轉','下肢肌力','單側穩定','敏捷反應','關節活動度','全身協調']]];
+ ['打擊',['揮棒機制','髖蓄力（髖內旋）','髖屈','後腳外扭','前腳回拉／煞車','肩髖分離','手臂拖延','擊球延伸','攻擊角度／仰角','揮棒軌跡','擊球時機','內外角擊球分區','揮棒決策／選球','揮棒速度','揮棒發力優化','重心維持']],
+ ['投球',['投球機制','下盤發力','下半身蓄力','軸心腳穩定','重心轉移','前腳煞車','肩髖分離','投球手臂路徑','前導手控制','出手點','出手角度調整','放球方向／控球','揮臂速度','投球節奏','動力鏈傳導','投打下盤運用']],
+ ['捕手',['捕手接球 framing（偷好球）','接球穩定性','接球角度','阻殺','接拿轉換','擋球','捕手蹲姿','阻殺腳步']],
+ ['守備',['守備腳步','滾地球','彈跳球','正反手接球','傳球準度','墊步傳球','一壘接球','外野回傳']],
+ ['體能',['旋轉爆發力','核心穩定','核心抗旋轉','下肢肌力','單側穩定','敏捷反應','手眼協調','關節活動度','全身協調','全身性發展']]];
 var QP_DRILL=[
- ['打擊',['T座打擊','正面拋打','側面拋打','Long Tee','發球機打擊','實戰投打','Stop Drills','Hockey Drills','Step Back Drills','Replay Swing','No Stride 打擊','坐姿打擊','單手揮棒','短棒打擊','飛盤打擊','水管揮棒','面對擋網揮棒','內外角 T 座分區打擊','多色球辨識打擊','數字球判斷打擊','Blast Motion 指定仰角','彈力帶限制重心揮棒','Bosu 落下揮棒','慢動作影片分析']],
+ ['打擊',['T座打擊','T座快打（連續打擊）','正面拋打','側面拋打','長距離 T 座打擊（Long Tee）','發球機打擊','實戰投打','止棒練習（Stop Drills）','坐姿雙手止棒','曲棍球式揮棒（Hockey Drills）','後撤步打擊（Step Back Drills）','重複揮棒（Replay Swing）','不跨步打擊（No Stride）','後交叉墊步揮棒','身體留在球後面揮棒（Behind the Ball）','坐姿打擊','坐姿單手揮棒','單膝跪姿單手揮棒','單手揮棒','短棒打擊','飛盤打擊','水管揮棒','面對擋網揮棒','內外角 T 座分區打擊','多色球辨識打擊','數字球判斷打擊','兩塊本壘板打擊（2 Plate）','揮棒感測器指定仰角（Blast Motion）','彈力帶限制重心揮棒','半圓平衡球落下揮棒（Bosu）','慢動作影片分析']],
  ['打擊 Drill',['Drill 01 坐姿夾球感受髖內旋','Drill 02 彈力繩感受髖蓄力','Drill 03 藥球側拋（髖蓄力接前腳煞車）','Drill 04 水球從肩甩到後髖停 2 秒','Drill 05 跳箱落下穩住 2 秒','Drill 06 原地墊腳小跳步穩 2 秒','Drill 07 落下穩住後想像打擊＋目標','Drill 08 跳十字最後一下穩 2 秒','Drill 09 帶回打擊（落下或跳十字後揮棒）','Drill 10 短棒打低球逼出髖屈','Drill 11 小槓片外扭','Drill 12 前腳上椅只剩後腳能轉','Drill 13 木桿夾肘拋打','Drill 14 彈力繩外撐／外扭','Drill 15 後腳抬高前腳當柱子','Drill 16 欄架前跳兩步踩進去','Drill 17 開放 45 度打擊','Drill 18 仰臥胸口旋轉','Drill 19 45° 擋網限制打擊','Drill 20 彈力繩等長＋隨機敲繩','Drill 21 前方目標桿延伸','Drill 22 仰角目標遊戲','Drill 23 兩塊本壘板','Drill 24 次要任務與顏色球']],
- ['投球',['藥球側拋','藥球正面三段式投擲','藥球上肩投擲','藥球下砸','沙球投準（夾瑜珈球）','沙球 8 字繞臂','反向沙球投擲','墊步投球','坐姿投球','跪姿揮臂','兩段式投球','後撤投球（Step Back）','外野回傳投擲','助跑投擲','牛棚投球','彈力帶阻力投球','軸心腳後勾投擲','水袋旋轉','Reverse Throws','Pivot Picks','Roll-ins','Rocker Throws','Walking Windups','長傳 Long Toss','錄影動作解析']],
- ['捕手',['捕手 framing（紅中／內外角高低）','捕手加重棒接球','小手套小球接球','滾地球 framing','單膝跪 framing','阻殺短拿出手','藥球阻殺起身','彈力帶阻殺','阻殺腳步','接拿轉換','擋球練習','慢動作錄影接球']],
- ['守備',['滾地球側向移動','正反手接球轉換','彈跳球墊步','內野三步跳','滾地球腳步','一壘彈地接球','傳球準度練習','後側步接投球']],
- ['體能',['藥球爆發投擲','單腳 RDL','彈力帶肌力','水袋單側穩定','小欄架跳躍','短距離折返跑','敏捷梯','平板支撐','徒手深蹲','RDL 外旋下砸']]];
+ ['投球',['藥球側拋','藥球正面三段式投擲','藥球上肩投擲','藥球下砸','藥球助跑投擲','沙球投準（夾瑜珈球）','沙球 8 字繞臂','八字繞臂丟球','反向沙球投擲','墊步投球','坐姿投球','跪姿揮臂','跪姿投球動作','兩段式投球','後撤投球（Step Back）','固定出手腳步前進丟球','軸心腳頂球（球不能掉）','軸心腳後勾投擲','外野回傳投擲','助跑投擲','牛棚投球','彈力帶阻力投球','水袋旋轉','反向投擲（Reverse Throws）','軸心轉身投擲（Pivot Picks）','滾動起步投擲（Roll-ins）','前後搖擺投擲（Rocker Throws）','走動式投球（Walking Windups）','長傳（Long Toss）','錄影動作解析']],
+ ['捕手',['偷好球練習（framing：紅中／內外角高低）','滾地球偷好球（framing）','單膝跪偷好球（framing）','接球延伸方向訓練','連續 10 顆穩定接球','捕手加重棒接球','小手套小球接球','投手加重球短拿出手','阻殺短拿出手','藥球阻殺起身','彈力帶阻殺','阻殺腳步','接拿轉換','擋球練習','慢動作錄影接球']],
+ ['守備',['滾地球側向移動','正手接球','反手接球','正反手接球轉換','彈跳球墊步','內野三步跳','滾地球腳步','左右兩側來球移動','一壘彈地接球','傳球準度練習','後側步接投球','教練拋滾地球','輕打慢速滾地球']],
+ ['傳接球',['排隊輪流跟教練互傳','兩人一組傳接球','短距離快速傳接','長傳']],
+ ['體能',['藥球爆發投擲','單腳 RDL（單腳羅馬尼亞硬舉）','RDL 外旋下砸','單側划船','彈力帶肌力','水袋單側穩定','小欄架跳躍','短距離折返跑','敏捷梯','平板支撐','徒手深蹲']]];
 var QP_ISSUE=[
- ['打擊',['前肩太早打開','手肘內夾','揮棒軌跡過大／倒棒','攻擊角度過高','攻擊角度過低','下肢旋轉不完整','手部太早啟動','重心前衝','前腳踩開／落地位置不穩','前腳煞車不足','身體過於直立','頭部晃動','啟動時機太晚','內角球處理不佳','外角球用手碰']],
- ['投球',['軸心腳不穩','下盤沒有發力','用推的投球','手肘角度過低','揮臂過長','前腳煞車不足','前肩太早打開','前導手不穩','出手點不穩定','重心太早往前','跨步太小','太依賴上半身']],
- ['捕手',['framing 角度太高','接球由上往下','接球點離身體太遠','阻殺繞臂太大','蓄力時重心前飄','腳步重心前衝']],
+ ['打擊',['前肩太早打開','手肘內夾','揮棒軌跡過大／倒棒','攻擊角度過高','攻擊角度過低','揮棒角度不穩定','下肢旋轉不完整','擊球時下肢還沒轉完','手部太早啟動','手部過於伸直','缺乏鞭甩感','重心前衝','前腳踩開／落地位置不穩','前腳煞車不足','身體過於直立','頭部晃動','啟動時機太晚','內角球處理不佳','外角球用手碰']],
+ ['投球',['軸心腳不穩','軸心腳蓄力不足','下盤沒有發力','下半身力量沒有傳到上半身','用推的投球','手肘角度過低','揮臂過長','前腳煞車不足','前肩太早打開','前導手位置不穩','手套上移的時機與速度','肩關節活動度受限','出手點不穩定','重心太早往前','跨步太小','太依賴上半身']],
+ ['捕手',['偷好球（framing）角度太高','接球由上往下','接球點離身體太遠','阻殺繞臂太大','蓄力時重心前飄','腳步重心前衝']],
  ['守備',['重心太高','腳步停滯','接球手套往上拉','墊步方向不對','接球不確實']],
- ['共通',['協調性待加強','專注度不足','肌力不足','動作還不穩定']]];
+ ['共通',['整體動作不穩定','整體動作不協調','肢段協調待修正','協調性待加強','專注度不足','肌力不足']]];
 var QP_HW=[
- ['打擊',['空揮練習','高抬腿棒尾碰膝打擊','啞鈴揮棒','坐姿夾滾筒（髖內旋）','彈力帶限制揮棒','襪子球打擊','內外角 Stop Swing','Replay Swing']],
- ['投球',['沙球投擲','橡皮操','彈力帶手臂肌群','毛巾投球空揮','投球分期拆解練習','躺姿出手練習']],
- ['捕手',['小手套小球接球','捕手蹲姿','阻殺腳步空練']],
- ['體能',['徒手深蹲','伏地挺身','平板支撐','仰臥起坐','俄羅斯轉體','單腳 RDL','弓箭步分腿蹲','跳繩','引體向上','單腳側跳']],
+ ['打擊',['空揮練習','高抬腿棒尾碰膝打擊','啞鈴揮棒','坐姿夾滾筒（髖內旋）','彈力帶限制揮棒','襪子球打擊','內外角止棒（Stop Swing）','重複揮棒（Replay Swing）']],
+ ['投球',['沙球投擲','八字繞臂丟球','固定出手腳步前進丟球','軸心腳頂球（球不能掉）','跪姿投球動作','橡皮操','彈力帶手臂肌群','毛巾投球空揮','投球分期拆解練習','躺姿出手練習']],
+ ['捕手',['小手套小球接球','襪子球後手抓球','接球延伸方向訓練','連續 10 顆穩定接球','捕手蹲姿','阻殺腳步空練']],
+ ['體能',['彈力繩硬舉','彈力繩背肌（划船）','彈力繩臥推','單側划船','徒手深蹲','伏地挺身','平板支撐','仰臥起坐','俄羅斯轉體','單腳 RDL（單腳羅馬尼亞硬舉）','弓箭步分腿蹲','跳繩','引體向上','單腳側跳']],
  ['共通',['複習今天練習項目','伸展（活動度）']]];
-var QP_NEXT=[['銜接',['觀察上述動作是否修正','複習今天內容','加入發球機','進入實戰投打','增加難度','檢查回家功課','補測數據','開始新主題']]];
-var QP_FB=[['反饋',['有感覺到差異','覺得比較輕鬆','比較有力','還在適應','身體疲累','覺得有點難','很開心']]];
+var QP_NEXT=[['銜接',['觀察上述動作是否修正','確認蓄力方式有無進步','接球角度及穩定性','再確認手肘位置','擊球時下肢旋轉完整度','手部延展','目標控制','複習今天內容','加入發球機','進入實戰投打','增加難度','檢查回家功課','補測數據','開始新主題']]];
+var QP_FB=[['反饋',['有感覺到差異','有抓到感覺，要再練習','覺得比較輕鬆','比較有力','練完感覺更穩定','還在適應','覺得有點難','身體疲累','發現手部不穩','很開心']]];
 var QP_GEAR=[
- ['打擊',['打擊座（T座）','拋球','發球機','擊球網','短棒','加重棒','水管／PVC','飛盤','軟球／襪子球','數字球／顏色球','擋網']],
- ['投球',['沙球','藥球','九宮格','瑜伽球','輕量球','重量球','火箭輔助球']],
+ ['打擊',['球棒','打擊座（T座）','拋球','發球機','擊球網','短棒','加重棒','水管／PVC','飛盤','軟球／襪子球','數字球／顏色球','兩三塊本壘板','擋網']],
+ ['投球',['沙球','藥球','九宮格','瑜伽球','輕量球','重量球','投手加重球','火箭輔助球']],
  ['捕手',['捕手訓練棒','捕手小手套','小球']],
- ['體能',['彈力帶','水袋','Bosu 球','平衡墊','角錐','敏捷梯','小欄架','跳箱','椅子／板凳','小槓片']],
- ['數據',['測速槍','Blast Motion','錄影／慢動作']]];
+ ['體能',['彈力帶','水袋','半圓平衡球（Bosu）','平衡墊','角錐','敏捷梯','小欄架','跳箱','椅子／板凳','小槓片']],
+ ['數據',['測速槍','揮棒感測器（Blast Motion）','錄影／慢動作']]];
+/* 器材改過名字的：舊紀錄打開時換成新名字（勾選狀態不會不見） */
+var GEAR_ALIAS={'Blast Motion':'揮棒感測器（Blast Motion）','blast motion':'揮棒感測器（Blast Motion）','Bosu 球':'半圓平衡球（Bosu）'};
 /* 依這堂勾的主類別，把相關分類排前面 */
 function qpOrder(cats,ord){
  ord=(ord||[]).map(function(t){return t==='肌力體能'?'體能':t;});
@@ -2215,11 +2233,11 @@ function qpOrder(cats,ord){
 function qsel(id,cats,mode,ord){
  return '<div class="qsel">'+qpOrder(cats,ord).map(function(c){
   return '<span class="qsw"><select class="qs" data-to="'+id+'" data-m="'+mode+'"><option value="">'+esc(c[0])+'</option>'
-   +c[1].map(function(v){return '<option>'+esc(v)+'</option>';}).join('')+'</select></span>';}).join('')+'</div>';
+   +c[1].map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('')+'</select></span>';}).join('')+'</div>';
 }
 /* 器材：分類收合，點開來勾 */
 function gearAcc(id,sel,ord){
- sel=sel||[];var all=[];QP_GEAR.forEach(function(c){all=all.concat(c[1]);});
+ sel=(sel||[]).map(function(v){return GEAR_ALIAS[v]||v;}).filter(function(v,i,a){return a.indexOf(v)===i;});var all=[];QP_GEAR.forEach(function(c){all=all.concat(c[1]);});
  var cats=qpOrder(QP_GEAR,ord);var extra=sel.filter(function(v){return all.indexOf(v)<0;});
  if(extra.length)cats=cats.concat([['其他',extra]]);
  return '<div class="picks gaccs" id="'+id+'">'+cats.map(function(c){
@@ -2228,13 +2246,27 @@ function gearAcc(id,sel,ord){
    +c[1].map(function(v){return '<button type="button" class="pick'+(sel.indexOf(v)>=0?' on':'')+'" data-v="'+esc(v)+'">'+esc(v)+'</button>';}).join('')
    +'</div></details>';}).join('')+'</div>';
 }
+/* 快捷選單：沒有就加進去；已經有（同一項）就拿掉，編號自動重排 */
+function qpItems(txt,mode){return mode==='num'?txt.split('\n').map(function(x){return x.replace(/^\s*\d+[\.、\)）]\s*/,'').trim();})
+ :txt.split('、').map(function(x){return x.trim();});}
+function qpHas(tg,v,mode){return qpItems(tg.value||'',mode).indexOf(v)>=0;}
 function qpAppend(tg,v,mode){
  var cur=tg.value.replace(/\s+$/,'');
- if(cur.indexOf(v)>=0){toast('已經有「'+v+'」了');return;}
+ if(qpHas(tg,v,mode)){
+  if(mode==='num'){var k=0;tg.value=cur.split('\n').filter(function(x){return x.replace(/^\s*\d+[\.、\)）]\s*/,'').trim()!==v;})
+    .map(function(x){return /^\s*\d+[\.、\)）]\s*/.test(x)?(++k)+'. '+x.replace(/^\s*\d+[\.、\)）]\s*/,''):x;}).join('\n');}
+  else tg.value=cur.split('、').filter(function(x){return x.trim()!==v;}).join('、');
+  REC_DIRTY=true;toast('已拿掉「'+v+'」');return;}
+ if(cur.indexOf(v)>=0){toast('「'+v+'」在你打的句子裡，要拿掉請直接在框裡刪');return;}
  if(mode==='num'){var n=cur?cur.split('\n').filter(function(x){return x.trim();}).length:0;tg.value=(cur?cur+'\n':'')+(n+1)+'. '+v;}
  else tg.value=cur?cur+'、'+v:v;
  REC_DIRTY=true;
 }
+/* 打開下拉選單前，把已經選的項目前面打 ✓ */
+function qsMark(q){var tg=document.getElementById(q.dataset.to);if(!tg)return;
+ [].forEach.call(q.options,function(o){if(!o.value)return;var on=qpHas(tg,o.value,q.dataset.m);o.textContent=(on?'✓ ':'')+o.value;});}
+['focusin','mousedown','touchstart'].forEach(function(ev){document.addEventListener(ev,function(e){
+ var q=e.target&&e.target.closest&&e.target.closest('select.qs');if(q)qsMark(q);},true);});
 /* 帶入上一堂：同一位學員上一次有填的紀錄 */
 function prevRec(l,name){
  return lessonsOf(name).filter(function(x){return x.rec&&(x.date+x.start)<(l.date+l.start)&&(x.rec.stu||{})[name];}).pop()||null;
@@ -2609,6 +2641,33 @@ function trendHTML(name,max){
  return '<div class="trg">'+fs.map(function(f){
    var pts=ts.filter(function(t){return num(t,f[0])!==null;}).map(function(t){return {d:t.date,v:num(t,f[0])};}),a=pts[0],z=pts[pts.length-1];
    return '<div class="trc"><div class="trh"><b>'+esc(tShort(f))+'</b><span>'+tDelta(f,String(a.v),String(z.v))+'</span></div>'+trSVG(pts,f)+'</div>';}).join('')+'</div>';}
+/* 前後測對照：分成「進步了／持平／要加強」三組，每項一張小卡（不用往右滑） */
+function cmpList(a,z){
+ var rows=TF.filter(function(f){return (f[3]==='n'||f[3]==='nt')&&tVal(a,f[0])!==''&&tVal(z,f[0])!=='';}).map(function(f){
+  var x=parseFloat(tVal(a,f[0])),y=parseFloat(tVal(z,f[0])),st=tStat(f,tVal(a,f[0]),tVal(z,f[0]));
+  var pct=isFinite(x)&&isFinite(y)&&x?(y-x)/Math.abs(x)*100:null;
+  var gain=pct===null?0:(f[6]==='-'?-pct:pct);
+  return {f:f,a:tVal(a,f[0]),z:tVal(z,f[0]),st:st,pct:pct,gain:gain};});
+ if(!rows.length)return '<div class="mini">兩次檢測沒有共同的數字項目可以比較。</div>';
+ var pri=function(r){var i=TKEY.indexOf(r.f[0]);return i<0?99:i;};   // 球速、揮棒、擊球初速、跳遠、藥球、衝刺先排
+ var up=rows.filter(function(r){return r.st&&r.st.k==='g';}).sort(function(x,y){return pri(x)-pri(y)||y.gain-x.gain;});
+ var dn=rows.filter(function(r){return r.st&&r.st.k==='r';}).sort(function(x,y){return pri(x)-pri(y)||x.gain-y.gain;});
+ var fl=rows.filter(function(r){return up.indexOf(r)<0&&dn.indexOf(r)<0;}).sort(function(x,y){return pri(x)-pri(y);});
+ var unit=function(f,v){return isFinite(parseFloat(v))&&f[5]&&f[5].charAt(0)!=='/'?' '+f[5]:(isFinite(parseFloat(v))&&f[5]?f[5]:'');};
+ var pc=function(r){return r.pct===null?'':'（'+(r.pct>0?'+':'')+Math.round(r.pct*10)/10+'%）';};
+ var card=function(r,k){var tg=k==='g'?'<span class="tag g">↑ 進步</span>':(k==='r'?'<span class="tag r">↓ 退步</span>':(r.st&&r.st.k==='b'?'<span class="tag b">↕ 變化</span>':'<span class="tag n">— 持平</span>'));
+  return '<div class="cmr '+k+'"><div class="cmh"><b>'+esc(tShort(r.f))+'</b>'+tg+'</div>'
+   +'<div class="cmv"><span>'+esc(r.a)+' → <b>'+esc(r.z)+'</b>'+esc(unit(r.f,r.z))+'</span>'
+   +(r.st&&(r.st.d||r.st.k==='b')?'<em>'+esc(r.st.d||r.st.t)+pc(r)+'</em>':'')+'</div></div>';};
+ var grp=function(t,cls,list,k){return list.length?'<div class="cmg '+cls+'">'+t+'（'+list.length+'）</div>'+list.map(function(r){return card(r,k);}).join(''):'';};
+ var n=rows.length,w=function(x){return Math.round(x/n*1000)/10;};
+ return '<div class="cmsum"><div class="cmbar"><i class="g" style="width:'+w(up.length)+'%"></i><i class="n" style="width:'+w(fl.length)+'%"></i><i class="r" style="width:'+w(dn.length)+'%"></i></div>'
+  +'<div class="cmtxt">'+n+' 項裡　<b class="g">↑ '+up.length+' 進步</b>　<b class="n">— '+fl.length+' 持平</b>　<b class="r">↓ '+dn.length+' 退步</b></div>'
+  +'<div class="mini" style="margin:2px 0 0">'+esc(a.kind)+' '+md(a.date)+' → '+esc(z.kind)+' '+md(z.date)+'。變化小於 3% 算持平（測量本身有誤差）。</div></div>'
+  +grp('進步了','g',up,'g')+grp('持平','n',fl,'')+grp('要加強','r',dn,'r');
+}
+function trendFold(name,n){var h=trendHTML(name,24);
+ return h?'<details class="trd"'+(n>=3?' open':'')+'><summary>看每一項的折線圖</summary>'+h+'</details>':'';}
 function trendBlock(name){var h=trendHTML(name,6);
  return h?'<div style="margin:14px 0 6px;font-size:13px;font-weight:800;color:var(--ink2)">成長趨勢（第一次 → 最近一次）</div>'+h:'';}
 
@@ -2699,6 +2758,7 @@ function fRec(lid,draft){
  /* 二、訓練主題與核心內容 */
  +recSec('二','訓練主題與核心內容 (Drills)','s2',
    tplBar(l)+(pl?'<button type="button" class="btn sec sm prevb" data-act="recPrev" data-id="'+l.id+'" data-from="'+pl.id+'">↺ 帶入上一堂（'+md(pl.date)+'）的主題、菜單、器材和回家功課</button>':'')
+   +'<div class="mini" style="margin:0 0 4px">下拉選單選錯了，<b>再選一次同一項就會拿掉</b>；已經選的項目前面有 ✓。按鈕類的再按一下也會取消。</div>'
    +fld('訓練主類別',chips('r_topic',REC_TOPIC,r.topic))
    +fld('專項訓練主題','<input id="r_topicx" value="'+esc(r.topicx||'')+'" placeholder="點下面的選項，或自己打">'+qsel('r_topicx',QP_TOPIC,'list',ord))
    +fld('核心訓練菜單與操作細節 (Drills)',ta('r_menu',r.menu,'點下面的 Drill 會自動編號，也可以補上組數、球數',4)+qsel('r_menu',QP_DRILL,'num',ord))
@@ -3111,12 +3171,7 @@ function progHTML(s){
    +(cells.length?'<div class="bgrid">'+cells.map(function(f){var v=tVal(t1,f[0]),isN=isFinite(parseFloat(v));
      return '<div><small>'+esc(tShort(f))+'</small><b>'+esc(v)+(isN&&f[5]&&f[5].charAt(0)!=='/'?'<i>'+esc(f[5])+'</i>':(isN&&f[5]?'<i>'+esc(f[5])+'</i>':''))+'</b></div>';}).join('')+'</div>':'<div class="mini">這次沒有填數字項目。</div>')+'</div>';}
  else{var a=ts[0],z=ts[ts.length-1];
-  h+=trendHTML(n,12)
-   +'<div class="card tt" style="padding:8px 10px"><table class="tcmp"><tr><th>項目</th><th>'+esc(a.kind)+' '+md(a.date)+'</th><th>'+esc(z.kind)+' '+md(z.date)+'</th><th>變化</th></tr>'
-   +num.filter(function(f){return tVal(a,f[0])!==''&&tVal(z,f[0])!=='';}).map(function(f){var st=tStat(f,tVal(a,f[0]),tVal(z,f[0]));
-     return '<tr><td>'+esc(tShort(f))+'</td><td>'+esc(tVal(a,f[0]))+'</td><td>'+esc(tVal(z,f[0]))+'</td><td>'
-      +(st?'<span class="tag '+st.k+'">'+st.t+'</span>'+(st.d?'<div style="font-size:11px;color:var(--muted)">'+st.d+'</div>':''):'—')+'</td></tr>';}).join('')+'</table>'
-   +'<div class="mini">變化小於 3% 標「持平」：測量本身有誤差，太小的差異不代表真的進步或退步。</div></div>';}
+  h+='<div class="card" style="padding:12px">'+cmpList(a,z)+trendFold(n,ts.length)+'</div>';}
  /* 動作品質（選項） */
  var qs=sel.filter(function(f){return ts.some(function(t){return tVal(t,f[0])!=='';});});
  if(qs.length){var A=ts[0],Z=ts[ts.length-1];
@@ -4621,12 +4676,8 @@ function testSection(name){
  var keys=TF.filter(function(f){return (f[3]==='n'||f[3]==='nt')&&(tVal(first,f[0])!==''||tVal(last,f[0])!=='');});
  keys.sort(function(a,b){var ia=TKEY.indexOf(a[0]),ib=TKEY.indexOf(b[0]);return (ia<0?99:ia)-(ib<0?99:ib);});
  return '<div class="sec-t">前後測成績</div><div class="card" style="margin-bottom:0">'
- +(ts.length?(last?'<table class="tcmp"><tr><th>項目</th><th>'+esc(first.kind)+' '+md(first.date)+'</th><th>'+esc(last.kind)+' '+md(last.date)+'</th><th>變化</th></tr>'
-    +keys.slice(0,8).map(function(f){var a=tVal(first,f[0]),b=tVal(last,f[0]);
-     return '<tr><td>'+esc(tShort(f))+'</td><td>'+esc(a)+'</td><td>'+esc(b)+'</td><td>'+tDelta(f,a,b)+'</td></tr>';}).join('')+'</table>'
-    +(keys.length>8?'<div class="mini">只列前 8 項，完整對比在成長報告 PDF。</div>':'')
+ +(ts.length?(last?cmpList(first,last)+trendFold(name,ts.length)
    :'<div class="mini" style="margin:0 0 6px">目前只有一次檢測，做完後測就會出現前後對比。</div>')
-  +trendBlock(name)
   +ts.slice().reverse().map(function(t){
     var sm=TKEY.filter(function(k){return tVal(t,k)!=='';}).slice(0,3).map(function(k){var f=TF.filter(function(x){return x[0]===k;})[0];return tShort(f)+' '+tVal(t,k)+(f[5]&&isFinite(parseFloat(tVal(t,k)))?' '+f[5]:'');}).join('　');
     return '<div class="buy" data-act="openTest" data-sid="'+s.id+'" data-tid="'+t.id+'"><div><div class="l"><span class="tag '+(t.kind==='後測'?'g':(t.kind==='前測'?'b':''))+'">'+esc(t.kind)+'</span> '+t.date.replace(/-/g,'/')+(t.nth?'　'+esc(t.nth):'')+'</div>'
@@ -5228,13 +5279,9 @@ document.addEventListener('change',function(e){
 document.addEventListener('click',function(e){
  var ap=e.target.closest&&e.target.closest('.apc');
  if(ap){var tg=document.getElementById(ap.dataset.to),v=ap.dataset.v;e.preventDefault();if(!tg)return;
-  var cur=tg.value.replace(/\s+$/,'');
-  if(cur.indexOf(v)>=0){toast('已經有「'+v+'」了');return;}
-  if(ap.dataset.m==='num'){var n=cur?cur.split('\n').filter(function(x){return x.trim();}).length:0;tg.value=(cur?cur+'\n':'')+(n+1)+'. '+v;}
-  else tg.value=cur?cur+'、'+v:v;
-  REC_DIRTY=true;ap.classList.add('used');return;}
+  qpAppend(tg,v,ap.dataset.m);ap.classList.toggle('used',qpHas(tg,v,ap.dataset.m));return;}
  var fc=e.target.closest&&e.target.closest('.fillc');
- if(fc){var ti=document.getElementById(fc.dataset.to);if(ti){ti.value=fc.dataset.v;REC_DIRTY=true;}e.preventDefault();return;}
+ if(fc){var ti=document.getElementById(fc.dataset.to);if(ti){if(ti.value===fc.dataset.v){ti.value='';toast('已清掉');}else ti.value=fc.dataset.v;REC_DIRTY=true;}e.preventDefault();return;}
  var p=e.target.closest&&e.target.closest('.pick');if(!p)return;
  if(p.closest('#sheet'))REC_DIRTY=true;
  setTimeout(function(){var ga=p.closest('.gacc');if(ga){var n=ga.querySelectorAll('.pick.on').length;ga.querySelector('summary b').textContent=n||'';}},0);
