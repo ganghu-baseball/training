@@ -430,6 +430,8 @@ a.btn{text-decoration:none}
 .cmh{display:flex;justify-content:space-between;align-items:center;gap:8px}.cmh b{font-size:14.5px;font-weight:800}
 .cmv{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:2px;font-size:14px;color:var(--ink2)}
 .cmv b{font-size:16px;color:var(--ink)}.cmv em{font-style:normal;font-size:12.5px;color:var(--muted);font-weight:700;white-space:nowrap}
+.pgap{margin-top:10px;padding:10px 12px;background:var(--card);border-radius:10px;color:var(--ink)}
+.pgap .row{gap:8px;flex-wrap:wrap}
 .tag.n{background:#EEF1F3;color:#56666F}
 .trd{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.trd>summary{cursor:pointer;font-size:14px;font-weight:800;color:var(--or-d);list-style:none}
 .trd>summary::-webkit-details-marker{display:none}.trd>summary::before{content:'▸ '}.trd[open]>summary::before{content:'▾ '}
@@ -512,7 +514,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.21e';
+var APPVER='2026.11.21f';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -658,7 +660,27 @@ function LES(){return alive(DB.lessons);}
 function PAY(){return alive(DB.payments);}
 function EXP(){return alive(DB.expenses);}
 function byId(arr,id){for(var i=0;i<arr.length;i++)if(arr[i].id===id)return arr[i];return null;}
-function touch(col,rec){rec.ts=Date.now();PEND[col][rec.id]=rec.ts;}
+function touch(col,rec){rec.ts=Date.now();PEND[col][rec.id]=rec.ts;if(col==='lessons')lesMv(rec);}
+/* 課程異動紀錄（2026-11-21）：已經匯款的那期，課後來才改期、請假、取消、換教練或補登，
+   在課上記一筆 l.mv（從哪天、哪位教練，改到哪天），之後「已匯款有異動」和扣回原因會用到 */
+function lcopy(l){return {date:l.date,start:l.start,end:l.end,coach:l.coach,plan:l.plan,students:(l.students||[]).slice(),status:l.status,del:l.del?1:0,u:l.u};}
+var LSNAP={};
+function lsnapAll(){LSNAP={};(DB.lessons||[]).forEach(function(l){LSNAP[l.id]=lcopy(l);});}
+lsnapAll();
+function payCnt(l){return !!(l&&!l.del&&l.date&&l.status!=='取消'&&l.status!=='請假改期');}
+function lmoney(l){return payCnt(l)?[pidOf(l.date),l.coach,amt(l,'coach'),amt(l,'gear'),amt(l,'admin')].join('|'):'';}
+function paidPer(l){if(!payCnt(l))return '';var p=pidOf(l.date);
+ return (payoutOf(p,'coach',l.coach)||payoutOf(p,'gear',GEAR_TO)||payoutOf(p,'coach',ADMIN_TO))?p:'';}
+function lesMv(l){
+ if(MODE==='coach')return;
+ var o=LSNAP[l.id];LSNAP[l.id]=lcopy(l);
+ if((o?lmoney(o):'')===lmoney(l))return;
+ if(!(o&&paidPer(o))&&!paidPer(l))return;
+ var mv=(isOwn(l,'mv')&&Array.isArray(l.mv))?l.mv:[];
+ mv.push({at:today(),f:payCnt(o)?o.date:'',fc:o?o.coach:'',t:payCnt(l)?l.date:'',tc:l.coach,
+  s:l.del?'刪除':l.status,n:(((o&&o.students&&o.students.length)?o.students:l.students)||[]).join('、')});
+ l.mv=mv.slice(-10);
+}
 function touchCfg(){DB.cfg.ts=Date.now();PEND.cfg=DB.cfg.ts;}
 function pendCount(){var n=0;COLS.forEach(function(c){
  n+=Object.keys(PEND[c]).length;});return n+(PEND.cfg?1:0);}
@@ -765,7 +787,7 @@ function unitsOf(l){
 function nUnits(ls){return ls.reduce(function(a,l){return a+unitsOf(l);},0);}
 /* 事後補算堂數的課（l.uNote）：當初結算用 1 堂，現在照 l.u 算，差額要補 */
 function adjOfPer(pid){
- var list=LES().filter(function(l){return l.status!=='取消'&&l.uNote&&pidOf(l.date)===pid;})
+ var list=LES().filter(function(l){return payCnt(l)&&l.uNote&&pidOf(l.date)===pid;})
   .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;});
  var o={list:list,pay:0,coach:0,gear:0,fund:0,admin:0,byCoach:{}};
  list.forEach(function(l){
@@ -979,6 +1001,7 @@ function mergeIn(recs){
  (recs.cfg||[]).forEach(function(r){
   if(PEND.cfg)return;
   if(r.ts>=(DB.cfg.ts||0)){var c=r.data||{};c.ts=r.ts;DB.cfg=c;}});
+ lsnapAll();
  applySettings();applyCD();
 }
 
@@ -1420,7 +1443,7 @@ function render(){
 /* ============ 總覽 ============ */
 function vHome(){
  var now=new Date(),ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
- var ml=LES().filter(function(l){return l.date.slice(0,7)===ym&&l.status!=='取消';});
+ var ml=LES().filter(function(l){return l.date.slice(0,7)===ym&&payCnt(l);});
  var sum=function(k){return ml.reduce(function(a,l){return a+amt(l,k);},0);};
  var t0=today(),t7=addD(t0,7);
  var wk=LES().filter(function(l){return l.date>=t0&&l.date<=t7&&l.status!=='取消';})
@@ -1433,7 +1456,7 @@ function vHome(){
  var unb=STU().filter(function(s){return openOf(s.name)>0;});
  var past=LES().filter(function(l){return l.status==='請假改期'&&l.date<t0;})
   .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;});
- var gaps=rosterGaps();
+ var gaps=rosterGaps(),pg=paidGaps();
  var cur=pidOf(t0),R=pidRange(cur),pay=pidPay(cur);
  var left=Math.round((pd(pay)-pd(t0))/86400000);
  var tbtn=function(to,ic,n,lab,cls){
@@ -1449,6 +1472,7 @@ function vHome(){
  +tbtn('sec-past','clock',past.length,'待改期','red')
  +(cl?tbtn('sec-warn','alert',cl,'撞時段','red'):'')
  +(gaps.length?tbtn('sec-warn','stu',gaps.length,'名單缺人','red'):'')
+ +(pg.length?tbtn('sec-paid','money',pg.length,'已匯款有異動','red'):'')
  +'<button data-act="jump" data-to="sec-pay" class="'+(left<=2?'hot':'ok')+'">'+svg('money')
  +'<span><b>'+(left>0?left+' 天':(left===0?'今天':'已過'))+'</b><small>'+pidShort(cur)+' 結算</small></span></button>'
  +'</div>'
@@ -1464,6 +1488,7 @@ function vHome(){
    :'<div class="empty">今天沒有排課</div>')
 
  /* 需要處理的提醒 */
+ +paidGapHTML(pg)
  +'<div id="sec-warn"></div>'
  +(gaps.length?(function(){
    var tot=gaps.reduce(function(a,g){return a+g.miss.length;},0);
@@ -1696,7 +1721,7 @@ var setP='';
 function vSet(){
  if(!setP)setP=pidOf(today());
  var R=pidRange(setP);
- var ls=LES().filter(function(l){return l.status!=='取消'&&pidOf(l.date)===setP;});
+ var ls=lesOfPer(setP);
  var SP=perStat(setP),hasR=SP.reim>0;
  var rowsC=SP.byCoach.filter(function(b){return b.cnt||b.due;}).map(function(b){
   return '<tr><td>'+b.c+'</td><td>'+b.cnt+'</td><td>'+money(b.fee)+'</td><td>'
@@ -1710,6 +1735,7 @@ function vSet(){
  var fundLeft=tot('fund')-tot('admin')-exOut+exIn;
  var pers=periodOptions();
  return '<h2>半月結算</h2><div class="hint">每月 1～14 日為上半期、15 日至月底為下半期</div>'
+ +paidGapHTML(paidGaps())
  +'<div class="card"><label>結算期別</label><select id="per">'
  +pers.map(function(x){return '<option value="'+x+'"'+(x===setP?' selected':'')+'>'
    +pidLabel(x)+'</option>';}).join('')+'</select>'
@@ -2675,6 +2701,7 @@ function trendBlock(name){var h=trendHTML(name,6);
 function payRowOf(pid,c,st){st=st||perStat(pid);var cc=st.byCoach.filter(function(x){return x.c===c;})[0];if(!cc)return null;
  var po=payoutOf(pid,'coach',c);
  return {pid:pid,label:pidLabel(pid),short:pidShort(pid),pay:pidPay(pid),due:cc.due,fee:cc.fee,cnt:cc.cnt,adminGet:cc.adminGet,reim:cc.reim,cin:cc.cin,
+  cn:cc.cinList.map(function(x){return cinText(x)+(x.note?'（'+x.note+'）':'');}),
   po:po?{date:po.date||'',amount:+po.amount||0}:null,
   ls:st.ls.filter(function(l){return l.coach===c;}).map(function(l){return [l.date,l.start,l.end,(l.students||[]).join('、'),unitsOf(l),amt(l,'coach')];})};}
 function slipHTML(c,a){
@@ -2688,7 +2715,7 @@ function slipHTML(c,a){
  +'<h2 class="rp-h">一、本期金額</h2><table class="slipd"><tr><th>項目</th><th class="n">金額</th></tr>'
  +line('鐘點費（'+a.cnt+' 堂）',money(a.fee))
  +(a.adminGet?line('行政管理費',money(a.adminGet)):'')+(a.reim?line('代墊歸還',money(a.reim)):'')
- +(a.cin?line(a.cin<0?'扣回上期多匯':'上期補發',(a.cin<0?'－':'＋')+money(Math.abs(a.cin))):'')
+ +(a.cin?line((a.cin<0?'扣回上期多匯':'上期補發')+((a.cn||[]).length?'<div style="font-size:11px;color:#6e8794;margin-top:2px">'+a.cn.map(esc).join('<br>')+'</div>':''),(a.cin<0?'－':'＋')+money(Math.abs(a.cin))):'')
  +line('本期應匯',money(a.due),'tot')+'</table>'
  +(a.po&&a.po.amount&&a.po.amount!==a.due?'<p class="rp-none">實際匯款 '+money(a.po.amount)+'</p>':'')
  +'<h2 class="rp-h">二、上課明細（'+ls.length+' 次）</h2>'
@@ -3038,6 +3065,7 @@ function myPayHTML(){
  +line('本期堂數',a.cnt+' 堂')+line('鐘點費',money(a.fee))
  +(a.adminGet?line('行政管理費',money(a.adminGet)):'')+(a.reim?line('代墊歸還',money(a.reim)):'')
  +(a.cin?line(a.cin<0?'扣回上期多匯':'上期補發',(a.cin<0?'－':'＋')+money(Math.abs(a.cin)),'color:'+(a.cin<0?'var(--red)':'var(--green)')):'')
+ +((a.cn||[]).length?'<div class="mini" style="margin:2px 0 0">'+a.cn.map(esc).join('<br>')+'</div>':'')
  +((a.ls||[]).length?'<details class="recv" style="margin-top:10px"><summary><div class="l">本期上課明細（'+a.ls.length+' 次）</div></summary>'
    +a.ls.map(function(x){return line(md(x[0])+'（'+DAYN[dowOf(x[0])].slice(1)+'）',esc(x[1]+'–'+x[2])+'　'+esc(x[3])+'　'+x[4]+' 堂　'+money(x[5]));}).join('')+'</details>':'')
  +'<div class="mini">還沒上的課也先算進去了，實際金額以結算日為準。</div>'
@@ -4043,7 +4071,7 @@ function loadXL(){
 function perRange(pid){return pidRange(pid);}
 function perOfDate(ds){return pidOf(ds);}
 function lesOfPer(pid){
- return LES().filter(function(l){return l.status!=='取消'&&pidOf(l.date)===pid;})
+ return LES().filter(function(l){return payCnt(l)&&pidOf(l.date)===pid;})
   .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;});
 }
 function payOfPer(pid){
@@ -4075,13 +4103,14 @@ function perStat(pid){
    fee:fee,
    adm:mine.reduce(function(a,l){return a+amt(l,'admin');},0),
    adminGet:adminGet,reimList:rl,reim:rm,
-   cinList:ci,cin:reimSum(ci),coutList:co.filter(nw),cout:reimSum(co),
+   cinList:ci,cin:reimSum(ci),coutList:co,cout:reimSum(co),
    due:fee+adminGet+rm+reimSum(ci)};
  });
  o.dueCoach=o.byCoach.reduce(function(a,c){return a+c.due;},0);
  o.cin=o.byCoach.reduce(function(a,c){return a+c.cin;},0);
  o.cout=o.byCoach.reduce(function(a,c){return a+c.cout;},0);
- o.gearCinList=gearCarryIn(pid);o.gearCoutList=gearCarryOut(pid).filter(nw);
+ o.gearCinList=gearCarryIn(pid);
+ o.gearCoutList=gearCarryOut(pid);
  o.gearCin=reimSum(o.gearCinList);o.gearCout=reimSum(gearCarryOut(pid));
  o.gearDue=o.gear+o.gearCin;o.cout+=o.gearCout;
  return o;
@@ -4112,6 +4141,58 @@ function payoutOf(pid,kind,target){
   return x.pid===pid&&x.pkind===kind&&x.target===target;})[0]||null;
 }
 function payoutsOfPer(pid){return payouts().filter(function(x){return x.pid===pid;});}
+/* 下一個還沒匯給這個人的期別（扣回／補發併進去） */
+function nextUnpaid(pid,k,t){var np=pidNext(pid);for(var i=0;i<36&&payoutOf(np,k,t);i++)np=pidNext(np);return np;}
+/* 已經匯款的期別，現在算出來的金額跟當初匯的不一樣（匯款後才改期、請假、取消、補登）。
+   diff＞0＝多匯（要扣回），diff＜0＝少匯（要補發）；已經按過扣回／補發／不追回的不再列 */
+function paidGaps(){
+ var out=[],seen={},cache={};
+ payouts().forEach(function(x){
+  var k=x.pid+'|'+x.pkind+'|'+x.target;if(seen[k])return;seen[k]=1;
+  var po=payoutOf(x.pid,x.pkind,x.target),st=cache[x.pid]||(cache[x.pid]=perStat(x.pid)),paid=+po.amount||0,d;
+  if(po.pkind==='gear'){if(po.target!==GEAR_TO)return;d=paid-st.gearDue+st.gearCout;}
+  else{var c=st.byCoach.filter(function(y){return y.c===po.target;})[0];
+   d=c?paid-c.due+c.cout:paid+reimSum(carryOut(po.pid,po.target));}
+  if(Math.abs(d)>=1)out.push({pid:po.pid,k:po.pkind,t:po.target,paid:paid,diff:d,a:-d});});
+ return out.sort(function(a,b){return a.pid<b.pid?-1:(a.pid>b.pid?1:(a.k<b.k?1:-1));});
+}
+/* 差額的原因：從課程異動紀錄 l.mv 找這期搬走、搬進來的課 */
+function mvReason(pid,t,k){
+ var last=carries().filter(function(x){return x.spid===pid&&x.target===t&&(x.pkind||'coach')===k;})
+  .reduce(function(a,x){return (x.date||'')>a?x.date:a;},'');
+ var who=function(c){return k==='gear'||t===ADMIN_TO||c===t;};
+ var out=[];
+ (DB.lessons||[]).forEach(function(l){if(!isOwn(l,'mv')||!Array.isArray(l.mv))return;
+  l.mv.forEach(function(m){
+   if(last&&(m.at||'')<last)return;
+   var fromHere=m.f&&pidOf(m.f)===pid&&who(m.fc),toHere=m.t&&pidOf(m.t)===pid&&who(m.tc);
+   if(!fromHere&&!toHere)return;
+   var w=(m.n?m.n+' ':'')
+    +(m.f&&m.t&&m.f!==m.t?md(m.f)+' 改到 '+md(m.t)
+     :m.f&&!m.t?md(m.f)+(payCnt(l)&&l.date!==m.f?' 請假，改到 '+md(l.date)+' 補課'
+       :(l.del||l.status==='取消'||m.s==='取消'||m.s==='刪除'?' 取消':(m.s==='請假改期'?' 請假（還沒排補課）':' 異動')))
+     :!m.f&&m.t?md(m.t)+' 補登'
+     :md(m.f)+(m.fc!==m.tc?' 改由 '+m.tc+' 上':' 人數或時間異動'));
+   if(out.indexOf(w)<0)out.push(w);});});
+ return out.join('；');
+}
+function paidGapHTML(pg){
+ if(!pg.length)return '';
+ return '<div id="sec-paid" class="warnbar" style="margin-top:14px"><b>已經匯款的期別，金額有變動</b><br>'
+  +'課在匯款後才改期、請假、取消或補登，那一期當初匯的錢就跟現在算的不一樣。'
+  +'按下面的按鈕，差額會併到這個人下一次還沒匯款的那期（多匯的少匯、少匯的補上），薪資單上會寫原因；決定不追了就按「不追回」。'
+  +pg.map(function(g){
+    var gear=g.k==='gear',who=gear?g.t+' 器材使用費':g.t+' 教練'+(g.t===ADMIN_TO?'（含行政費）':''),why=mvReason(g.pid,g.t,g.k);
+    var np=nextUnpaid(g.pid,g.k,g.t),da=' data-k="'+g.k+'" data-t="'+esc(g.t)+'" data-p="'+g.pid+'" data-a="'+g.a+'"';
+    return '<div class="pgap"><div><b>'+pidShort(g.pid)+'　'+esc(who)+'</b></div>'
+     +'<div class="mini" style="margin:2px 0 0;color:var(--ink)">當初'+(gear?'給':'匯')+' '+money(g.paid)+'，現在算起來是 '+money(g.paid-g.diff)
+     +'，<b style="color:'+(g.diff>0?'var(--red)':'var(--green)')+'">'+(g.diff>0?'多'+(gear?'給':'匯')+' ':'少'+(gear?'給':'匯')+' ')+money(Math.abs(g.diff))+'</b></div>'
+     +(why?'<div class="mini" style="margin:2px 0 0">原因：'+esc(why)+'</div>':'')
+     +'<div class="row" style="margin-top:6px"><button class="btn sm" data-act="carry"'+da+'>'
+     +(g.a<0?'在 '+pidShort(np)+' 扣回 '+money(-g.a):'併入 '+pidShort(np)+' 補發 '+money(g.a))+'</button>'
+     +'<button class="btn sec sm" data-act="carryWaive"'+da+'>不追回</button></div></div>';}).join('')
+  +'</div>';
+}
 /* 教練代墊：支出紀錄的 adv＝先墊錢的教練，rpid＝併入哪一期薪資一起還 */
 function reimsOfPer(pid,coach){
  return bills().filter(function(x){
@@ -4120,7 +4201,8 @@ function reimsOfPer(pid,coach){
 function reimSum(list){return list.reduce(function(a,x){return a+(+x.amount||0);},0);}
 /* 跨期調整：正數是「補發」（上期少匯），負數是「扣回」（上期多匯） */
 function cinText(x){return (+x.amount<0?'扣回 '+pidShort(x.spid)+' 多匯 '+money(-x.amount):'補發 '+pidShort(x.spid)+' 少匯 '+money(x.amount));}
-function coutText(x){return (+x.amount<0?'多匯 '+money(-x.amount)+'，在 '+pidShort(x.pid)+' 扣回':'差額 '+money(x.amount)+' 已併入 '+pidShort(x.pid)+' 一起補發');}
+function coutText(x){if(x.waive)return (+x.amount<0?'多匯 '+money(-x.amount)+' 不扣回':'少匯 '+money(x.amount)+' 不補')+(x.note?'（'+x.note+'）':'');
+ return (+x.amount<0?'多匯 '+money(-x.amount)+'，在 '+pidShort(x.pid)+' 扣回':'差額 '+money(x.amount)+' 已併入 '+pidShort(x.pid)+' 一起補發');}
 /* 預設併入：採購日那一期；那一期已經發過薪或已匯給這位教練，就往後一期 */
 function reimDefault(ds,coach){
  var p=pidOf(ds||today());
@@ -5490,15 +5572,24 @@ function bind(){
       item:pidShort(pn2)+' '+tg+(kd==='gear'?' 器材使用費':' 薪資')};
     DB.expenses.push(o);touch('expenses',o);persist();render();return;}
    if(a==='carry'){
-    var cp=b.dataset.p,ct=b.dataset.t,ca=+b.dataset.a||0,np=pidNext(cp),ck=b.dataset.k||'coach';
-    for(var gi=0;gi<36&&payoutOf(np,ck,ct);gi++)np=pidNext(np);
-    var who=pidLabel(cp)+' '+ct+(b.dataset.k==='gear'?'':' 教練');
-    if(!confirm(ca<0
-      ?who+'多匯了 '+money(-ca)+'。\n要在 '+pidLabel(np)+' 的金額裡扣回嗎？\n（不會動到現金，'+pidLabel(np)+' 匯款時少匯這筆）'
-      :who+'還差 '+money(ca)+'。\n要把這筆差額併入 '+pidLabel(np)+' 的薪資一起補發嗎？\n（不會動到現金，等 '+pidLabel(np)+' 匯款時一起匯出）'))return;
+    var cp=b.dataset.p,ct=b.dataset.t,ca=+b.dataset.a||0,ck=b.dataset.k||'coach',np=nextUnpaid(cp,ck,ct);
+    var who=pidLabel(cp)+' '+ct+(ck==='gear'?'':' 教練');
+    var why=prompt((ca<0
+      ?who+'多匯了 '+money(-ca)+'。\n會在 '+pidLabel(np)+' 的金額裡扣回（不會動到現金，'+pidLabel(np)+' 匯款時少匯這筆）。'
+      :who+'還差 '+money(ca)+'。\n會併入 '+pidLabel(np)+' 一起補發（不會動到現金，等 '+pidLabel(np)+' 匯款時一起匯出）。')
+      +'\n\n原因（會寫在薪資單上，可以修改）：',mvReason(cp,ct,ck));
+    if(why===null)return;
     var co={id:uid(),del:0,sys:'carry',pkind:ck,target:ct,spid:cp,pid:np,amount:ca,date:today(),
-      kind:'',cat:'',item:pidShort(cp)+(ca<0?' 扣回':' 補發'),note:''};
+      kind:'',cat:'',item:pidShort(cp)+(ca<0?' 扣回':' 補發'),note:String(why).trim()};
     DB.expenses.push(co);touch('expenses',co);persist();render();return;}
+   if(a==='carryWaive'){
+    var wp=b.dataset.p,wt=b.dataset.t,wa=+b.dataset.a||0,wk=b.dataset.k||'coach';
+    var why2=prompt(pidLabel(wp)+' '+wt+(wk==='gear'?' 器材使用費':' 教練')+(wa<0?'多匯 ':'少匯 ')+money(Math.abs(wa))
+      +'。\n確定不'+(wa<0?'扣回':'補發')+'、當作已經處理好了？之後不會再提醒，也不會加減到任何一期。\n\n原因：',mvReason(wp,wt,wk));
+    if(why2===null)return;
+    var cw={id:uid(),del:0,sys:'carry',pkind:wk,target:wt,spid:wp,pid:wp,amount:wa,waive:1,date:today(),
+      kind:'',cat:'',item:pidShort(wp)+' 不追回',note:String(why2).trim()};
+    DB.expenses.push(cw);touch('expenses',cw);persist();render();return;}
    if(a==='carryundo'){
     var cu=byId(DB.expenses,id);
     if(cu&&confirm(+cu.amount<0?'取消這筆「下期扣回」？':'取消這筆「併入下期補發」？')){cu.del=1;touch('expenses',cu);persist();render();}
@@ -6008,14 +6099,14 @@ function bind(){
       if(dd.cfg)DB.cfg=dd.cfg;
       COLS.forEach(function(c){if(!DB[c])DB[c]=[];
        DB[c].forEach(function(r){if(r.del===undefined)r.del=0;if(!r.ts)r.ts=0;});});
-      persistOnly();render();alert('已還原備份。若要同步到雲端，請按「全部上傳」。');}
+      lsnapAll();persistOnly();render();alert('已還原備份。若要同步到雲端，請按「全部上傳」。');}
       catch(e){alert('檔案格式不對，請確認選的是本系統匯出的 JSON。');}};
      rd.readAsText(f);};inp.click();return;}
    if(a==='wipe'){if(confirm('清除這支手機上的全部資料？無法復原，建議先備份。\n注意：雲端上的資料不會被刪除。')){
     DB.students=DEFSTU.map(function(n){return {id:uid(),name:n,parent:'',phone:'',ganghu:'是',coach:'',note:'',del:0,ts:0};});
     DB.lessons=[];DB.payments=[];DB.expenses=[];
     PEND={students:{},lessons:{},payments:{},expenses:{},cfg:0};
-    SINCE=0;save('since',0);persistOnly();render();}return;}
+    SINCE=0;save('since',0);lsnapAll();persistOnly();render();}return;}
 
    if(a==='prevw'){calMon=addD(calMon,-7);render();return;}
    if(a==='nextw'){calMon=addD(calMon,7);render();return;}
