@@ -419,6 +419,27 @@ a.btn{text-decoration:none}
 .slipd{width:100%;border-collapse:collapse}.slipd th{background:#EDEAE0;color:#37525F;font-size:11px;padding:5px 6px;text-align:left}
 .slipd td{border-bottom:1px solid #EEE9DD;padding:6px;font-size:12px;text-align:left}.slipd .n{text-align:right}
 .slipd tr.tot td{font-weight:800;font-size:14px;color:#A8490A;border-top:2px solid #FE7F2D;border-bottom:0}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px}
+.kpis>div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kpis small{display:block;font-size:12px;color:var(--muted);font-weight:700}
+.kpis b{font-size:22px;font-weight:800;color:var(--ink);line-height:1.3}.kpis b i{font-style:normal;font-size:13px;color:var(--muted);font-weight:700;margin-left:3px}
+.pbar{height:10px;background:var(--line2);border-radius:99px;overflow:hidden;margin:8px 0}.pbar i{display:block;height:100%;background:var(--or);border-radius:99px}
+.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:8px}
+.bgrid>div{background:var(--paper);border-radius:10px;padding:8px 10px}.bgrid small{display:block;font-size:11.5px;color:var(--muted);font-weight:700;line-height:1.3}
+.bgrid b{font-size:17px;font-weight:800}.bgrid b i{font-style:normal;font-size:11.5px;color:var(--muted);margin-left:2px;font-weight:700}
+.pmx{border-collapse:collapse;width:100%}.pmx th{font-weight:700;color:var(--muted);font-size:10px;padding:2px 1px;text-align:center;white-space:nowrap;background:none}
+.pmx td{padding:3px 1px;text-align:center;border:0}.pmx td:first-child{text-align:left;font-weight:700;color:var(--ink2);white-space:nowrap;padding-right:6px;font-size:13px}
+.pmx i{display:inline-block;width:15px;height:15px;border-radius:4px;vertical-align:middle}.pmx i.on{background:var(--or)}.pmx i.off{background:var(--line2)}
+.hbar{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}.hbar b{flex:0 0 72px;font-weight:700;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hbar span{flex:1;height:10px;background:var(--line2);border-radius:99px;overflow:hidden}.hbar span i{display:block;height:100%;background:var(--teal);border-radius:99px}
+.hbar em{font-style:normal;color:var(--muted);flex:0 0 auto;font-size:12px;font-weight:700}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px}.pager span{font-size:13px;color:var(--ink2);font-weight:800}
+.pager .btn[disabled]{opacity:.4;cursor:default}
+.pnums{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px}
+.pnums button{min-width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:#fff;font-weight:800;font-family:inherit;color:var(--ink2);cursor:pointer;font-size:14px}
+.pnums button.on{background:var(--or);border-color:var(--or);color:#fff}
+.pdots{align-self:center;color:var(--muted);font-weight:800;padding:0 2px}
+.spark{width:84px;height:26px;display:block}
 .pickc{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pickc .btn{padding:16px 0;font-size:17px}
 .dayh{font-size:13px;font-weight:800;color:var(--ink2);margin:16px 0 8px;padding-left:8px;border-left:3px solid var(--line)}
 .dayh.on{border-left-color:var(--or);color:var(--or-d)}
@@ -462,7 +483,8 @@ users:'<circle cx="9" cy="8" r="3.5"/><path d="M3 20v-1.5A4 4 0 0 1 7 14.5h4a4 4
 userplus:'<circle cx="9" cy="8" r="3.5"/><path d="M3 20v-1.5A4 4 0 0 1 7 14.5h4a4 4 0 0 1 4 4V20"/><path d="M16 11h6M19 8v6"/>',
 receipt:'<path d="M5.5 21V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v16l-2.6-1.7-2.2 1.7-2.2-1.7-2.2 1.7-2.2-1.7z"/><path d="M14 8.2h-2.6a1.5 1.5 0 0 0 0 3h1.2a1.5 1.5 0 0 1 0 3H10M12 7v1.2M12 14.2v1.3"/>',
 file:'<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 13h6M9 17h6"/>',
-chev:'<path d="M9 6l6 6-6 6"/>'
+chev:'<path d="M9 6l6 6-6 6"/>',
+chart:'<path d="M4 19h16"/><path d="M4 15l4-6 4 2 4-5 4 4"/>'
 };
 /* 同一份程式兩個網址：admin.html 是行政端，coach.html 是教練端 */
 var MODE=/coach\.html$/i.test(location.pathname)?'coach':'admin';
@@ -475,7 +497,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.21b';
+var APPVER='2026.11.21d';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1351,7 +1373,7 @@ function cfgCards(){return ''
 /* ============ 分頁 ============ */
 if(MODE==='coach'){document.getElementById('apph1').textContent='港湖特訓班・教練';document.title='港湖特訓班｜教練';}
 var TABS=MODE==='coach'
- ?[['cw','今天','home'],['ct','課表','cal'],['cs','我的學員','users'],['cr','紀錄','les'],['cm','我的','me']]
+ ?[['cw','今天','home'],['ct','課表','cal'],['cs','我的學員','users'],['cd','數據','chart'],['cr','紀錄','les'],['cm','我的','me']]
  :[['home','總覽','home'],['stu','報名排課','userplus'],['cal','課表','cal'],['set','結算','receipt'],['cfg','設定','gear']];
 var TABKEY=MODE==='coach'?'gh_ctab':'gh_tab';
 var TAB=TABS[0][0];
@@ -1370,7 +1392,7 @@ function vCoach(){
  else{ME=(function(){try{return localStorage.getItem('gh_me')||'';}catch(e){return '';}})();
   if(ME&&COACHES.concat(FORMER_COACHES).indexOf(ME)<0)ME='';}
  if(!ME)return vPickCoach();
- return ({cw:vCoachWeek,ct:vCoachCal,cs:vCoachStu,cr:vCoachRec,cm:vCoachMe}[TAB]||vCoachWeek)();
+ return ({cw:vCoachWeek,ct:vCoachCal,cs:vCoachStu,cd:vCoachData,cr:vCoachRec,cm:vCoachMe}[TAB]||vCoachWeek)();
 }
 function render(){
  document.getElementById('app').innerHTML=
@@ -1874,6 +1896,7 @@ function fStu(id){
      +'" style="margin-top:12px">辦理退費</button>':'')
    +'</div>'
    +stuLessons(s.name)
+   +'<button class="btn sec full" data-act="prog" data-id="'+s.id+'" style="margin-top:14px">'+svg('chart',16)+' 成長數據（進步曲線）</button>'
    +recSection(s.name);
  }
  h+='<div class="row" style="margin-top:18px"><button class="btn" data-act="saveStu" data-id="'+(id||'')+'">'
@@ -2994,9 +3017,21 @@ function fCoachStu(sid){
  +(up.length?'<div class="card" style="padding:4px 12px">'+up.map(function(l){
    return '<div class="kv"><b>'+md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）</b><span>'+esc(l.start)+'–'+esc(l.end)+'　'+esc(l.coach)+' 教練</span></div>';}).join('')+'</div>'
    :'<div class="empty">還沒排下一堂</div>')
+ +'<button class="btn sec full" data-act="prog" data-id="'+s.id+'" style="margin-top:12px">'+svg('chart',16)+' 成長數據（進步曲線）</button>'
  +recSection(n));
 }
-var KBSEG='mine',KBQ='';
+var KBSEG='mine',KBQ='',KBPG=1,KBPER=20;
+function kbPageRows(rows){var pages=Math.max(1,Math.ceil(rows.length/KBPER));if(KBPG>pages)KBPG=pages;if(KBPG<1)KBPG=1;
+ return rows.slice((KBPG-1)*KBPER,KBPG*KBPER);}
+function kbPager(total){var pages=Math.max(1,Math.ceil(total/KBPER));if(pages<=1)return '';
+ var btn=function(pg,lab,dis){return '<button class="btn sec sm" data-act="kbPg" data-p="'+pg+'"'+(dis?' disabled':'')+'>'+lab+'</button>';};
+ var a=Math.max(1,Math.min(KBPG-2,pages-4)),b=Math.min(pages,a+4),nums='';
+ var nb=function(i){return '<button class="'+(i===KBPG?'on':'')+'" data-act="kbPg" data-p="'+i+'">'+i+'</button>';},dots='<span class="pdots">…</span>';
+ if(a>1)nums+=nb(1)+(a>2?dots:'');
+ for(var i=a;i<=b;i++)nums+=nb(i);
+ if(b<pages)nums+=(b<pages-1?dots:'')+nb(pages);
+ return '<div class="pager">'+btn(KBPG-1,'‹ 上一頁',KBPG<=1)+'<span>第 '+KBPG+' / '+pages+' 頁</span>'+btn(KBPG+1,'下一頁 ›',KBPG>=pages)+'</div>'
+  +'<div class="pnums">'+nums+'</div><div class="mini" style="text-align:center">共 '+total+' 筆，每頁 '+KBPER+' 筆，最新的在前面</div>';}
 function vCoachRec(){
  var from=addD(today(),-120);
  var ls=myLes().filter(function(l){return l.rec&&l.date>=from;}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?1:-1;});
@@ -3007,6 +3042,141 @@ function vCoachRec(){
   '<div class="hint">你近四個月填過的紀錄，點進去可以修改。</div>'
   +(ls.length?ls.map(function(l){return cLesCard(l,true);}).join(''):'<div class="empty">還沒有填過上課紀錄</div>'));
 }
+/* ============ 成長數據（2026-11-21）：教練端「數據」分頁、學員頁的「成長數據」 ============
+   跟孩子自己的過去比，不跟別人比。檢測：每個數字項目的折線＋第一次→最近（變化小於 3% 算持平，測量本身有誤差）；
+   上課紀錄：掌握度曲線、修正部位追蹤（已改善／練習中）、訓練內容分布；課表：上課節奏、這期第幾堂 */
+var PDSEG='mine';
+var SCV={'優秀':5,'良好':4,'尚可':3,'不佳':2,'差':1},SCN=['','差','不佳','尚可','良好','優秀'];
+function normParts(a){var o=[];(a||[]).forEach(function(x){String(x).split(/[、,，\s]+/).forEach(function(y){y=y.trim();
+  if(y==='判斷'||y==='感知')y='判斷與感知';if(y==='頭')y='頭部';if(y&&o.indexOf(y)<0)o.push(y);});});return o;}
+function normTopics(a){var o=[];(a||[]).forEach(function(t){String(t).split(/[\/&＆、,，\s]+/).forEach(function(x){x=x.trim();if(x&&o.indexOf(x)<0)o.push(x);});});return o;}
+function progData(n){
+ var done=lessonsOf(n).filter(function(l){return l.status==='已完成';});
+ var recs=done.filter(function(l){return l.rec&&(l.rec.stu||{})[n];}).map(function(l){var x=l.rec.stu[n];
+  return {l:l,x:x,score:SCV[x.score]||0,parts:normParts(x.parts),topics:normTopics(l.rec.topic)};});
+ return {done:done,recs:recs,tests:testsOf(n)};
+}
+function rnd(v){return Math.round(v*100)/100;}
+function tStat(f,a,b){var x=parseFloat(a),y=parseFloat(b);if(!isFinite(x)||!isFinite(y))return null;
+ var d=y-x,pct=d/(Math.abs(x)||1)*100,u=f[5]&&f[5].charAt(0)!=='/'?' '+f[5]:'',dt=(d>0?'+':'')+rnd(d)+u;
+ if(!f[6])return {k:'b',t:dt};
+ if(Math.abs(pct)<3)return {k:'',t:'持平',d:dt};
+ var good=f[6]==='+'?d>0:d<0;return {k:good?'g':'r',t:good?'進步':'退步',d:dt};}
+function sparkSVG(vals){if(vals.length<2)return '';var W=84,H=26,mn=1,mx=5;
+ var pts=vals.map(function(v,i){return (2+(W-4)*i/(vals.length-1)).toFixed(1)+','+(3+(H-6)*(mx-v)/(mx-mn)).toFixed(1);}).join(' ');
+ return '<svg class="spark" viewBox="0 0 '+W+' '+H+'"><polyline points="'+pts+'" fill="none" stroke="#FE7F2D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>';}
+function scoreSVG(pts){
+ var W=320,H=150,L=40,R=12,T=12,B=22,n=pts.length;
+ var X=function(i){return n<2?(L+W-R)/2:L+(W-L-R)*i/(n-1);},Y=function(v){return T+(H-T-B)*(5-v)/4;};
+ var g='';for(var v=1;v<=5;v++)g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="#EEE9DD"/><text x="'+(L-6)+'" y="'+(Y(v)+3.5)+'" font-size="10" text-anchor="end" fill="#8A97A0">'+SCN[v]+'</text>';
+ var lab=function(i,anc){return '<text x="'+X(i).toFixed(1)+'" y="'+(H-5)+'" font-size="9.5" text-anchor="'+anc+'" fill="#8A97A0">'+md(pts[i].d)+'</text>';};
+ return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block" role="img" aria-label="掌握度曲線">'+g
+  +(n>1?'<polyline points="'+pts.map(function(p,i){return X(i).toFixed(1)+','+Y(p.v).toFixed(1);}).join(' ')+'" fill="none" stroke="#FE7F2D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>':'')
+  +pts.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.v).toFixed(1)+'" r="3.6" fill="'+(i===n-1?'#FE7F2D':'#fff')+'" stroke="#FE7F2D" stroke-width="2"/>';}).join('')
+  +lab(0,n>1?'start':'middle')+(n>2?lab(Math.floor((n-1)/2),'middle'):'')+(n>1?lab(n-1,'end'):'')+'</svg>';}
+function weekData(n){var mon=calMonOf(today()),wk=[],ls=lessonsOf(n).filter(function(l){return l.status==='已完成';});
+ for(var i=11;i>=0;i--){var a=addD(mon,-7*i),b=addD(a,6);wk.push({a:a,u:nUnits(ls.filter(function(l){return l.date>=a&&l.date<=b;}))});}return wk;}
+function weekSVG(wk){var W=320,H=96,B=18,T=14,mx=Math.max(2,Math.max.apply(null,wk.map(function(w){return w.u;}))),bw=(W-8)/wk.length;
+ return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block" role="img" aria-label="每週上課堂數">'
+  +wk.map(function(w,i){var h=(H-B-T)*w.u/mx,x=4+i*bw+3,y=H-B-h;
+   return '<rect x="'+x.toFixed(1)+'" y="'+(w.u?y:H-B-2).toFixed(1)+'" width="'+(bw-6).toFixed(1)+'" height="'+(w.u?h:2).toFixed(1)+'" rx="3" fill="'+(w.u?(i===wk.length-1?'#FE7F2D':'#F9B98B'):'#EEE9DD')+'"/>'
+    +(w.u?'<text x="'+(x+(bw-6)/2).toFixed(1)+'" y="'+(y-3).toFixed(1)+'" font-size="9.5" text-anchor="middle" fill="#37525F" font-weight="700">'+w.u+'</text>':'');}).join('')
+  +'<text x="4" y="'+(H-4)+'" font-size="9.5" fill="#8A97A0">'+md(wk[0].a)+'</text><text x="'+(W-4)+'" y="'+(H-4)+'" font-size="9.5" text-anchor="end" fill="#8A97A0">本週</text></svg>';}
+function progHTML(s){
+ var n=s.name,d=progData(n),ts=d.tests,p=s.profile||{},sec=function(t){return '<div class="sec-t">'+t+'</div>';};
+ var done=doneCount(n),b=boughtOf(n),lf=leftOf(n),wk=weekData(n),last8=wk.slice(-8),avg=Math.round(last8.reduce(function(a,w){return a+w.u;},0)/8*10)/10;
+ var sc=d.recs.filter(function(r){return r.score;}),s5=sc.slice(-5),avgS=s5.length?s5.reduce(function(a,r){return a+r.score;},0)/s5.length:0;
+ var pinfo=[p.level||'',p.grade||'',(p.pos||[]).join('、'),p.hand||''].filter(Boolean).map(esc).join('　');
+ var h=(pinfo||p.goal?'<div class="card" style="padding:12px 14px">'+(pinfo?'<div style="font-size:13px;color:var(--muted)">'+pinfo+'</div>':'')
+  +(p.goal?'<div style="margin-top:4px;font-size:14px"><b>目標</b>　'+esc(p.goal)+'</div>':'')+'</div>':'')
+  +'<div class="kpis">'
+  +'<div><small>已上</small><b>'+done+'<i>堂</i></b>'+(b?'<small style="margin-top:2px">剩 '+lf+' 堂</small>':'')+'</div>'
+  +'<div><small>近 8 週平均</small><b>'+avg+'<i>堂／週</i></b></div>'
+  +'<div><small>檢測</small><b>'+ts.length+'<i>次</i></b>'+(ts.length?'<small style="margin-top:2px">最近 '+md(ts[ts.length-1].date)+'</small>':'')+'</div>'
+  +'<div><small>近 5 堂掌握度</small><b>'+(avgS?SCN[Math.round(avgS)]:'—')+'</b>'+(avgS?'<small style="margin-top:2px">平均 '+rnd(avgS)+' / 5</small>':'')+'</div></div>';
+ /* 檢測週期 */
+ var lastNG=d.done.filter(function(l){return !isGrpPlan(l.plan);}).pop(),c=lastNG?cycInfo(lastNG,n):null;
+ if(c){var inC=c.n-(c.cyc-1)*10,postAt=c.cyc*10;if(inC>=10){inC=10;}
+  var posts=ts.filter(function(t){return t.kind==='後測';}),postT=posts.length>=c.cyc?posts[c.cyc-1]:null;   // 第幾期就看有沒有第幾次後測
+  h+=sec('檢測週期')+'<div class="card"><div class="row" style="justify-content:space-between"><b>第 '+c.cyc+' 期</b><span class="mini" style="margin:0">'+rnd(inC)+' / 10 堂</span></div>'
+   +'<div class="pbar"><i style="width:'+Math.min(100,inC*10)+'%"></i></div>'
+   +'<div class="mini" style="margin:0">'+(postT?'第 '+c.cyc+' 期後測已完成（'+md(postT.date)+'）。':(c.post?'這期已經到第 10 堂，記得做後測。':'第 '+postAt+' 堂做後測，還有 '+rnd(Math.max(0,postAt-c.n))+' 堂。'))+'</div></div>';}
+ /* 檢測數據 */
+ h+=sec('檢測數據成長');
+ var num=TF.filter(function(f){return f[3]==='n'||f[3]==='nt';}),sel=TF.filter(function(f){return f[3]==='s';});
+ num=num.slice().sort(function(x,y){var a=TKEY.indexOf(x[0]),b=TKEY.indexOf(y[0]);return (a<0?99:a)-(b<0?99:b);});   // 球速、揮棒、擊球初速、跳遠先看
+ if(!ts.length)h+='<div class="empty">還沒有檢測紀錄<br><small>第 1 堂做前測、第 10 堂做後測，就會出現成長曲線</small></div>';
+ else if(ts.length===1){var t1=ts[0],cells=num.filter(function(f){return tVal(t1,f[0])!=='';});
+  h+='<div class="card"><div class="mini" style="margin:0 0 8px">目前只有 '+esc(t1.kind)+'（'+md(t1.date)+(t1.nth?'，'+esc(t1.nth):'')+'），先當作<b>基準</b>。做完後測，每一項都會畫成折線並標出進步。</div>'
+   +(cells.length?'<div class="bgrid">'+cells.map(function(f){var v=tVal(t1,f[0]),isN=isFinite(parseFloat(v));
+     return '<div><small>'+esc(tShort(f))+'</small><b>'+esc(v)+(isN&&f[5]&&f[5].charAt(0)!=='/'?'<i>'+esc(f[5])+'</i>':(isN&&f[5]?'<i>'+esc(f[5])+'</i>':''))+'</b></div>';}).join('')+'</div>':'<div class="mini">這次沒有填數字項目。</div>')+'</div>';}
+ else{var a=ts[0],z=ts[ts.length-1];
+  h+=trendHTML(n,12)
+   +'<div class="card tt" style="padding:8px 10px"><table class="tcmp"><tr><th>項目</th><th>'+esc(a.kind)+' '+md(a.date)+'</th><th>'+esc(z.kind)+' '+md(z.date)+'</th><th>變化</th></tr>'
+   +num.filter(function(f){return tVal(a,f[0])!==''&&tVal(z,f[0])!=='';}).map(function(f){var st=tStat(f,tVal(a,f[0]),tVal(z,f[0]));
+     return '<tr><td>'+esc(tShort(f))+'</td><td>'+esc(tVal(a,f[0]))+'</td><td>'+esc(tVal(z,f[0]))+'</td><td>'
+      +(st?'<span class="tag '+st.k+'">'+st.t+'</span>'+(st.d?'<div style="font-size:11px;color:var(--muted)">'+st.d+'</div>':''):'—')+'</td></tr>';}).join('')+'</table>'
+   +'<div class="mini">變化小於 3% 標「持平」：測量本身有誤差，太小的差異不代表真的進步或退步。</div></div>';}
+ /* 動作品質（選項） */
+ var qs=sel.filter(function(f){return ts.some(function(t){return tVal(t,f[0])!=='';});});
+ if(qs.length){var A=ts[0],Z=ts[ts.length-1];
+  h+=sec('動作品質')+'<div class="card" style="padding:4px 12px">'+qs.map(function(f){var x=tVal(A,f[0]),y=ts.length>1?tVal(Z,f[0]):'';
+    var ix=f[7].indexOf(x),iy=f[7].indexOf(y),tg=(ts.length>1&&x&&y&&ix>=0&&iy>=0&&ix!==iy)?(iy<ix?'<span class="tag g">變好</span>':'<span class="tag r">要注意</span>'):'';
+    return '<div class="kv"><b style="flex:0 0 96px">'+esc(tShort(f))+'</b><span>'+esc(x||'—')+(ts.length>1?'　→　'+esc(y||'—'):'')+' '+tg+'</span></div>';}).join('')+'</div>';}
+ /* 課堂掌握度 */
+ h+=sec('課堂掌握度');
+ if(sc.length){var sp=sc.slice(-15).map(function(r){return {d:r.l.date,v:r.score};});
+  h+='<div class="card" style="padding:10px 10px 6px">'+scoreSVG(sp)
+   +'<div class="mini" style="margin:4px 4px 0">教練每堂課評的「當日掌握度」，最近 '+sp.length+' 堂。'+(sc.length>15?'（共 '+sc.length+' 堂有評分）':'')+'</div></div>';}
+ else h+='<div class="empty">上課紀錄還沒有評「當日掌握度」</div>';
+ /* 修正重點追蹤 */
+ var withP=d.recs.filter(function(r){return r.parts.length;});
+ h+=sec('修正重點追蹤');
+ if(withP.length){var cnt={};withP.forEach(function(r){r.parts.forEach(function(q){cnt[q]=(cnt[q]||0)+1;});});
+  var parts=Object.keys(cnt).sort(function(x,y){return cnt[y]-cnt[x];}).slice(0,6),cols=withP.slice(-10),rec3=withP.slice(-3);
+  var stat=parts.map(function(q){var inR=rec3.filter(function(r){return r.parts.indexOf(q)>=0;}).length;
+    return {q:q,k:cnt[q]>=2&&inR===0&&withP.length>=4?'ok':(inR>=2?'wip':'')};});
+  var ok=stat.filter(function(x){return x.k==='ok';}),wip=stat.filter(function(x){return x.k==='wip';});
+  h+='<div class="card" style="padding:10px 12px">'
+   +((ok.length||wip.length)?'<div class="row" style="gap:6px;margin-bottom:8px">'+ok.map(function(x){return '<span class="tag g">✓ 已改善：'+esc(x.q)+'</span>';}).join('')
+     +wip.map(function(x){return '<span class="tag">練習中：'+esc(x.q)+'</span>';}).join('')+'</div>':'')
+   +'<div style="overflow-x:auto"><table class="pmx"><tr><th></th>'+cols.map(function(r){return '<th>'+md(r.l.date)+'</th>';}).join('')+'</tr>'
+   +parts.map(function(q){return '<tr><td>'+esc(q)+'</td>'+cols.map(function(r){return '<td><i class="'+(r.parts.indexOf(q)>=0?'on':'off')+'"></i></td>';}).join('')+'</tr>';}).join('')+'</table></div>'
+   +'<div class="mini">橘色＝那堂課教練標了要修正的部位。標過 2 次以上、最近 3 堂都沒再出現，算「已改善」；最近 3 堂有 2 堂以上出現，算「練習中」。</div></div>';}
+ else h+='<div class="empty">上課紀錄還沒有標「重點修正部位」</div>';
+ /* 訓練內容 */
+ var tc={};d.recs.forEach(function(r){r.topics.forEach(function(t){tc[t]=(tc[t]||0)+1;});});var tk=Object.keys(tc).sort(function(x,y){return tc[y]-tc[x];}).slice(0,6);
+ if(tk.length){var tot=d.recs.length;
+  h+=sec('訓練內容（'+tot+' 堂有紀錄）')+'<div class="card" style="padding:8px 14px">'+tk.map(function(t){
+    return '<div class="hbar"><b>'+esc(t)+'</b><span><i style="width:'+Math.round(tc[t]/tot*100)+'%"></i></span><em>'+tc[t]+' 堂</em></div>';}).join('')+'</div>';}
+ /* 上課節奏 */
+ h+=sec('上課節奏（近 12 週）')+'<div class="card" style="padding:10px 10px 6px">'+weekSVG(wk)+'<div class="mini" style="margin:4px 4px 0">每一條是一週上了幾堂，近 8 週平均 '+avg+' 堂。</div></div>';
+ /* 最近一堂 */
+ var lr=d.recs[d.recs.length-1];
+ if(lr){var row=function(k,v){return v?'<div class="kv"><b>'+k+'</b><span>'+esc(v).replace(/\n/g,'<br>')+'</span></div>':'';};
+  h+=sec('最近一堂（'+md(lr.l.date)+' '+esc(lr.l.coach)+' 教練）')+'<div class="card" style="padding:4px 12px">'
+   +row('主題',topicText(lr.l.rec))+row('教練評語',lr.x.cmt)+row('下堂重點',lr.x.next)+row('回家功課',lr.x.hw)
+   +(!lr.x.cmt&&!lr.x.next&&!lr.x.hw?'<div class="mini">這堂沒有寫評語和下堂重點。</div>':'')+'</div>';}
+ return h;
+}
+function fProgress(sid){var s=byId(DB.students,sid);if(!s)return;
+ openSheet(head('成長數據　'+esc(s.name))+progHTML(s)+'<div style="height:10px"></div>');}
+function vCoachData(){
+ var base=PDSEG==='mine'?myStudents():STU().filter(function(s){return lessonsOf(s.name).some(function(l){return l.status==='已完成';});});
+ var list=base.map(function(s){var d=progData(s.name);return {s:s,d:d,last:d.done.length?d.done[d.done.length-1].date:''};})
+  .sort(function(a,b){return a.last<b.last?1:(a.last>b.last?-1:0);});
+ return '<h2>成長數據</h2><div class="hint">點學員看進步曲線：檢測數據、課堂掌握度、修正重點有沒有改善。</div>'
+ +'<div class="seg"><button data-act="pdSeg" data-s="mine" class="'+(PDSEG==='mine'?'on':'')+'">我的學員</button>'
+ +'<button data-act="pdSeg" data-s="all" class="'+(PDSEG==='all'?'on':'')+'">全部學員</button></div>'
+ +(list.length?list.map(function(o){var s=o.s,d=o.d,lv=(s.profile&&s.profile.level)||'',sv=d.recs.filter(function(r){return r.score;}).slice(-8).map(function(r){return r.score;});
+   return '<div class="item pl" data-edit="cprog" data-id="'+s.id+'"><div class="top"><div style="min-width:0">'
+   +'<div class="nm">'+esc(s.name)+(lv?' <span class="tag t">'+esc(lv)+'</span>':'')+'</div>'
+   +'<div class="meta">已上 '+doneCount(s.name)+' 堂・紀錄 '+d.recs.length+' 堂・檢測 '+d.tests.length+' 次</div>'
+   +(o.last?'<div class="meta">最近上課 '+md(o.last)+'</div>':'')+'</div>'
+   +'<div class="acts">'+sparkSVG(sv)+'<span class="go">看數據'+svg('chev')+'</span></div></div></div>';}).join('')
+  :'<div class="empty">'+(PDSEG==='mine'?'目前沒有你的學員':'還沒有上過課的學員')+'</div>');
+}
+
 /* 教練團知識庫：所有教練的上課紀錄（教練端不顯示學員姓名，只顯示組別），加上教案 */
 function allRecRows(){
  var out=[];
@@ -3028,8 +3198,8 @@ function vKB(){
     +'<div class="kv"><b>適用</b><span>'+esc(k.age||'')+'</span></div><div class="kv"><b>口訣</b><span>'+esc(k.cue||'')+'</span></div>'
     +'<div class="kv"><b>做法</b><span>'+esc(k.steps||'')+'</span></div><div class="kv"><b>道具</b><span>'+esc(k.tools||'')+'</span></div>'
     +'<div class="kv"><b>回家作業</b><span>'+esc(k.hw||'')+'</span></div><div class="kv"><b>提供</b><span>'+esc(k.by||'')+'</span></div></details>';}).join(''):'')
- +'<div class="sec-t">課堂紀錄（'+rows.length+' 筆）</div>'
- +rows.slice(0,60).map(function(o){
+ +'<div class="sec-t" id="kbrec">課堂紀錄（'+rows.length+' 筆）</div>'
+ +kbPageRows(rows).map(function(o){
    var x=o.x,r=o.r,who=MODE==='coach'&&o.l.coach!==ME?(lv(o.n)||'學員'):o.n+(lv(o.n)?'（'+lv(o.n)+'）':'');
    var row=function(k,v){return v?'<div class="kv"><b>'+k+'</b><span>'+esc(v).replace(/\n/g,'<br>')+'</span></div>':'';};
    return '<details class="recv"><summary><div class="l">'+esc(topicText(r)||'未填主題')+'</div>'
@@ -3037,7 +3207,7 @@ function vKB(){
     +((x.parts||[]).length?'　'+x.parts.map(function(p){return '<span class="tag t">'+esc(p)+'</span>';}).join(' '):'')+'</div></summary>'
     +row('待修正問題',x.issue)+row('修正處方',x.fix)+row('提示語',x.cue)+row('訓練菜單',x.menu||r.menu)
     +row('器材',(r.gear||[]).concat(r.gearx?[r.gearx]:[]).join('、'))+row('回家功課',x.hw)+row('自主頻率',x.freq)+'</details>';}).join('')
- +(rows.length>60?'<div class="mini">只列最近 60 筆，用上面的搜尋縮小範圍。</div>':'')
+ +kbPager(rows.length)
  +(rows.length?'':'<div class="empty">沒有符合的紀錄</div>');
 }
 function vCoachMe(){
@@ -5033,8 +5203,8 @@ function bindKB(){
  var comp=false;
  if(q){q.addEventListener('compositionstart',function(){comp=true;});
   q.addEventListener('compositionend',function(){comp=false;q.oninput();});}
- if(q)q.oninput=function(){if(comp)return;KBQ=q.value.trim();var sv=q.selectionStart;render();var q2=document.getElementById('kbq');if(q2){q2.focus();try{q2.setSelectionRange(sv,sv);}catch(e){}}};
- document.querySelectorAll('.kbp').forEach(function(b){b.onclick=function(){KBQ=KBQ===b.dataset.q?'':b.dataset.q;render();};});
+ if(q)q.oninput=function(){if(comp)return;KBQ=q.value.trim();KBPG=1;var sv=q.selectionStart;render();var q2=document.getElementById('kbq');if(q2){q2.focus();try{q2.setSelectionRange(sv,sv);}catch(e){}}};
+ document.querySelectorAll('.kbp').forEach(function(b){b.onclick=function(){KBQ=KBQ===b.dataset.q?'':b.dataset.q;KBPG=1;render();};});
 }
 function bindItems(){
  document.querySelectorAll('[data-edit]').forEach(function(c){
@@ -5046,7 +5216,8 @@ function bindItems(){
    if(t==='bill')fBill(c.dataset.id);
    if(t==='rn')fRenew(c.dataset.id);
    if(t==='rec')fRec(c.dataset.id);
-   if(t==='cstu')fCoachStu(c.dataset.id);};
+   if(t==='cstu')fCoachStu(c.dataset.id);
+   if(t==='cprog')fProgress(c.dataset.id);};
  });
 }
 document.addEventListener('change',function(e){
@@ -5225,7 +5396,10 @@ function bind(){
       .catch(function(e){alert('匯入失敗\n\n'+String(e.message||e));});};
     fi.click();return;}
    if(a==='impGo'){if(!IMP)return;var nn=impApply(IMP);IMP=null;closeSheet();render();alert('已匯入 '+nn+' 筆上課紀錄。');return;}
-   if(a==='kbSeg'){KBSEG=b.dataset.s;return render();}
+   if(a==='kbSeg'){KBSEG=b.dataset.s;KBPG=1;return render();}
+   if(a==='kbPg'){KBPG=+b.dataset.p||1;render();var kh=document.getElementById('kbrec');if(kh)kh.scrollIntoView({block:'start'});return;}
+   if(a==='prog')return fProgress(id);
+   if(a==='pdSeg'){PDSEG=b.dataset.s;return render();}
    if(a==='adjOk'){var la=byId(DB.lessons,id);if(la&&la.adj){la.adj.ok=1;touch('lessons',la);persist();render();toast('已確認');}return;}
    if(a==='jump'){var tg2=document.getElementById(b.dataset.to);if(tg2)tg2.scrollIntoView({behavior:'smooth',block:'start'});return;}
    if(a==='homeRnAll'){HOMERN=true;return render();}
