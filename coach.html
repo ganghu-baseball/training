@@ -611,7 +611,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.22b';
+var APPVER='2026.11.22c';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1187,7 +1187,7 @@ function fAddRec(){
  var mine=MODE==='coach'?myStudents():[],others=STU().filter(function(s){return mine.indexOf(s)<0;}),t0=today();
  openSheet(head('新增上課紀錄')
   +'<div class="fbox"><div class="mini" style="margin:0 0 8px">'+(MODE==='coach'
-    ?'課表上沒有的課（臨時加課、補課、多上的一堂）在這裡新增日期和紀錄。送出後可以先填紀錄，<b>行政確認後</b>才會算進課表、堂數和鐘點費。'
+    ?'選學員、日期和時間，接著填這堂的紀錄。'
     :'直接新增到課表，接著填這堂的紀錄。')+'</div>'
   +'<label>學員（可以選好幾位）</label>'+chips('ad_stu',mine.map(function(s){return s.name;}),[])
   +(others.length?'<select id="ad_more" style="margin-top:8px"><option value="">'+(mine.length?'＋ 其他學員':'選學員')+'</option>'+others.map(function(x){return '<option>'+esc(x.name)+'</option>';}).join('')+'</select>':'')
@@ -1196,7 +1196,7 @@ function fAddRec(){
   +'<div class="grid2"><div><label>上課時間</label><select id="ad_dur">'+DUROPTS.map(function(o){return '<option value="'+o[0]+'"'+(o[0]===60?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></div>'
   +'<div><label>場地</label><select id="ad_venue">'+VENUES.map(function(v){return '<option>'+esc(v)+'</option>';}).join('')+'</select></div></div>'
   +(MODE==='coach'?'':'<label>教練</label><select id="ad_coach">'+coachList('').map(function(c){return '<option>'+esc(c)+'</option>';}).join('')+'</select>')
-  +'<label>為什麼課表上沒有（選填，行政看得到）</label><input id="ad_note" placeholder="例如 臨時加的捕手課、補 11/12 請假的課">'
+  +'<label>備註（選填）</label><input id="ad_note" placeholder="例如 捕手課">'
   +'<div class="row" style="margin-top:14px"><button class="btn" data-act="addRecGo">下一步：填這堂的紀錄</button></div></div>');
  var mo=document.getElementById('ad_more');
  if(mo)mo.onchange=function(){var v=mo.value;mo.value='';if(!v)return;var box=document.getElementById('ad_stu');
@@ -1208,16 +1208,14 @@ function addRecGo(){
  var en=m2t(t2m(st)+du);
  var ex=LES().filter(function(l){return l.date===d&&l.status!=='取消'&&(l.students||[]).some(function(n){return ns.indexOf(n)>=0;});});
  if(ex.length){var e0=ex[0];
-  if(confirm((e0.students||[]).join('、')+' 在 '+md(d)+' 已經有一堂 '+e0.start+'–'+e0.end+'（'+e0.coach+' 教練'+(e0.vr?'，等行政確認中':'')+'）。\n\n要直接填那一堂的紀錄嗎？\n（按「取消」會另外再新增一堂）'))return fRec(e0.id);}
+  if(confirm((e0.students||[]).join('、')+' 在 '+md(d)+' 已經有一堂 '+e0.start+'–'+e0.end+'（'+e0.coach+' 教練）。\n\n要直接填那一堂的紀錄嗎？\n（按「取消」會另外再新增一堂）'))return fRec(e0.id);}
  var les={date:d,start:st,end:en,coach:co,plan:planFor(ns),students:ns.slice(),venue:ve,note:nt?'教練新增：'+nt:'教練新增'};
  if(MODE==='coach'){var lid=uid();cdPut('req:'+uid(),{k:'req',type:'add',lid:lid,by:ME,at:Date.now(),st:'pending',les:les});
-  applyCD();persist();render();toast('已送出給行政確認，可以先填紀錄');return fRec(lid);}
+  applyCD();persist();render();toast('已新增，接著填這堂的紀錄');return fRec(lid);}
  var nl={id:uid(),del:0};for(var k in les)nl[k]=les[k];nl.note=nt;nl.status=d<=today()?'已完成':'已排定';
  DB.lessons.push(nl);touch('lessons',nl);applyCD();persist();render();toast('已新增到課表');return fRec(nl.id);
 }
-function vrBanner(l){return '<div class="attb"><b style="font-size:14px">這堂是你新增的課（等行政確認）</b>'
- +'<div class="mini" style="margin:4px 0 0">紀錄可以先寫。行政確認後就會算進課表、堂數和鐘點費，紀錄會自動接上。</div>'
- +'<div class="row" style="margin-top:8px"><button type="button" class="btn sec sm" data-act="vlesDel" data-id="'+l.id+'">新增錯了，取消這堂</button></div></div>';}
+function vrBanner(l){return '<div class="row" style="justify-content:flex-end;margin:0 0 8px"><button type="button" class="btn sec sm" data-act="vlesDel" data-id="'+l.id+'">新增錯了，刪除這堂</button></div>';}
 function applyCD(){
  vlesSync();
  var rec={},tests={},prof={},old={};
@@ -1271,7 +1269,7 @@ function makeReq(l,type,extra){var f={k:'req',type:type,lid:l.id,by:ME||recWho()
  for(var k in (extra||{}))f[k]=extra[k];cdPut('req:'+uid(),f);}
 function reqLine(r){
  if(r.type==='add'&&r.les){var a=r.les;return md(a.date)+'（'+DAYN[dowOf(a.date)].slice(1)+'）'+esc(a.start)+'–'+esc(a.end)+'　'+esc((a.students||[]).join('、'))+'　<b>新增一堂課</b>'
-  +'<span class="mini" style="display:block;margin:2px 0 0">'+esc((a.plan||'').replace(/-套餐|-單堂/,''))+'　'+esc(a.venue||'')+(a.note&&a.note!=='教練新增'?'　'+esc(a.note.replace(/^教練新增：/,'原因：')):'')
+  +'<span class="mini" style="display:block;margin:2px 0 0">'+esc((a.plan||'').replace(/-套餐|-單堂/,''))+'　'+esc(a.venue||'')+(a.note&&a.note!=='教練新增'?'　'+esc(a.note.replace(/^教練新增：/,'備註：')):'')
   +(cdRow('rec:'+r.lid)?'　已寫上課紀錄':'')+'</span>';}
  var l=byId(DB.lessons,r.lid);
  return (l?md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）'+l.start+'–'+l.end+'　'+esc((l.students||[]).join('、'))+'　':'（課程已刪除）')
@@ -3122,7 +3120,7 @@ function stuLeftTag(n){var b=boughtOf(n),lf=leftOf(n);
  return b>0&&lf<=RENEW_AT?' <span class="tag'+(lf<=0?' r':'')+'">剩 '+lf+' 堂</span>':'';}
 function cLesCard(l,showDate){
  var t0=today(),past=l.date<=t0;
- var st=l.vr?'<span class="tag b">新增・待確認</span>'+(l.rec?' <span class="tag g">已填</span>':''):l.status==='請假改期'?'<span class="tag r">待改期</span>'
+ var st=l.status==='請假改期'?'<span class="tag r">待改期</span>'
   :(l.rec?'<span class="tag g">已填・可修改</span>':(past?'<span class="tag r">待填紀錄</span>':'<span class="tag b">'+esc(l.status)+'</span>'));
  var dn=reqsOf(l.id).some(function(r){return r.type==='done'&&r.st!=='no';});
  var qd=(l.status!=='已排定'||l.vr)?'':(dn?'<span class="tag g">已點名</span>'
@@ -3322,7 +3320,7 @@ function vCoachRec(){
  +'<div class="seg"><button data-act="kbSeg" data-s="mine" class="'+(KBSEG==='mine'?'on':'')+'">我的課堂紀錄</button>'
  +'<button data-act="kbSeg" data-s="kb" class="'+(KBSEG==='kb'?'on':'')+'">教練團知識庫</button></div>'
  +(KBSEG==='kb'?vKB():
-  '<button class="btn full" data-act="addRec" style="margin:2px 0 10px">'+svg('plus',16)+' 新增上課紀錄（課表上沒有的課）</button>'
+  '<button class="btn full" data-act="addRec" style="margin:2px 0 10px">'+svg('plus',16)+' 新增上課紀錄</button>'
   +'<div class="hint">每一堂都可以點進去填，還沒上的課也可以先把菜單寫好。已經填好的，點進去可以匯出這堂的 PDF 給家長。</div>'
   +'<div class="seg" id="recseg">'+seg.map(function(x){return '<button data-act="recF" data-f="'+x[0]+'" class="'+(RECF===x[0]?'on':'')+'">'+x[1]+' '+sets[x[0]].length+'</button>';}).join('')+'</div>'
   +'<select id="recs" style="margin:0 0 10px"><option value="">全部學員</option>'+Object.keys(names).sort().map(function(n){return '<option'+(RECS===n?' selected':'')+'>'+esc(n)+'</option>';}).join('')+'</select>'
@@ -6244,8 +6242,8 @@ function bind(){
    if(a==='recPg'){RECPG=+b.dataset.p||1;render();var rsg=document.getElementById('recseg');if(rsg)rsg.scrollIntoView({block:'start'});return;}
    if(a==='addRec')return fAddRec();
    if(a==='addRecGo')return addRecGo();
-   if(a==='vlesDel'){var rv=vlesReq(id);if(!rv||!confirm('取消這堂新增？這堂已經寫的紀錄也會一起刪掉。'))return;
-    cdPut(rv.id,{st:'no',dec:'教練自己取消',decAt:Date.now()});if(cdRow('rec:'+id))cdDel('rec:'+id);applyCD();persist();closeSheet(true);render();toast('已取消這堂');return;}
+   if(a==='vlesDel'){var rv=vlesReq(id);if(!rv||!confirm('刪除這堂？這堂寫的紀錄也會一起刪掉。'))return;
+    cdPut(rv.id,{st:'no',dec:'教練自己取消',decAt:Date.now()});if(cdRow('rec:'+id))cdDel('rec:'+id);applyCD();persist();closeSheet(true);render();toast('已刪除這堂');return;}
    if(a==='recPdf'){if(REC_DIRTY&&!saveRec(id,true))return;var lp=byId(DB.lessons,id);if(!lp||!lp.rec)return alert('這堂還沒有紀錄，先儲存再匯出');REC_DIRTY=false;return recPdf(lp);}
    if(a==='kbPg'){KBPG=+b.dataset.p||1;render();var kh=document.getElementById('kbrec');if(kh)kh.scrollIntoView({block:'start'});return;}
    if(a==='prog')return fProgress(id);
