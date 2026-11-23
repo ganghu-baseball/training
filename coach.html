@@ -15,6 +15,7 @@ document.querySelector('meta[name=apple-mobile-web-app-title]').content='港湖�
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>港湖特訓班｜行政管理</title>
+<link rel="preconnect" href="https://amjkgkzptvecbtezjagt.supabase.co" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -615,7 +616,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.23c';
+var APPVER='2026.11.23d';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1054,15 +1055,20 @@ function sbErr(j,fallback){
 /* 登入憑證一小時就過期：以前是 6 個資料表同時被拒、各自換一次憑證再重抓（打開會卡 2～3 秒）。
    現在送出前先看快過期了沒，要換就只換一次，大家共用 */
 var REFP=null;
+/* 連線逾時（2026-11-23）：手機切到別的 App、訊號不好時，請求可能永遠沒有回應，
+   以前會一直卡在「同步中」、之後也不會再同步。現在超過時間就放棄，下次再試 */
+function tfetch(u,o,ms){o=o||{};var ac=window.AbortController?new AbortController():null;
+ if(ac){o.signal=ac.signal;setTimeout(function(){ac.abort();},ms||20000);}
+ return fetch(u,o).catch(function(e){throw (e&&e.name==='AbortError')?new Error('網路太慢，連線逾時（等一下會自動再試）'):e;});}
 function tokExp(){try{var b=SESS.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(atob(b)).exp*1000;}catch(e){return 0;}}
 function sbFresh(){if(!SESS||!SESS.refresh_token||!SESS.access_token)return Promise.resolve();
  if(tokExp()>Date.now()+60000)return Promise.resolve();return sbRefresh().catch(function(){});}
 function sbRefresh(){if(REFP)return REFP;
  REFP=sbRefresh0().then(function(x){REFP=null;return x;},function(e){REFP=null;throw e;});return REFP;}
 function sbRefresh0(){
- return fetch(sbURL('/auth/v1/token?grant_type=refresh_token'),{
+ return tfetch(sbURL('/auth/v1/token?grant_type=refresh_token'),{
   method:'POST',headers:{'apikey':SB.key,'Content-Type':'application/json'},
-  body:JSON.stringify({refresh_token:SESS.refresh_token})})
+  body:JSON.stringify({refresh_token:SESS.refresh_token})},15000)
  .then(function(r){return r.json();})
  .then(function(j){
   if(!j.access_token){SESS=null;save('sess',null);throw new Error('登入已過期，請重新登入');}
@@ -1079,7 +1085,7 @@ function sbFetch0(path,opts,retried){
  h['Content-Type']='application/json';
  var o={method:opts.method||'GET',headers:h};
  if(opts.body)o.body=opts.body;
- return fetch(sbURL(path),o).then(function(r){
+ return tfetch(sbURL(path),o,opts.body?(opts.body.length>200000?90000:40000):25000).then(function(r){
   if(r.status===401&&!retried&&SESS&&SESS.refresh_token)
    return sbRefresh().then(function(){return sbFetch0(path,opts,true);});
   return r;});
@@ -1105,42 +1111,52 @@ function sbPush(table,rows){
   return r.json().catch(function(){return {};}).then(function(j){
    throw new Error('寫入 '+table+' 失敗：'+sbErr(j,'HTTP '+r.status));});});
 }
-function sbPull(table){
- return sbFetch('/rest/v1/'+table+'?select=id,ts,del,data&ts=gte.'+SINCE+'&order=ts.asc')
- .then(function(r){return r.json().then(function(j){
-  if(!Array.isArray(j))throw new Error('讀取 '+table+' 失敗：'+sbErr(j,'HTTP '+r.status));
-  return j;});});
+/* 資料庫一次最多回 1000 筆：超過就分批讀（課程、紀錄之後一定會超過） */
+var PULLPG=1000;
+function sbPull(table){var out=[];
+ function pg(off){
+  return sbFetch('/rest/v1/'+table+'?select=id,ts,del,data&ts=gte.'+SINCE+'&order=ts.asc,id.asc&limit='+PULLPG+'&offset='+off)
+  .then(function(r){return r.json().then(function(j){
+   if(!Array.isArray(j))throw new Error('讀取 '+table+' 失敗：'+sbErr(j,'HTTP '+r.status));
+   out=out.concat(j);return j.length>=PULLPG?pg(off+PULLPG):out;});});}
+ return pg(0);
 }
 function setST(s){SYNCST=s;upPill();}
 
-function mergeIn(recs){
+function mergeIn(recs){var chg=0;
  PCOLS.forEach(function(col){
+  var ix=null;
   (recs[col]||[]).forEach(function(r){
    if(PEND[col]&&PEND[col][r.id])return;               // 本機還有沒送出的改動，先不要蓋掉
    var o=r.data||{};o.id=r.id;o.ts=r.ts;o.del=r.del?1:0;
-   var cur=byId(DB[col],r.id);
+   if(!ix){ix={};DB[col].forEach(function(x){ix[x.id]=x;});}
+   var cur=ix[r.id]||null;
+   if(cur&&r.ts===(cur.ts||0)&&JSON.stringify(o)===JSON.stringify(cur))return;   // 一模一樣，不用動
+   chg++;
    if(!cur&&col==='students'&&o.name){
     // 第一次連雲端時，把同名、從未編輯過的預設名單清掉，避免整份重複
     for(var q=DB[col].length-1;q>=0;q--){var x=DB[col][q];
      if(x.id!==r.id&&x.name===o.name&&!x.ts&&!PEND[col][x.id])DB[col].splice(q,1);}
    }
-   if(!cur)DB[col].push(o);
-   else if(r.ts>=(cur.ts||0))DB[col][DB[col].indexOf(cur)]=o;
+   if(!cur){DB[col].push(o);ix[o.id]=o;}
+   else if(r.ts>=(cur.ts||0)){DB[col][DB[col].indexOf(cur)]=o;ix[o.id]=o;}
   });});
  (recs.cfg||[]).forEach(function(r){
   if(PEND.cfg)return;
-  if(r.ts>=(DB.cfg.ts||0)){var c=r.data||{};c.ts=r.ts;DB.cfg=c;}});
- lsnapAll();
- applySettings();applyCD();
+  if(r.ts>=(DB.cfg.ts||0)){var c=r.data||{};c.ts=r.ts;if(JSON.stringify(c)!==JSON.stringify(DB.cfg))chg++;DB.cfg=c;}});
+ if(chg){lsnapAll();applySettings();applyCD();}
+ return chg;
 }
 
 var TB=MODE==='coach'?['students_pub','lessons','cfg','coachdata','summary']:['students','lessons','payments','expenses','cfg','coachdata'];
+var SYNCAT=0,SYNCOK=0,SYNCGEN=0;
 function syncNow(manual){
  if(!sbReady()){setST('off');
   if(manual)alert('還沒設定資料庫連線。到「結算」分頁最下面填入網址和金鑰。');return;}
  if(!canSync()){setST('off');
   if(manual)alert('還沒登入。到「結算」分頁最下面輸入帳號密碼登入。');return;}
- if(SYNCST==='ing')return;
+ if(SYNCST==='ing'&&Date.now()-SYNCAT<90000)return;
+ SYNCAT=Date.now();var gen=++SYNCGEN,first=!SYNCED;
  setST('ing');
 
  var snap={cfg:PEND.cfg},jobs=[],cnt=0;
@@ -1165,22 +1181,25 @@ function syncNow(manual){
   res.forEach(function(x){
    recs[x.col]=x.rows;
    x.rows.forEach(function(r){if(r.ts>maxts)maxts=r.ts;});});
-  mergeIn(recs);
-  SYNCED=true;
+  if(gen!==SYNCGEN)return;           // 已經有比較新的一次同步，這次的結果不用了
+  var chg=mergeIn(recs);
+  SYNCED=true;SYNCOK=Date.now();
   SINCE=maxts;save('since',SINCE);
   COLS.forEach(function(col){
    Object.keys(snap[col]).forEach(function(id){
     if(PEND[col][id]===snap[col][id])delete PEND[col][id];});});
   if(snap.cfg&&PEND.cfg===snap.cfg)PEND.cfg=0;
   LASTSYNC=new Date().toTimeString().slice(0,5);save('lastsync',LASTSYNC);
-  if(MODE!=='coach'){applyCD();autoComplete();autoDoneReqs();}
-  persistOnly();SYNCMSG='';setST('ok');render();
+  if(MODE!=='coach'){if(first||chg)applyCD();chg+=autoComplete()+autoDoneReqs();}
+  if(chg||cnt||manual||pendCount()||RDAY!==today()||(first&&MODE!=='coach')){persistOnly();SYNCMSG='';setST('ok');render();}
+  else{save('pend',PEND);SYNCMSG='';setST('ok');}
   if(MODE!=='coach'){
    if(pendCount())setTimeout(function(){syncNow();},800);
    else{pushSummary();dailyBackup();driveBak();}}
   if(manual)alert('同步完成，'+(cnt?'送出 '+cnt+' 筆變更。':'沒有新的變更。'));
  })
  .catch(function(e){
+  if(gen!==SYNCGEN)return;
   SYNCMSG=String(e.message||e);setST('err');upPill();
   if(manual)alert('同步失敗\n\n'+SYNCMSG);
  });
@@ -1193,7 +1212,7 @@ function pushAll(){
 }
 window.addEventListener('online',function(){if(pendCount())syncNow();});
 document.addEventListener('visibilitychange',function(){
- if(!document.hidden&&sbReady()&&canSync())syncNow();});
+ if(!document.hidden&&sbReady()&&canSync()&&(pendCount()||Date.now()-SYNCOK>15000))syncNow();});
 
 /* ============ 第一階段：權限分離、教練資料表、審核中心、每日備份、修改紀錄、設定頁（2026-11-20） ============ */
 /* coachdata 表：教練寫的東西都放這裡，教練帳號只能寫這張表。
@@ -1626,7 +1645,8 @@ function vCoach(){
  if(!ME)return vPickCoach();
  return ({cw:vCoachWeek,ct:vCoachCal,cs:vCoachStu,cd:vCoachData,cr:vCoachRec,cm:vCoachMe}[TAB]||vCoachWeek)();
 }
-function render(){
+var RDAY='';
+function render(){RDAY=today();
  document.getElementById('app').innerHTML=
   (HASLS?'':'<div class="warnbar">目前是預覽模式，資料不會保留。把檔案上傳到網站後開啟才會存進手機。</div>')
   +(MODE==='coach'?vCoach():({home:vHome,stu:vStu,cal:vCal,set:vSet,cfg:vCfg}[TAB]||vHome)());
@@ -3518,7 +3538,7 @@ function vCoachData(){
   :'<div class="empty">'+(PDSEG==='mine'?'目前沒有你的學員':'還沒有上過課的學員')+'</div>');
 }
 
-/* 教練團知識庫：所有教練的上課紀錄（教練端不顯示學員姓名，只顯示組別），加上教案 */
+/* 教練團知識庫：所有教練的上課紀錄（顯示學員姓名和組別，2026-11-23 起），加上教案 */
 function allRecRows(){
  var out=[];
  LES().forEach(function(l){if(!l.rec)return;var r=l.rec,st=r.stu||{};
@@ -5670,6 +5690,8 @@ function driveBak(force){
  if(MODE==='coach')return Promise.resolve(null);
  var c=sheetCfg();if(!c.rec||!c.tok){DRVBAK_MSG='還沒設定上課紀錄試算表的網址';return Promise.resolve(null);}
  if(!force&&(DB.cfg.drvbak||'')>addD(today(),-7))return Promise.resolve(null);
+ if(!force&&load('drvtry','')===today())return Promise.resolve(null);   // 今天試過失敗了，明天再試
+ if(!force)save('drvtry',today());
  var body=JSON.stringify({at:new Date().toISOString(),ver:APPVER,students:DB.students,lessons:DB.lessons,payments:DB.payments,expenses:DB.expenses,coachdata:DB.coachdata,cfg:DB.cfg});
  return gasPost({bak:{name:'港湖特訓班備份_'+today()+'_'+new Date().toTimeString().slice(0,5).replace(':','')+'.json',json:body}}).then(function(j){
   if(j&&j.ok){DB.cfg.drvbak=today();DB.cfg.drvbakN=j.n||'';touchCfg();persist();DRVBAK_MSG='';return j;}
@@ -6163,9 +6185,10 @@ function val(id){var e=document.getElementById(id);return e?e.value:'';}
 function bindKB(){
  var q=document.getElementById('kbq');
  var comp=false;
- if(q){q.addEventListener('compositionstart',function(){comp=true;});
-  q.addEventListener('compositionend',function(){comp=false;q.oninput();});}
- if(q)q.oninput=function(){if(comp)return;KBQ=q.value.trim();KBPG=1;var sv=q.selectionStart;render();var q2=document.getElementById('kbq');if(q2){q2.focus();try{q2.setSelectionRange(sv,sv);}catch(e){}}};
+ if(q&&!q.dataset.kb){q.dataset.kb='1';q.addEventListener('compositionstart',function(){q.dataset.comp='1';});
+  q.addEventListener('compositionend',function(){q.dataset.comp='';q.oninput();});}
+ comp=false;
+ if(q)q.oninput=function(){if(q.dataset.comp)return;KBQ=q.value.trim();KBPG=1;var sv=q.selectionStart;render();var q2=document.getElementById('kbq');if(q2){q2.focus();try{q2.setSelectionRange(sv,sv);}catch(e){}}};
  document.querySelectorAll('.kbp').forEach(function(b){b.onclick=function(){KBQ=KBQ===b.dataset.q?'':b.dataset.q;KBPG=1;render();};});
 }
 function bindItems(){
@@ -7044,6 +7067,6 @@ render();upPill();
 /* 讀自己的角色：教練帳號開到行政網址就轉到教練端 */
 loadMyRole().then(function(r){
  if(r&&r.role==='coach'&&MODE==='admin'){location.replace('coach.html');return;}
- if(MODE==='coach')render();});
+ if(MODE==='coach'&&r)render();});
 if(sbReady()&&canSync())syncNow();
 </script></body></html>
