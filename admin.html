@@ -302,6 +302,7 @@ details.recst>summary::after{content:" ▾";color:var(--muted)}details.recst[ope
 .recv>summary{cursor:pointer}.recv .l{font-weight:700;font-size:14px}.recv .m{font-size:12px;color:var(--muted);margin-top:2px}
 .recv[open]{background:#FBFAF6}
 .kv{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2);font-size:14px}
+.seq{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--line2);font-size:13.5px}.seq:last-child{border-bottom:0}.seq .n{flex:0 0 66px;font-weight:800}.seq .d{flex:1 1 auto;min-width:0}.seq .c{color:var(--muted);font-size:12.5px;margin-left:6px}.seq.cur{background:var(--or-s);border-radius:8px;padding:6px 8px}details.seqd{margin:8px 0 4px}details.seqd>summary{cursor:pointer;font-size:13px;font-weight:800;color:var(--ink2);padding:4px 0}.nthw{margin:4px 0 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .kv:last-child{border-bottom:0}.kv b{flex:0 0 76px;color:var(--muted);font-size:12px;font-weight:700;padding-top:2px}
 .kv span{flex:1;line-height:1.6}
 .rsec{--c:#2E4A5B;background:#fff;border:1px solid var(--line);border-top:4px solid var(--c);border-radius:14px;padding:2px 14px 16px;margin-top:12px;box-shadow:var(--sh)}
@@ -614,7 +615,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.23b';
+var APPVER='2026.11.23c';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -2131,7 +2132,7 @@ function fStu(id){
    +(leftOf(s.name)>0?'<button class="btn dan sm" data-act="refund" data-nm="'+esc(s.name)
      +'" style="margin-top:12px">辦理退費</button>':'')
    +'</div>'
-   +stuLessons(s.name)
+   +stuLessons(s.name)+lesSeqHTML(s.name)
    +'<button class="btn sec full" data-act="prog" data-id="'+s.id+'" style="margin-top:14px">'+svg('chart',16)+' 成長數據（進步曲線）</button>'
    +recSection(s.name);
  }
@@ -2998,8 +2999,11 @@ function fRec(lid,draft){
    +fld('實際上課時間','<div class="grid2"><select id="r_start">'+timeOpts(l.start)+'</select><select id="r_end">'+timeOpts(l.end)+'</select></div>'
      +'<div class="mini">跟排定的不一樣才需要改，存檔後課表會一起更新。</div>')
    +per(function(n,i,x){var s=stuByName(n),lv=x.level||(s&&s.profile&&s.profile.level)||'';
+     var P=cycPos(n),p=P[l.id],sn=p?'第'+posTxt(p)+'堂':nthOf(l,n);
      return fld('層級組別',chips('rs'+i+'_level',LEVELS,lv,1))
-      +fld('堂數','<input id="rs'+i+'_nth" value="'+esc(x.nth||nthOf(l,n))+'">');}))
+      +fld('堂數','<input id="rs'+i+'_nth" value="'+esc(x.nth||sn)+'">'
+        +(x.nth&&nthOff(x,p)?'<div class="mini nthw" id="nthw'+i+'">照上課順序（含其他教練上的課）這是'+sn+'。<button type="button" class="btn sec sm" data-act="nthSet" data-i="'+i+'" data-v="'+sn+'">改成'+sn+'</button></div>':''))
+      +lesSeqHTML(n,l.id,1);}))
  /* 二、訓練主題與核心內容 */
  +recSec('二','訓練主題與核心內容 (Drills)','s2',
    tplBar(l)+(pl?'<button type="button" class="btn sec sm prevb" data-act="recPrev" data-id="'+l.id+'" data-from="'+pl.id+'">↺ 帶入上一堂（'+md(pl.date)+'）的主題、菜單、器材和回家功課</button>':'')
@@ -3338,6 +3342,7 @@ function fCoachStu(sid){
  +'<div><small style="color:var(--muted);font-size:12px">剩下</small><div class="num" style="font-size:20px;color:'+(b&&lf<=RENEW_AT?'var(--red)':'var(--ink)')+'">'+(b?lf+' 堂':'—')+'</div></div>'
  +'<div><small style="color:var(--muted);font-size:12px">主要教練</small><div style="font-size:15px;font-weight:800;margin-top:4px">'+esc(s.coach||'—')+'</div></div></div>'
  +(b&&lf<=RENEW_AT?'<div class="warnbar" style="margin:10px 0 0">剩 '+lf+' 堂，上課時記得跟家長提一下要不要續報。</div>':'')+'</div>'
+ +lesSeqHTML(n)
  +'<div class="sec-t">接下來的課</div>'
  +(up.length?'<div class="card" style="padding:4px 12px">'+up.map(function(l){
    return '<div class="kv"><b>'+md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）</b><span>'+esc(l.start)+'–'+esc(l.end)+'　'+esc(l.coach)+' 教練</span></div>';}).join('')+'</div>'
@@ -3536,7 +3541,7 @@ function vKB(){
     +'<div class="kv"><b>回家作業</b><span>'+esc(k.hw||'')+'</span></div><div class="kv"><b>提供</b><span>'+esc(k.by||'')+'</span></div></details>';}).join(''):'')
  +'<div class="sec-t" id="kbrec">課堂紀錄（'+rows.length+' 筆）</div>'
  +kbPageRows(rows).map(function(o){
-   var x=o.x,r=o.r,who=MODE==='coach'&&o.l.coach!==ME?(lv(o.n)||'學員'):o.n+(lv(o.n)?'（'+lv(o.n)+'）':'');
+   var x=o.x,r=o.r,who=o.n+(lv(o.n)?'（'+lv(o.n)+'）':'');   /* 教練團互相看得到學員名字（2026-11-23 凱文反映） */
    var row=function(k,v){return v?'<div class="kv"><b>'+k+'</b><span>'+esc(v).replace(/\n/g,'<br>')+'</span></div>':'';};
    return '<details class="recv"><summary><div class="l">'+esc(topicText(r)||'未填主題')+'</div>'
     +'<div class="m">'+md(o.l.date)+'　'+esc(o.l.coach)+' 教練　'+esc(who)
@@ -5072,6 +5077,39 @@ var PK_T2F={'打擊':'打擊','選球判斷':'打擊','投球':'投球','守備'
 var REPS=['10 下 × 3 組','15 下 × 3 組','20 下 × 2 組','30 秒 × 3 組','20 球 × 3 組'];
 function tfk(k){return TF.filter(function(f){return f[0]===k;})[0]||null;}
 /* 個別課分期：做後測的那堂就是這期最後一堂；沒做後測就滿 10 堂分一期（後面 2 堂內有後測就等到後測）。out[0]＝第 1 期 */
+/* 上課順序（2026-11-23）：同一期裡照日期排，所有教練上的課都算（代課、前教練上的也算），
+   讓接手的教練一眼看到學員前面上過哪幾堂、哪幾堂沒有紀錄。PDF 的「第幾堂」也照這個順序。 */
+function nfmt(x){return x%1?String(Math.round(x*10)/10):String(x);}
+function cycPos(name){var m={};cycLes(name).forEach(function(cs,ci){var u=0;cs.forEach(function(l){var a=u;u+=unitsOf(l);m[l.id]={k:ci+1,a:a,b:u};});});return m;}
+function posTxt(p){var w=p.b-p.a;return (w>1&&w%1===0)?nfmt(p.a+1)+'–'+nfmt(p.b):nfmt(p.b);}
+function nthNum(v){v=String(v||'').replace(/[第堂課\s]/g,'');if(/^\d+(\.\d+)?$/.test(v))return +v;
+ var C='零一二三四五六七八九';if(v.length===1&&C.indexOf(v)>0)return C.indexOf(v);
+ var m=v.match(/^([一二三四五六七八九]?)十([一二三四五六七八九]?)$/);if(m)return (m[1]?C.indexOf(m[1]):1)*10+(m[2]?C.indexOf(m[2]):0);return 0;}
+function nthOff(x,p){var v=nthNum(x&&x.nth);return !!(p&&v&&!(v>p.a&&v<=p.b));}
+function lesSeqHTML(n,curId,inForm){
+ var cs=cycLes(n),t0=today();if(!cs.length)return '';
+ var ci=-1;
+ if(curId)cs.forEach(function(c,i){if(c.some(function(l){return l.id===curId;}))ci=i;});
+ if(ci<0)cs.forEach(function(c,i){if(ci<0&&c.some(function(l){return l.status==='已排定'&&l.date>=t0;}))ci=i;});
+ if(ci<0)ci=cs.length-1;
+ var P=cycPos(n),c=cs[ci],off=[],cur=curId?byId(DB.lessons,curId):null,gap=false,du=0;
+ var rows=c.map(function(l){var p=P[l.id],x=pkX(l,n),me=l.id===curId;
+   if(l.status==='已完成'){du+=unitsOf(l);if(!x&&!me)gap=true;}
+   if(x&&nthOff(x,p))off.push(l.id);
+   var st=l.status==='已完成'?(x?'<span class="tag g">有紀錄</span>':'<span class="tag">沒有紀錄</span>')
+    :'<span class="tag b">'+(l.date>t0?'還沒上':esc(l.status))+'</span>';
+   return '<div class="seq'+(me?' cur':'')+'"><span class="n">第 '+posTxt(p)+' 堂</span><span class="d">'+md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）'
+    +'<span class="c">'+esc(l.coach)+' 教練'+(me?'・這堂':'')+'</span></span>'+st+'</div>';}).join('');
+ var ki=cs.length>1?'第 '+(ci+1)+' 期':'這一期';
+ var fix=off.length?'<div class="mini" style="margin:8px 0 6px">有 '+off.length+' 堂紀錄裡寫的「堂數」跟上面的順序不一樣（例如前面有別的教練上的課）。</div>'
+   +'<button type="button" class="btn sec sm" data-act="nthFix" data-nm="'+esc(n)+'" data-ids="'+off.join(',')+'">把紀錄裡的堂數改成跟上面一樣</button>':'';
+ var body='<div class="card" style="padding:4px 12px;margin-bottom:0">'+rows+fix+'</div>';
+ if(!inForm)return '<div class="sec-t">上課順序（'+ki+'，已上 '+nfmt(du)+' 堂）</div>'
+  +'<div class="mini" style="margin:-4px 0 8px">照日期排，其他教練上的課也算在內。</div>'+body;
+ var cp=cur&&P[cur.id];
+ var open=gap||off.length||c.some(function(l){return l.status==='已完成'&&cur&&l.coach!==cur.coach;});
+ return '<details class="seqd"'+(open?' open':'')+'><summary>上課順序：'+(cp?'這堂是'+ki+'第 '+posTxt(cp)+' 堂':ki)+'（點開看每一堂）</summary>'+body+'</details>';
+}
 function cycLes(name){
  var mine=lessonsOf(name).filter(function(x){return !isGrpPlan(x.plan)&&x.status!=='取消'&&x.status!=='請假改期';});
  var posts=testsOf(name).filter(function(t){return t.kind==='後測';});
@@ -5205,7 +5243,7 @@ function pkLesson(s,l,c,hdr,first,tail){
  var tst=(testsOf(s.name).filter(function(t){return t.lid===l.id;})[0])||null;
  var dv=function(a,tk){return x[a]||(tst?tVal(tst,tk):'')||'';};
  var data=[['揮棒速度',dv('bs','bat'),'mph'],['擊球初速',dv('ev','ev'),'km/h'],['投球速度',dv('velo','velo'),'km/h']];
- var nth=String(x.nth||nthOf(l,s.name)||'').replace(/^第|堂$/g,'');
+ var sp=cycPos(s.name)[l.id],nth=sp?posTxt(sp):String(x.nth||nthOf(l,s.name)||'').replace(/^第|堂$/g,'');
  var opt=[x.issue,(x.parts||[]).length?'重點部位：'+x.parts.join('、'):''].filter(Boolean).join('\n');
  var gear=(r.gear||[]).concat(r.gearx?[r.gearx]:[]).join('、');
  var tip=[x.fix,x.next?'下堂課重點：'+x.next:''].filter(Boolean).join('\n');
@@ -6173,6 +6211,14 @@ function bind(){
    if(a==='openRec')return fRec(id);
    if(a==='saveRec')return saveRec(id);
    if(a==='recStu')return recStuSwitch(+b.dataset.i);
+   if(a==='nthSet'){var ni=document.getElementById('rs'+b.dataset.i+'_nth');if(ni){ni.value=b.dataset.v;REC_DIRTY=true;}var nw=document.getElementById('nthw'+b.dataset.i);if(nw)nw.remove();return;}
+   if(a==='nthFix'){var fnm=b.dataset.nm,fids=(b.dataset.ids||'').split(',').filter(Boolean),FP=cycPos(fnm),fk=0;
+    if(!confirm('把這 '+fids.length+' 堂紀錄裡的「堂數」改成照上課順序的堂數？\n（只改堂數這一格，其他內容不動）'))return;
+    fids.forEach(function(fid){var fl=byId(DB.lessons,fid);if(!fl||!fl.rec||!(fl.rec.stu||{})[fnm]||!FP[fid])return;
+     var fr=JSON.parse(JSON.stringify(fl.rec)),fv='第'+posTxt(FP[fid])+'堂';fr.stu[fnm].nth=fv;setRec(fl,fr);pushRec(fl,[fnm]);fk++;
+     if(fid===REC_LID){var fi=REC_NS.indexOf(fnm),fe=document.getElementById('rs'+fi+'_nth');if(fe)fe.value=fv;var fw=document.getElementById('nthw'+fi);if(fw)fw.remove();}});
+    persist();b.parentNode.querySelectorAll('.mini').forEach(function(m){if(/跟上面的順序不一樣/.test(m.textContent))m.remove();});b.remove();
+    toast('已更新 '+fk+' 堂的堂數');return;}
    if(a==='qDone'){var lq=byId(DB.lessons,id);if(!lq)return;if(lq.date>today())return alert('日期還沒到，上完課再點');
     makeReq(lq,'done');persist();render();toast('已點名：'+((lq.students||[]).join('、')||'這堂')+' 有上課');return;}
    if(a==='tplUse'){var lu=byId(DB.lessons,id),tp=cdRow(b.dataset.t);if(!lu||!tp)return;
