@@ -614,7 +614,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.23a';
+var APPVER='2026.11.23b';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -627,7 +627,25 @@ function dowOf(ds){return pd(ds).getDay();}
 /* ============ 預設資料 ============ */
 var COACHES=['陳建廷','陳凱文','謝長霖','鄭原成','盧瑞祥','彭威寰','鐘子靖','闕鈞宇'];
 /* 已不再接新課的教練：新登錄的選單裡選不到，但過去的課照樣算進結算、報表和匯出 */
-var FORMER_COACHES=['陳毅祥'];
+var FORMER_COACHES=[];
+/* 已離開、名字不再出現的教練：畫面、選單、PDF 一律顯示「前教練」；資料本身不動，過去的課照樣結算 */
+var GONE=['陳毅祥'],GONE_RE=new RegExp('(?:'+GONE.join('|')+')(?:\\s*教練)?','g');
+function notGone(c){return GONE.indexOf(c)<0;}
+function fixGoneT(n){var p=n.parentNode;if(!p||n.nodeValue.search(GONE_RE)<0)return;var tg=p.nodeName;
+ if(tg==='TEXTAREA'||tg==='SCRIPT'||tg==='STYLE'||p.isContentEditable)return;
+ if(tg==='OPTION'&&!p.hasAttribute('value'))p.setAttribute('value',p.value);   /* 選單的值保持原本的資料 */
+ n.nodeValue=n.nodeValue.replace(GONE_RE,'前教練');}
+function scrubGone(root){
+ if(!root||!GONE.length)return;
+ if(root.nodeType===3)return fixGoneT(root);
+ if(root.nodeType!==1&&root.nodeType!==9&&root.nodeType!==11)return;
+ if((root.textContent||'').search(GONE_RE)<0)return;
+ var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null),n,a=[];
+ while((n=w.nextNode()))if(n.nodeValue.search(GONE_RE)>=0)a.push(n);
+ a.forEach(fixGoneT);}
+if(window.MutationObserver)new MutationObserver(function(ms){ms.forEach(function(m){
+ if(m.type==='characterData')fixGoneT(m.target);else [].forEach.call(m.addedNodes,scrubGone);});})
+ .observe(document.documentElement,{childList:true,subtree:true,characterData:true});
 /* 結算／報表用：在職教練＋這批課裡有出現的其他教練（例如已離開的教練） */
 function acctCoaches(ls){var out=COACHES.slice();
  (ls||[]).forEach(function(l){if(l.coach&&out.indexOf(l.coach)<0)out.push(l.coach);});return out;}
@@ -1233,7 +1251,7 @@ function applyCD(){
  vlesSync();
  var rec={},tests={},prof={},old={};
  (DB.coachdata||[]).forEach(function(r){if(r.del)return;
-  if(r.k==='rec')rec[r.lid]=r.rec;
+  if(r.k==='rec'){if(recHas(r.rec))rec[r.lid]=r.rec;}
   else if(r.k==='test')(tests[r.stu]=tests[r.stu]||[]).push(r.t);
   else if(r.k==='prof')prof[r.stu]=r.p;
   else if(r.k==='old')old[r.stu]=r.list;});
@@ -1267,6 +1285,12 @@ function migrateCD(){
   if(ch){touch('students',s);n++;}});
  return n;
 }
+/* 有沒有真的填內容（只有自動帶入的「第幾堂」、層級不算） */
+function recHas(r){if(!r)return false;
+ if((r.topic||[]).length||r.topicx||r.menu||(r.gear||[]).length||r.gearx)return true;
+ var st=r.stu||{};return Object.keys(st).some(function(n){var x=st[n]||{};
+  return ['issue','fix','cue','fb','cmt','score','hw','freq','next','menu','reps','bs','ev','velo'].some(function(k){return x[k];})
+   ||(x.parts||[]).length||(x.media||[]).length;});}
 function setRec(l,rec){if(rec)cdPut('rec:'+l.id,{k:'rec',lid:l.id,rec:rec});else cdDel('rec:'+l.id);hide(l,'rec',rec||undefined);}
 function setProf(s,p){cdPut('prof:'+s.name,{k:'prof',stu:s.name,p:p});hide(s,'profile',p);}
 function setTest(s,t){cdPut('test:'+t.id,{k:'test',stu:s.name,t:t});
@@ -1283,7 +1307,7 @@ function makeReq(l,type,extra){var f={k:'req',type:type,lid:l.id,by:ME||recWho()
 function reqLine(r){
  if(r.type==='add'&&r.les){var a=r.les;return md(a.date)+'（'+DAYN[dowOf(a.date)].slice(1)+'）'+esc(a.start)+'–'+esc(a.end)+'　'+esc((a.students||[]).join('、'))+'　<b>新增一堂課</b>'
   +'<span class="mini" style="display:block;margin:2px 0 0">'+esc((a.plan||'').replace(/-套餐|-單堂/,''))+'　'+esc(a.venue||'')+(a.note&&a.note!=='教練新增'?'　'+esc(a.note.replace(/^教練新增：/,'備註：')):'')
-  +(cdRow('rec:'+r.lid)?'　已寫上課紀錄':'')+'</span>';}
+  +((function(c){return c&&!c.del&&recHas(c.rec);})(cdRow('rec:'+r.lid))?'　已寫上課紀錄':'')+'</span>';}
  var l=byId(DB.lessons,r.lid);
  return (l?md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）'+l.start+'–'+l.end+'　'+esc((l.students||[]).join('、'))+'　':'（課程已刪除）')
   +'<b>'+esc(REQ_T[r.type]||r.type)+'</b>'+(r.nm?'：'+esc(r.nm):'')
@@ -1410,14 +1434,14 @@ var VENUES=['彩虹少棒場','打擊籠','麥帥二橋下'],DEFS=null;
 function applySettings(){
  if(!DEFS)DEFS=JSON.parse(JSON.stringify({coaches:COACHES,former:FORMER_COACHES,avail:AVAIL,rates:RATES,buy:BUY,venues:VENUES,adminTo:ADMIN_TO,gearTo:GEAR_TO,nhAdd:NH_ADD}));
  var s=(DB.cfg&&DB.cfg.settings)||DEFS;
- COACHES=(s.coaches||DEFS.coaches).slice();FORMER_COACHES=(s.former||[]).slice();
+ COACHES=(s.coaches||DEFS.coaches).filter(notGone);FORMER_COACHES=(s.former||[]).filter(notGone);
  AVAIL=s.avail||DEFS.avail;RATES=s.rates||DEFS.rates;BUY=s.buy||DEFS.buy;VENUES=s.venues||DEFS.venues;
  ADMIN_TO=s.adminTo||DEFS.adminTo;GEAR_TO=s.gearTo||DEFS.gearTo;NH_ADD=s.nhAdd!==undefined?+s.nhAdd:DEFS.nhAdd;
 }
 function curSettings(){return JSON.parse(JSON.stringify((DB.cfg&&DB.cfg.settings)||DEFS));}
 var SETX=null;   // 設定頁編輯中的草稿
 function vCfg(){
- if(!SETX)SETX=curSettings();
+ if(!SETX){SETX=curSettings();SETX.coaches=SETX.coaches.filter(notGone);SETX.former=(SETX.former||[]).filter(notGone);}
  var s=SETX,days=[1,2,3,4,5,6];
  var allC=s.coaches.map(function(c){return {n:c,on:1};}).concat((s.former||[]).map(function(c){return {n:c,on:0};}));
  var inp=function(id,v,w,t){return '<input id="'+id+'" value="'+esc(String(v===undefined?'':v))+'"'+(t?' type="'+t+'" inputmode="decimal"':'')+' style="'+(w?'width:'+w+';':'')+'padding:7px 8px;font-size:14px">';};
@@ -3094,6 +3118,9 @@ function saveRec(id,silent){
  else if(st!==L2.start||en!==L2.end){
   if(MODE==='coach')makeReq(L2,'time',{from:L2.start+'–'+L2.end,to:{start:st,end:en}});
   else{L2.start=st;L2.end=en;touch('lessons',L2);}}
+ if(!recHas(rec)){   /* 什麼都沒填：不存成紀錄（之前誤存的空白紀錄也一併拿掉） */
+  var cr0=cdRow('rec:'+L2.id);if(cr0&&!cr0.del){var dn0=Object.keys((cr0.rec&&cr0.rec.stu)||{});setRec(L2,null);if(!L2.vr)pushRec(L2,dn0);}
+  persist();REC_DIRTY=false;if(silent)return true;closeSheet(true);render();toast('還沒有填內容，這次先不存');return;}
  if(MODE!=='coach'&&L2.date<=today()&&L2.status==='已排定'){L2.status='已完成';touch('lessons',L2);}
  setRec(L2,rec);persist();if(!L2.vr)pushRec(L2);
  REC_DIRTY=false;if(silent)return true;closeSheet(true);render();
@@ -5463,6 +5490,7 @@ function pkDoneHTML(n){return '<div class="pkdone"><b>PDF 好了</b>（'+n+' 頁
 /* 畫每一頁時，PDF 工具會把整個網頁複製一份；跳過 App 本身、預覽（裡面已經有全部頁面）和程式碼，每頁快很多 */
 function pdfSkip(e){return e.id==='app'||e.id==='tabs'||e.id==='modal'||e.id==='toast'||e.tagName==='SCRIPT'||e.tagName==='HEADER';}
 function pdfMake(el,fn,prog){
+ scrubGone(el);
  var pages=[].slice.call(el.querySelectorAll('.pk-pp'));if(!pages.length)return Promise.reject(new Error('沒有內容'));
  var wrap=function(pg){pg.classList.add('last');var w=document.createElement('div');w.className='pk';w.appendChild(pg);return w;};
  var opt={margin:[10,10,12,10],filename:fn,image:{type:'jpeg',quality:0.9},
@@ -5570,7 +5598,7 @@ function fBiz(){
   +'<div class="mini">點名字可以打開學員資料。第二種是家長已經付了錢、課還沒上完，可以主動聯絡排課。</div></div>';
  /* 教練 */
  var cs={};live.filter(function(l){return l.date>=r3&&l.date<=t0;}).forEach(function(l){cs[l.coach]=1;});m0.ls.forEach(function(l){cs[l.coach]=1;});
- var crow=Object.keys(cs).map(function(c){var a=live.filter(function(l){return l.coach===c&&l.date>=r3&&l.date<=t0;}),dn=a.filter(function(l){return l.status==='已完成';}),nm={};
+ var crow=Object.keys(cs).filter(notGone).map(function(c){var a=live.filter(function(l){return l.coach===c&&l.date>=r3&&l.date<=t0;}),dn=a.filter(function(l){return l.status==='已完成';}),nm={};
   a.forEach(function(l){(l.students||[]).forEach(function(n){nm[n]=1;});});
   return {c:c,um:nUnits(m0.ls.filter(function(l){return l.coach===c;})),u3:nUnits(a),stu:Object.keys(nm).length,rate:dn.length?Math.round(dn.filter(function(l){return !!l.rec;}).length/dn.length*100):null};})
   .sort(function(a,b){return b.u3-a.u3;});
@@ -5751,7 +5779,7 @@ var IMP_COACH={'瑞祥':'盧瑞祥','原成':'鄭原成','凱文':'陳凱文','�
 var IMP_PART={'頭部':'頭','判斷、感知':'判斷與感知','判斷感知':'判斷與感知','腳步':'腳部'};
 var IMP=null;
 function impCoach(c){c=(c||'').trim();if(IMP_COACH[c])return IMP_COACH[c];
- var all=COACHES.concat(FORMER_COACHES);for(var i=0;i<all.length;i++)if(all[i]===c||all[i].slice(1)===c)return all[i];return c;}
+ var all=COACHES.concat(FORMER_COACHES,GONE);for(var i=0;i<all.length;i++)if(all[i]===c||all[i].slice(1)===c)return all[i];return c;}
 function impTopics(c){
  c=(c||'').replace(/敏捷、反應與手眼協調/g,'敏捷協調').replace(/捕手接拿/g,'捕手').replace(/肌力體能/g,'肌力體能');
  var out=[],rest=[];
