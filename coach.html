@@ -616,7 +616,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.26c';
+var APPVER='2026.11.26d';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -5357,7 +5357,7 @@ function recPdf(l){var out=document.getElementById('recpdf'),ns=(l.students||[])
  var fn=ns.join('、')+'_課堂紀錄_'+l.date+'.pdf';if(out)out.innerHTML='<div class="pkdone">產生中…</div>';
  loadPDF().then(function(){var el=document.createElement('div');el.innerHTML=pkPages(pkOneHTML(l));pkSvgFix(el);
   return rpInline(el).then(function(){return pdfMake(el,fn);});})
- .then(function(r){var s1=ns.length===1?stuByName(ns[0]):null;PK={blob:r.b,fn:fn,stu:ns.length===1?ns[0]:'',lv:s1?((pkX(l,ns[0])||{}).level||(s1.profile&&s1.profile.level)||''):''};if(out){out.innerHTML=pkDoneHTML(r.n);bind();}})
+ .then(function(r){var s1=ns.length===1?stuByName(ns[0]):null;PK={blob:r.b,fn:fn,stu:ns.length===1?ns[0]:'',lv:s1?((pkX(l,ns[0])||{}).level||(s1.profile&&s1.profile.level)||''):''};if(out){out.innerHTML=pkDoneHTML(r.n);bind();pkAuto();}})
  .catch(function(e){if(out)out.innerHTML='';alert('PDF 產生失敗\n\n'+String(e.message||e));});}
 function pkCover(s,c,sub){
  return '<div class="pk-pg pk-cover first"><div class="bar"></div><div class="en">GANGHU BASEBALL TRAINING</div>'
@@ -5593,14 +5593,18 @@ function pkGo(){
  Promise.all([loadPDF(),mode==='px'&&o.video?loadQR():Promise.resolve()]).then(function(){
   var el=document.createElement('div');el.innerHTML=pkPages(mode==='pk'?pkHTML(s,c):pxHTML(s,c,o,letter));pkSvgFix(el);
   return rpInline(el).then(function(){return pdfMake(el,fn,function(i,n){if(out)out.innerHTML='<div class="pkdone">產生中…第 '+i+' / '+n+' 頁</div>';});});
- }).then(function(r){if(!PK)return;PK.blob=r.b;PK.fn=fn;PK.stu=s.name;PK.lv=pkLevel(s,c);if(out){out.innerHTML=pkDoneHTML(r.n);bind();}
+ }).then(function(r){if(!PK)return;PK.blob=r.b;PK.fn=fn;PK.stu=s.name;PK.lv=pkLevel(s,c);if(out){out.innerHTML=pkDoneHTML(r.n);bind();pkAuto();}
  }).catch(function(e){if(out)out.innerHTML='';alert('PDF 產生失敗\n\n'+String(e.message||e));});
 }
+/* 2026-11-26：PDF 做好就自動存一份到雲端球員資料庫（同名的舊檔會換成新的）；失敗時按鈕會回來，可以再按一次 */
+function pkAutoOK(){var c=sheetCfg();return !!(PK&&PK.stu&&PK.blob&&c.rec&&c.tok);}
+function pkAuto(){if(pkAutoOK())pkDrive();}
 function pkDoneHTML(n){return '<div class="pkdone"><b>PDF 好了</b>（'+n+' 頁）'
  +'<div class="row" style="margin-top:8px"><button class="btn" data-act="pkSave">'+svg('file',16)+' 下載 PDF</button>'
- +(PK&&PK.stu?'<button class="btn sec" data-act="pkDrive">存到雲端球員資料庫</button>':'')
+ +(PK&&PK.stu?'<button class="btn sec" data-act="pkDrive"'+(pkAutoOK()?' disabled>自動存到雲端中…':'>存到雲端球員資料庫')+'</button>':'')
  +(canShareFile()?'<button class="btn sec" data-act="pkShare">傳給家長（LINE 等）</button>':'')+'</div>'
- +'<div class="mini">'+(canShareFile()?'「傳給家長」會打開手機的分享選單，可以直接選 LINE。':'下載後可以傳給家長，或直接列印。')+'</div></div>';}
+ +'<div class="mini">'+(pkAutoOK()?'會自動存一份到雲端球員資料庫。':(PK&&!PK.stu?'這份有好幾位學員，不會自動存到雲端。':''))
+ +(canShareFile()?'「傳給家長」會打開手機的分享選單，可以直接選 LINE。':'下載後可以傳給家長，或直接列印。')+'</div></div>';}
 /* PDF：分好的每一頁各自畫成圖再接成一個檔。整份一次畫的話，手機 Safari 的畫布太大（16 頁約 1440×16600）會畫壞、跑版。
    不要設 html2canvas 的 windowWidth：手機上會讓整頁往右偏、右邊被切掉 */
 /* 畫每一頁時，PDF 工具會把整個網頁複製一份；跳過 App 本身、預覽（裡面已經有全部頁面）和程式碼，每頁快很多 */
