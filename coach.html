@@ -616,7 +616,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.26d';
+var APPVER='2026.11.27a';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1373,11 +1373,48 @@ function autoDoneReqs(){
   applyReq(r,true);cdPut(r.id,{dec:'自動'});n++;});
  if(n)persistOnly();return n;
 }
+/* 總覽「需要核對」（2026-11-27）：近 14 天的課和學員堂數，常見對不起來的地方 */
+function chkList(){var t0=today(),f14=addD(t0,-14),out=[];
+ var past=LES().filter(function(l){return l.date>=f14&&l.date<=t0&&l.status!=='取消';});
+ var noRec=past.filter(function(l){return l.status==='已完成'&&!l.rec&&needRec(l)&&l.date<=addD(t0,-2);});
+ if(noRec.length)out.push({t:'上完超過 2 天還沒寫紀錄',ls:noRec});
+ var adj=past.filter(function(l){return l.adj&&l.adj.at>=f14;});
+ if(adj.length)out.push({t:'最近被改過時間的課（確認堂數對不對）',ls:adj});
+ var over=STU().filter(function(s){return boughtOf(s.name)>0&&openOf(s.name)<0;});
+ if(over.length)out.push({t:'排的課比買的堂數多',ss:over.map(function(s){return {s:s,x:'多排 '+nfmt(-openOf(s.name))+' 堂'};})});
+ var nopay=STU().filter(function(s){return boughtOf(s.name)<=0&&lessonsOf(s.name).some(function(l){return l.status!=='取消';});});
+ if(nopay.length)out.push({t:'有排課但沒有繳費紀錄',ss:nopay.map(function(s){return {s:s,x:''};})});
+ return out;}
+function chkHTML(){var L=chkList();if(!L.length)return '<div id="sec-chk"></div>';
+ return '<div class="sec-t" id="sec-chk">需要核對</div><div class="card">'+L.map(function(g){
+  var n=g.ls?g.ls.length:g.ss.length;
+  return '<details class="seqd"><summary><b>'+esc(g.t)+'</b>　'+n+(g.ls?' 堂':' 位')+'</summary><div style="padding:4px 0 8px">'
+   +(g.ls?g.ls.sort(function(a,b){return a.date<b.date?1:-1;}).map(function(l){return lesRow(l);}).join('')
+     :g.ss.map(function(o){return '<div class="item" data-edit="stu" data-id="'+o.s.id+'"><div class="top"><div><div class="nm">'+esc(o.s.name)+'</div><div class="meta">'+esc(o.x)+'</div></div></div></div>';}).join(''))
+   +'</div></details>';}).join('')+'</div>';}
+/* 2026-11-27：改時間的申請，同意前先看堂數和鐘點費會怎麼變（11/25 泰宇因為選單只到 21:30 被改成 0.5 堂） */
+function reqImpact(r){
+ if(!r||r.type!=='time'||!r.to)return null;var l=byId(DB.lessons,r.lid);if(!l)return null;
+ var c={};for(var k in l)c[k]=l[k];c.start=r.to.start;c.end=r.to.end;
+ return {u0:unitsOf(l),u1:unitsOf(c),p0:amt(l,'coach'),p1:amt(c,'coach'),fixed:!!(l.u&&+l.u>0)};
+}
+function reqImpactHTML(r){var m=reqImpact(r);if(!m)return '';
+ if(m.u0===m.u1)return '<div class="mini" style="margin:2px 0 0">堂數不變（'+nfmt(m.u0)+' 堂）'+(m.fixed?'，這堂的堂數是手動設定的':'')+'</div>';
+ return '<div class="mini" style="margin:3px 0 0;font-weight:700;color:'+(m.u1<m.u0?'var(--red)':'var(--green)')+'">'
+  +'同意後：堂數 '+nfmt(m.u0)+' → '+nfmt(m.u1)+' 堂，鐘點費 '+money(m.p0)+' → '+money(m.p1)
+  +(m.u1<m.u0?'（變少，請先跟教練確認實際上了多久）':'')+'</div>';}
+/* 同一堂、同樣內容重複送的申請，只顯示最新一筆；同意或退回時一起處理 */
+function reqKey(r){return [r.lid,r.type,r.nm||'',r.to?r.to.start+'-'+r.to.end:''].join('|');}
+function reqDups(r){var k=reqKey(r);return pendReqs().filter(function(x){return x.id!==r.id&&reqKey(x)===k;});}
+function reqDupClose(r,ok){reqDups(r).forEach(function(x){cdPut(x.id,{st:ok?'ok':'no',dec:recWho(),decAt:Date.now(),dup:1});});}
+function reqUniq(){var seen={},out=[];pendReqs().slice().reverse().forEach(function(r){var k=reqKey(r);if(!seen[k]){seen[k]=1;out.push(r);}});return out.reverse();}
 function reqCenterHTML(){
- var ps=pendReqs();if(!ps.length)return '<div id="sec-req"></div>';
+ var ps=reqUniq();if(!ps.length)return '<div id="sec-req"></div>';
  return '<div class="sec-t" id="sec-req">待審核（'+ps.length+'）</div>'
  +'<div class="card reqc"><div class="mini" style="margin:0 0 6px">教練送出的請假、改時間、新增課程申請。按「同意」課表才會改（新增的課會連同教練寫好的紀錄一起進課表）；不同意的話教練那邊會看到。</div>'
- +ps.map(function(r){return '<div class="reqr"><div><div style="font-size:14px">'+reqLine(r)+'</div><div class="mini" style="margin:2px 0 0">'+esc(r.by||'')+' 教練　'+new Date(r.at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</div></div>'
+ +ps.map(function(r){var dn=reqDups(r).length;return '<div class="reqr"><div><div style="font-size:14px">'+reqLine(r)+'</div>'+reqImpactHTML(r)
+  +(dn?'<div class="mini" style="margin:2px 0 0">同樣的申請送了 '+(dn+1)+' 次，處理一次就好</div>':'')
+  +'<div class="mini" style="margin:2px 0 0">'+esc(r.by||'')+' 教練　'+new Date(r.at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</div></div>'
   +'<div class="row" style="flex:0 0 auto;gap:6px"><button class="btn sm" data-act="reqOk" data-id="'+r.id+'">同意</button><button class="btn sec sm" data-act="reqNo" data-id="'+r.id+'">不同意</button></div></div>';}).join('')
  +(ps.length>1?'<div class="row" style="margin-top:10px"><button class="btn sec sm" data-act="reqAll">全部同意（'+ps.length+'）</button></div>':'')
  +'</div>';
@@ -1700,6 +1737,7 @@ function vHome(){
  +(cl?tbtn('sec-warn','alert',cl,'撞時段','red'):'')
  +(gaps.length?tbtn('sec-warn','stu',gaps.length,'名單缺人','red'):'')
  +(pg.length?tbtn('sec-paid','money',pg.length,'已匯款有異動','red'):'')
+ +(function(){var n=chkList().length;return n?tbtn('sec-chk','alert',n,'需要核對','hot'):'';})()
  +'<button data-act="jump" data-to="sec-pay" class="'+(left<=2?'hot':'ok')+'">'+svg('money')
  +'<span><b>'+(left>0?left+' 天':(left===0?'今天':'已過'))+'</b><small>'+pidShort(cur)+' 結算</small></span></button>'
  +'</div>'
@@ -1710,6 +1748,7 @@ function vHome(){
  +'</div>'
 
  +reqCenterHTML()
+ +chkHTML()
  /* 今天的課 */
  +'<div class="sec-t">今天的課</div>'
  +(tdy.length?tdy.map(function(l){return lesRow(l).replace('class="item','class="item today');}).join('')
@@ -1973,6 +2012,7 @@ function vSet(){
    return '<div class="warnbar"><b>這期金額之前算錯了，要補匯</b><br>'+esc(adjText(a))
     +'<br>已匯款的教練，下面「本期匯款確認」會出現差額，按「差額併入下期補發」就會併到下一次還沒匯款的期別一起匯；'
     +GEAR_TO+' 的器材使用費請另外補給。</div>';})()
+ +rcHTML(setP)
  +'<div class="sec-t">教練請款</div><div class="card"><table><tr><th>教練</th><th>堂數</th><th>鐘點費</th><th>行政費</th>'+(hasR?'<th>代墊</th>':'')+'<th>應匯</th></tr>'+rowsC
  +'<tr><td><b>合計</b></td><td><b>'+SP.cnt+'</b></td><td><b>'+money(tot('coach'))+'</b></td>'
  +'<td><b>'+money(tot('admin'))+'</b></td>'+(hasR?'<td><b>'+money(SP.reim)+'</b></td>':'')
@@ -2168,7 +2208,7 @@ function fStu(id){
    +(leftOf(s.name)>0?'<button class="btn dan sm" data-act="refund" data-nm="'+esc(s.name)
      +'" style="margin-top:12px">辦理退費</button>':'')
    +'</div>'
-   +stuLessons(s.name)+lesSeqHTML(s.name)
+   +stuLessons(s.name)+histHTML(s.name)+lesSeqHTML(s.name)
    +'<button class="btn sec full" data-act="prog" data-id="'+s.id+'" style="margin-top:14px">'+svg('chart',16)+' 成長數據（進步曲線）</button>'
    +recSection(s.name);
  }
@@ -3589,7 +3629,7 @@ function vKB(){
  +(rows.length?'':'<div class="empty">沒有符合的紀錄</div>');
 }
 function vCoachMe(){
- return '<h2>我的</h2>'+payGate()+'<div class="sec-t">身分</div>'
+ return '<h2>我的</h2>'+rcCoachHTML()+payGate()+'<div class="sec-t">身分</div>'
  +'<div class="card"><small style="color:var(--muted);font-size:12px">目前身分</small>'
  +'<div style="font-size:18px;font-weight:800">'+esc(ME)+' 教練</div>'
  +(coachBound()?'<div class="mini">這個帳號固定是 '+esc(ME)+' 教練。</div>'
@@ -3934,6 +3974,38 @@ function fRetime(name){
  +'<button class="btn sec" data-act="close">取消</button></div>');
 }
 
+/* ---- 請假與異動（2026-11-27）：改期時記原因，存進學員的異動紀錄，做完產生要貼給家長、教練的 LINE 文字 ---- */
+var WHYS=['家長請假','教練請假','天氣或場地','其他'];
+function lesTxt(d,st,en){return md(d)+'（'+DAYN[dowOf(d)].slice(1)+'）'+st+'–'+en;}
+function whyRead(){var w=val('f_why')||'',x=(val('f_whyx')||'').trim();return w+(x?'：'+x:'');}
+function histAdd(name,o){var st=stuByName(name);if(!st)return;o.at=today();o.by=recWho();
+ st.hist=(st.hist||[]).concat([o]).slice(-60);touch('students',st);}
+function histHTML(name){var st=stuByName(name),h=((st&&st.hist)||[]).slice().reverse();if(!h.length)return '';
+ var K={mv:'改期',leave:'請假，待補課',cancel:'取消',charge:'請假，照扣堂數'};
+ return '<details class="seqd"><summary>異動紀錄（'+h.length+'）</summary><div class="card" style="padding:4px 12px;margin:6px 0 0">'
+  +h.map(function(x){return '<div class="seq"><span class="n">'+md(x.at)+'</span><span class="d">'+esc(x.f)+'　<b>'+esc(K[x.k]||x.k)+'</b>'
+   +(x.t?' → '+esc(x.t):'')+'<span class="c">'+esc(x.why||'')+(x.coach?'　'+esc(x.coach)+'教練':'')+'</span></span></div>';}).join('')+'</div></details>';}
+function noticeTexts(o){var st=stuByName(o.n)||{},P=(st.parent||(o.n+'家長'));
+ var pre=o.why.indexOf('教練請假')===0?'因為教練臨時有事，':(o.why.indexOf('天氣或場地')===0?'因為天氣／場地的關係，':'');
+ var par={mv:P+'您好，'+pre+o.n+' 原本 '+o.f+' 的課，已改到 '+o.t+'（'+o.coach+'教練）。時間不方便的話再跟我說，謝謝！',
+  leave:P+'您好，'+pre+o.n+' '+o.f+' 的課已經'+(pre?'暫停':'幫您請假')+'，堂數先保留，補課時間我們再跟您約，謝謝！',
+  cancel:P+'您好，'+pre+o.n+' '+o.f+' 的課已經取消，堂數會保留，之後再一起安排，謝謝！',
+  charge:P+'您好，'+o.n+' '+o.f+' 的課已經幫您登記請假。這次請假比較臨時，這堂會照扣堂數，謝謝您的體諒！'}[o.k];
+ var co={mv:o.coach+'教練：'+o.n+' '+o.f+' 的課改到 '+o.t+'（'+o.why+'）。',
+  leave:o.coach+'教練：'+o.n+' '+o.f+' 請假（'+o.why+'），補課時間再通知。',
+  cancel:o.coach+'教練：'+o.n+' '+o.f+' 的課取消（'+o.why+'）。',
+  charge:o.coach+'教練：'+o.n+' '+o.f+' 請假（'+o.why+'），這堂照算。'}[o.k];
+ return {par:par,co:co};}
+function fNotice(o){var T=noticeTexts(o),st=stuByName(o.n);
+ openSheet(head('已更新，要通知的話複製下面的文字')
+ +'<div class="fbox"><div class="ttl">給家長</div><textarea id="nt_par" rows="4">'+esc(T.par)+'</textarea>'
+ +'<div class="row" style="margin-top:8px"><button class="btn sm" data-act="ntCopy" data-f="nt_par">複製</button></div></div>'
+ +'<div class="fbox"><div class="ttl">給教練</div><textarea id="nt_co" rows="3">'+esc(T.co)+'</textarea>'
+ +'<div class="row" style="margin-top:8px"><button class="btn sm" data-act="ntCopy" data-f="nt_co">複製</button></div></div>'
+ +'<div class="mini">文字可以先改再複製。系統不會自己傳訊息，要你貼到 LINE。</div>'
+ +'<div class="row" style="margin-top:14px">'+(st?'<button class="btn sec" data-act="ntBack" data-id="'+st.id+'">回到學員頁</button>':'')
+ +'<button class="btn sec" data-act="close">關閉</button></div>');}
+
 /* ---- 改期 ---- */
 function fMove(lid,name){
  var l=byId(DB.lessons,lid);if(!l)return;
@@ -3945,6 +4017,8 @@ function fMove(lid,name){
  +'<div class="mini" style="margin:10px 0 0">原本是 <b>'+l.date.replace(/-/g,'/')+'（'
  +DAYN[dowOf(l.date)].slice(1)+'）'+esc(l.start)+'–'+esc(l.end)+'</b>　'+esc(l.coach)+'教練'
  +(grp?'<br>這堂還有其他學員：'+esc(l.students.join('、')):'')+'</div>'
+ +'<div class="grid2"><div><label>異動原因</label><select id="f_why">'+WHYS.map(function(w){return '<option>'+w+'</option>';}).join('')+'</select></div>'
+ +'<div><label>補充（選填）</label><input id="f_whyx" placeholder="例如 學校活動"></div></div>'
  +'<input type="hidden" id="f_per" value="1">'
  +'<label>教練</label><select id="f_coach">'
  +coachList(l.coach).map(function(c){return '<option'+(l.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select>'
@@ -3965,8 +4039,10 @@ function fMove(lid,name){
  +'</div>'
  +'<div class="row" style="margin-top:9px">'
  +'<button class="btn sec sm" data-act="mvLeave" data-id="'+lid+'" data-nm="'+esc(name)+'">先標記待改期</button>'
- +'<button class="btn dan sm" data-act="mvCancel" data-id="'+lid+'" data-nm="'+esc(name)+'">取消這堂</button></div>'
- +'<div class="mini">「取消這堂」會把課刪掉、堂數還回去，之後在學員頁按「用剩餘堂數排課」就能重新排。</div>');
+ +'<button class="btn dan sm" data-act="mvCancel" data-id="'+lid+'" data-nm="'+esc(name)+'">取消這堂</button>'
+ +'<button class="btn sec sm" data-act="mvCharge" data-id="'+lid+'" data-nm="'+esc(name)+'">不補課，照扣堂數</button></div>'
+ +'<div class="mini">「取消這堂」會把課刪掉、堂數還回去，之後在學員頁按「用剩餘堂數排課」就能重新排。'
+ +'「不補課，照扣堂數」用在很臨時的請假：這堂算上過（學員扣堂數、教練鐘點照算），要不要這樣算由你決定。</div>');
 }
 
 /* ---- 新增報名（學員＋繳費＋排課 一次做完）---- */
@@ -4071,7 +4147,9 @@ function fLes(id){
    +'<button class="btn sec sm" data-act="lesDly" data-id="'+id+'" data-s="14">延後兩週</button>'
    +'<button class="btn sec sm" data-act="done" data-id="'+id+'">'
    +(l.status==='已完成'?'改回未上':'標記已完成')+'</button>'
-   +'<button class="btn sec sm" data-act="openRec" data-id="'+id+'">'+svg('edit',14)+(l.rec?' 看上課紀錄':' 填上課紀錄')+'</button></div>':'')
+   +'<button class="btn sec sm" data-act="openRec" data-id="'+id+'">'+svg('edit',14)+(l.rec?' 看上課紀錄':' 填上課紀錄')+'</button></div>'
+   +((l.status==='已排定'||l.status==='請假改期')&&(l.students||[]).length?'<div class="row" style="margin-top:9px">'+l.students.map(function(n){
+     return '<button class="btn sec sm" data-act="lesLv" data-id="'+id+'" data-nm="'+esc(n)+'">'+esc(n)+' 請假／改期</button>';}).join('')+'</div>':''):'')
  +'<div class="row" style="margin-top:18px"><button class="btn" data-act="saveLes" data-id="'+(id||'')+'">儲存</button>'
  +(sib.length>1?'<button class="btn sec" data-act="saveAfter" data-id="'+id+'">套用到之後所有</button>':'')
  +(id?'<button class="btn dan" data-act="delLes" data-id="'+id+'">刪除</button>':'')
@@ -4445,6 +4523,55 @@ function perStat(pid){
  o.gearDue=o.gear+o.gearCin;o.cout+=o.gearCout;
  return o;
 }
+/* ---- 教練對帳（2026-11-27）：一期裡每位教練的課，哪些點名了、有紀錄、改過時間、請假；教練在「我的」按確認 ---- */
+function rcLes(pid,c){var R=pidRange(pid);return LES().filter(function(l){return l.coach===c&&l.status!=='取消'&&l.date>=R.from&&l.date<=R.to;})
+ .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1;});}
+function rcSig(pid,c){var t=rcLes(pid,c).filter(payCnt).map(function(l){return l.id+l.date+l.start+l.end+unitsOf(l)+(l.students||[]).length;}).join(';');
+ var h=0;for(var i=0;i<t.length;i++){h=((h<<5)-h+t.charCodeAt(i))|0;}return String(h);}
+function rcRow(pid,c){var r=cdRow('cf:'+pid+':'+c);return r&&!r.del?r:null;}
+function rcState(pid,c){var r=rcRow(pid,c);if(!r)return {k:'none',t:'教練還沒確認'};
+ if(!r.ok)return {k:'bad',t:'教練說有問題：'+(r.note||''),r:r};
+ if(r.sig!==rcSig(pid,c))return {k:'chg',t:'教練確認之後課又有變動，請教練再看一次',r:r};
+ return {k:'ok',t:'教練已確認（'+new Date(r.at).toLocaleDateString('zh-TW',{month:'numeric',day:'numeric'})+'）',r:r};}
+function rcFlags(l){var f=[],t0=today();
+ if(l.status==='請假改期')f.push(['r','待改期，不算鐘點']);
+ else if(l.date<=t0){
+  if(!reqsOf(l.id).some(function(r){return r.type==='done'&&r.st!=='no';}))f.push(['b','教練沒按有上課（系統自動算完成）']);
+  if(!l.rec&&needRec(l))f.push(['r','沒有上課紀錄']);}
+ if(l.adj)f.push(['b','時間改過：原本 '+l.adj.from]);
+ if(headMismatch(l))f.push(['r','人數跟方案不符']);
+ return f;}
+function rcHTML(pid){var cs=COACHES.filter(function(c){return rcLes(pid,c).length;});
+ if(!cs.length)return '';
+ return '<div class="sec-t">教練堂數核對</div><div class="card">'
+ +'<div class="mini" style="margin:0 0 8px">點教練名字看這期每一堂。教練在教練端「我的」按「確認無誤」後，這裡會顯示已確認；確認後課又被改過，會提醒再確認一次。</div>'
+ +cs.map(function(c){var ls=rcLes(pid,c),pay=ls.filter(payCnt),st=rcState(pid,c),nf=0;
+   var rows=ls.map(function(l){var f=rcFlags(l);if(f.some(function(x){return x[0]==='r';}))nf++;
+     return '<div class="seq"><span class="n">'+md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）</span><span class="d">'+esc(l.start)+'–'+esc(l.end)
+      +'　'+esc((l.students||[]).join('、'))+'<span class="c">'+(payCnt(l)?nfmt(unitsOf(l))+' 堂　'+money(amt(l,'coach')):'不算')+'</span></span>'
+      +f.map(function(x){return '<span class="tag '+x[0]+'">'+esc(x[1])+'</span>';}).join('')+'</div>';}).join('');
+   return '<details class="seqd"'+(st.k==='bad'||st.k==='chg'?' open':'')+'><summary><b>'+esc(c)+'</b>　'+nfmt(nUnits(pay))+' 堂　'
+    +money(pay.reduce(function(a,l){return a+amt(l,'coach');},0))
+    +'　<span class="tag '+({ok:'g',none:'b',bad:'r',chg:'r'})[st.k]+'">'+esc(st.t)+'</span>'
+    +(nf?' <span class="tag r">'+nf+' 堂要看</span>':'')+'</summary>'
+    +'<div class="card" style="padding:4px 12px;margin:6px 0 0">'+rows+'</div></details>';}).join('')
+ +'</div>';}
+/* 教練端「我的」：確認上一期（和這一期）的課 */
+var RCP='';
+function rcCoachHTML(){if(!ME)return '';
+ var cur=pidOf(today()),prev=pidPrev(cur),pid=RCP||prev;
+ var ls=rcLes(pid,ME);var st=rcState(pid,ME),ended=pidRange(pid).to<today();
+ return '<div class="sec-t">這期的課對嗎？</div><div class="card">'
+ +'<div class="seg" style="margin:0 0 8px">'+[prev,cur].map(function(x){return '<button data-act="rcPer" data-p="'+x+'" class="'+(x===pid?'on':'')+'">'+pidShort(x)+'</button>';}).join('')+'</div>'
+ +(ls.length?ls.map(function(l){var f=rcFlags(l).filter(function(x){return x[1].indexOf('自動')<0;});
+   return '<div class="seq"><span class="n">'+md(l.date)+'（'+DAYN[dowOf(l.date)].slice(1)+'）</span><span class="d">'+esc(l.start)+'–'+esc(l.end)+'　'+esc((l.students||[]).join('、'))+'</span>'
+    +f.map(function(x){return '<span class="tag '+x[0]+'">'+esc(x[1])+'</span>';}).join('')+'</div>';}).join('')
+   :'<div class="mini">這期沒有排課。</div>')
+ +(ls.length?(st.k==='ok'?'<div class="mini" style="margin-top:10px;color:var(--green);font-weight:700">✓ 你已經確認過這期的課</div>'
+   :(ended?'<div class="mini" style="margin-top:10px">'+(st.k==='bad'?'你回報過：'+esc(st.r.note||'')+'。':(st.k==='chg'?'你確認之後課有變動，請再看一次。':''))+'日期、時間、學員都對的話按確認；不對的話按「有問題」寫一下哪裡不對。</div>'
+     +'<div class="row" style="margin-top:8px"><button class="btn sm" data-act="rcOk" data-p="'+pid+'">確認無誤</button><button class="btn sec sm" data-act="rcBad" data-p="'+pid+'">有問題</button></div>'
+     :'<div class="mini" style="margin-top:10px">這期還沒結束，結束後再按確認。</div>')):'')
+ +'</div>';}
 /* 行政費統一撥給誰 */
 var ADMIN_TO='陳建廷';
 var GEAR_TO='風哥';
@@ -6328,8 +6455,19 @@ function bind(){
    if(a==='upClr'){UPQ=UPQ.filter(function(j){return j.st!=='err';});upBar();return;}
    if(a==='slipAdm')return slipPdf(b.dataset.t,payRowOf(b.dataset.p,b.dataset.t));
    if(a==='calCopy'){copyText(calURL(ME),function(ok){toast(ok?'網址已複製':'複製失敗，請長按選取');});return;}
-   if(a==='reqOk'||a==='reqNo'){var rq=cdRow(id);if(!rq)return;applyReq(rq,a==='reqOk');persist();render();toast(a==='reqOk'?'已同意，課表已更新':'已退回');return;}
-   if(a==='reqAll'){var pr=pendReqs();if(!confirm('全部同意這 '+pr.length+' 筆申請？'))return;pr.forEach(function(r){applyReq(r,true);});persist();render();toast('已全部同意');return;}
+   if(a==='reqOk'||a==='reqNo'){var rq=cdRow(id);if(!rq)return;
+    if(a==='reqOk'){var im=reqImpact(rq);if(im&&im.u1<im.u0&&!confirm('同意後這堂會從 '+nfmt(im.u0)+' 堂變成 '+nfmt(im.u1)+' 堂，鐘點費 '+money(im.p0)+' → '+money(im.p1)+'。\n\n確定教練實際上課時間是 '+rq.to.start+'–'+rq.to.end+' 嗎？'))return;}
+    applyReq(rq,a==='reqOk');reqDupClose(rq,a==='reqOk');persist();render();toast(a==='reqOk'?'已同意，課表已更新':'已退回');return;}
+   if(a==='rcPer'){RCP=b.dataset.p;return render();}
+   if(a==='rcOk'||a==='rcBad'){var rp=b.dataset.p,note='';
+    if(a==='rcBad'){note=prompt('哪裡不對？例如「11/12 那堂其實沒上」「11/14 上到 22:00」');if(note===null)return;note=note.trim();if(!note)return alert('請寫一下哪裡不對');}
+    cdPut('cf:'+rp+':'+ME,{k:'cf',pid:rp,coach:ME,ok:a==='rcOk'?1:0,note:note,at:Date.now(),sig:rcSig(rp,ME),n:nUnits(rcLes(rp,ME).filter(payCnt))});
+    persist();render();toast(a==='rcOk'?'已確認，謝謝':'已回報給行政');return;}
+   if(a==='reqAll'){var pr=reqUniq();
+    var dec=pr.map(function(r){var m=reqImpact(r);if(!m||m.u1>=m.u0)return '';var l=byId(DB.lessons,r.lid);
+      return md(l.date)+' '+(l.students||[]).join('、')+'：'+nfmt(m.u0)+' → '+nfmt(m.u1)+' 堂';}).filter(Boolean);
+    if(!confirm('全部同意這 '+pr.length+' 筆申請？'+(dec.length?'\n\n注意，這幾堂的堂數會變少：\n'+dec.join('\n'):'')))return;
+    pr.forEach(function(r){applyReq(r,true);reqDupClose(r,true);});persist();render();toast('已全部同意');return;}
    if(a==='setAddC'){readSettingsForm();SETX.coaches.push('新教練');return render();}
    if(a==='setAddR'){readSettingsForm();SETX.rates.push({code:'新方案代碼',pay:0,fund:0,gear:0,coach:0});return render();}
    if(a==='setAddB'){readSettingsForm();SETX.buy.push({code:'新購買方案',unit:0,n:1,les:(SETX.rates[0]||{}).code||''});return render();}
@@ -6789,25 +6927,37 @@ function bind(){
       &&!confirm('這堂是 '+lm.students.length+' 人的課，換教練會整堂一起換。確定嗎？'))return;
     var warn3=offHours(newC,[o]);
     if(warn3&&!confirm(warn3))return;
+    var nf={k:'mv',n:nm3,f:lesTxt(lm.date,lm.start,lm.end),t:lesTxt(o.d,o.s,o.e),coach:newC,why:whyRead()};
     moveLesson(lm,nm3,o.d,o.s,o.e,solo,newC);
-    persist();closeSheet();render();
-    var sm=STU().filter(function(x){return x.name===b.dataset.nm;})[0];
-    if(sm)fStu(sm.id);
+    histAdd(nm3,nf);
+    persist();closeSheet();render();fNotice(nf);
     return;}
    if(a==='mvLeave'){
     var l2=byId(DB.lessons,id);
-    if(l2){l2.status='請假改期';touch('lessons',l2);persist();closeSheet();render();
-     var s2=STU().filter(function(x){return x.name===b.dataset.nm;})[0];if(s2)fStu(s2.id);}
+    if(l2){var nl2={k:'leave',n:b.dataset.nm,f:lesTxt(l2.date,l2.start,l2.end),coach:l2.coach,why:whyRead()};
+     l2.status='請假改期';touch('lessons',l2);histAdd(b.dataset.nm,nl2);persist();closeSheet();render();fNotice(nl2);}
     return;}
+   if(a==='mvCharge'){
+    var lc=byId(DB.lessons,id);if(!lc)return;
+    if(!confirm('這堂算上過：'+b.dataset.nm+' 扣 '+nfmt(unitsOf(lc))+' 堂，'+lc.coach+'教練的鐘點照算。確定嗎？'))return;
+    var nc2={k:'charge',n:b.dataset.nm,f:lesTxt(lc.date,lc.start,lc.end),coach:lc.coach,why:whyRead()};
+    if((lc.students||[]).length<=1){lc.status=lc.date<=today()?'已完成':'已排定';lc.lvCharge=1;}
+    lc.note=((lc.note||'')+'（'+b.dataset.nm+' 請假，照扣堂數）').trim();touch('lessons',lc);
+    histAdd(b.dataset.nm,nc2);persist();closeSheet();render();fNotice(nc2);
+    return;}
+   if(a==='ntCopy'){var ta=document.getElementById(b.dataset.f);if(!ta)return;
+    copyText(ta.value,function(ok){if(ok)return toast('已複製，可以貼到 LINE');ta.focus();ta.select();toast('沒辦法自動複製，文字已經選起來，請長按複製');});return;}
+   if(a==='lesLv'){closeSheet();fMove(b.dataset.id,b.dataset.nm);return;}
+   if(a==='ntBack'){closeSheet();fStu(b.dataset.id);return;}
    if(a==='mvCancel'){
     var l3=byId(DB.lessons,id);if(!l3)return;
     if(!confirm('取消這堂課？堂數會還回去，之後可以重新排。'))return;
+    var nx3={k:'cancel',n:b.dataset.nm,f:lesTxt(l3.date,l3.start,l3.end),coach:l3.coach,why:whyRead()};histAdd(b.dataset.nm,nx3);
     if((l3.students||[]).length>1){
      l3.students=l3.students.filter(function(x){return x!==b.dataset.nm;});
      fixGroupPlan(l3);touch('lessons',l3);
     }else{l3.del=1;touch('lessons',l3);}
-    persist();closeSheet();render();
-    var s3=STU().filter(function(x){return x.name===b.dataset.nm;})[0];if(s3)fStu(s3.id);
+    persist();closeSheet();render();fNotice(nx3);
     return;}
    if(a==='dly7'||a==='dly14'){
     var step=a==='dly7'?7:14,nm2=b.dataset.nm;
