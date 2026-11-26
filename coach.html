@@ -616,7 +616,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.24a';
+var APPVER='2026.11.26a';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -2202,9 +2202,10 @@ function stuLessons(name){
  +'</div>'
  +(todo.length>1
    ?'<div class="row" style="margin-top:12px">'
+    +'<button class="btn sec sm" data-act="retime" data-nm="'+esc(name)+'">全部改時間</button>'
     +'<button class="btn sec sm" data-act="dly7" data-nm="'+esc(name)+'">全部延後一週</button>'
     +'<button class="btn sec sm" data-act="dly14" data-nm="'+esc(name)+'">延後兩週</button></div>'
-    +'<div class="mini">團班和一對二會整堂一起延後，按下去之前會先列出受影響的同學。</div>'
+    +'<div class="mini">「全部改時間」是日期不動、只改上課時間，例如每週四都從 18:00 改成 18:30。團班和一對二會整堂一起改，按下去之前會先列出受影響的同學。</div>'
    :'')
  +(function(){
    var fin=done.filter(function(l){return l.status==='已完成';});
@@ -3884,6 +3885,41 @@ function fSwapCoach(name){
  +(shared.length?'<div class="warnbar">團班和一對二的課不會被更換，請點那一堂用「改期」裡的教練欄個別處理。</div>':'')
  +'<div class="row" style="margin-top:18px">'
  +'<button class="btn" data-act="doSwap" data-nm="'+esc(name)+'"'+(solo.length?'':' disabled')+'>確認更換 '+uCount(solo)+'</button>'
+ +'<button class="btn sec" data-act="close">取消</button></div>');
+}
+
+/* ---- 全部改時間（2026-11-26）：日期不動，把還沒上的課一次改到新的開始時間 ---- */
+function retimeList(name){
+ var days=[].slice.call(document.querySelectorAll('.rtday:checked')).map(function(x){return +x.value;});
+ return lessonsOf(name).filter(function(l){
+  return (l.status==='已排定'||l.status==='請假改期')&&days.indexOf(dowOf(l.date))>=0;});
+}
+function fRetime(name){
+ var todo=lessonsOf(name).filter(function(l){
+  return l.status==='已排定'||l.status==='請假改期';});
+ if(!todo.length)return alert('沒有還沒上的課。');
+ var dows=[];todo.forEach(function(l){var d=dowOf(l.date);if(dows.indexOf(d)<0)dows.push(d);});
+ dows.sort();
+ var first=todo[0];
+ openSheet(head('全部改時間')
+ +'<div class="fbox"><div class="ttl">'+esc(name)+'</div>'
+ +'<div class="mini" style="margin:10px 0 0">日期都不變，只改上課時間。還沒上的課共 '+uCount(todo)+'。</div>'
+ +(dows.length>1
+   ?'<label>要改哪幾天的課</label><div class="row" style="gap:14px">'
+    +dows.map(function(d){
+      var n=todo.filter(function(l){return dowOf(l.date)===d;}).length;
+      return '<label class="tall" style="margin:0"><input type="checkbox" class="rtday" value="'+d+'" checked style="width:20px;height:20px;-webkit-appearance:checkbox;appearance:auto;accent-color:#FE7F2D;vertical-align:middle"> '
+       +DAYN[d]+'（'+n+' 次）</label>';}).join('')+'</div>'
+   :'<input type="checkbox" class="rtday" value="'+dows[0]+'" checked style="display:none">')
+ +'<div class="grid2"><div><label>新的開始時間</label><select id="f_rts">'+timeOpts(first.start)+'</select></div>'
+ +'<div><label>每堂時間</label><select id="f_rtd">'
+ +'<option value="0" selected>跟原本一樣</option>'
+ +DUROPTS.map(function(o){return '<option value="'+o[0]+'">'+o[1]+'</option>';}).join('')
+ +'</select></div></div>'
+ +'<div class="mini">目前是 '+DAYN[dowOf(first.date)]+' '+esc(first.start)+'–'+esc(first.end)+'，'
+ +esc(first.coach)+'教練。教練和場地都不會變。</div></div>'
+ +'<div class="row" style="margin-top:18px">'
+ +'<button class="btn" data-act="doRetime" data-nm="'+esc(name)+'">確認改時間</button>'
  +'<button class="btn sec" data-act="close">取消</button></div>');
 }
 
@@ -6595,6 +6631,34 @@ function bind(){
     alert(nmR+' 已退費 '+money(ra)+'，截止 '+uCount(fut)+'的課。');
     return;}
    if(a==='swap'){return fSwapCoach(b.dataset.nm);}
+   if(a==='retime'){return fRetime(b.dataset.nm);}
+   if(a==='doRetime'){
+    var nmR=b.dataset.nm,ns=val('f_rts'),nd=+val('f_rtd')||0;
+    var listR=retimeList(nmR);
+    if(!listR.length)return alert('請至少勾一天。');
+    var plan=listR.map(function(l){
+     var e=m2t(t2m(ns)+(nd||durMin(l)));
+     return {l:l,s:ns,e:e};}).filter(function(o){return o.l.start!==o.s||o.l.end!==o.e;});
+    if(!plan.length)return alert('這些課已經是 '+ns+' 開始了，不用改。');
+    var ids={};plan.forEach(function(o){ids[o.l.id]=1;});
+    var othR={};
+    plan.forEach(function(o){(o.l.students||[]).forEach(function(x){if(x!==nmR)othR[x]=1;});});
+    var onR=Object.keys(othR);
+    var offR=plan.filter(function(o){return !inAvail(o.l.coach,o.l.date,o.s,o.e);}).length;
+    var clR=plan.filter(function(o){
+     return LES().some(function(x){
+      return !ids[x.id]&&x.status!=='取消'&&x.coach===o.l.coach&&x.date===o.l.date
+       &&t2m(x.start)<t2m(o.e)&&t2m(o.s)<t2m(x.start)+durMin(x);});})
+     .map(function(o){return o.l.date.slice(5).replace('-','/');});
+    if(!confirm('把 '+nmR+' 的 '+plan.length+' 堂課改成 '+ns+'–'+plan[0].e+' 上課？日期不變。'
+      +(onR.length?'\n\n其中有團班／一對二，會連同這些同學一起改：\n'+onR.join('、'):'')
+      +(offR?'\n\n注意：其中 '+offR+' 堂不在教練的可排時段內。':'')
+      +(clR.length?'\n\n注意：'+clR.slice(0,5).join('、')+(clR.length>5?' …':'')+' 這幾天教練在新時間已經有別的課。':'')))return;
+    plan.forEach(function(o){o.l.start=o.s;o.l.end=o.e;touch('lessons',o.l);});
+    persist();closeSheet();render();
+    var sR=STU().filter(function(x){return x.name===nmR;})[0];if(sR)fStu(sR.id);
+    alert('已把 '+plan.length+' 堂課改成 '+ns+' 開始。');
+    return;}
    if(a==='doSwap'){
     var nmS=b.dataset.nm,nc=val('f_newc');
     var list=lessonsOf(nmS).filter(function(l){
