@@ -464,6 +464,7 @@ color:var(--c,var(--ink2));background-color:#fff;background-position:right 11px 
 .pk-xh b{display:block;font-size:21px;color:#22394A}.pk-xh span{font-size:12.5px;color:#6E8794}
 .pk-sec{margin:0 0 18px}.pk-sec h3{font-size:15.5px;font-weight:800;margin:0 0 8px;padding-left:9px;border-left:4px solid #F08A3C;color:#1D2A33}
 .pk-tr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.pk-tr b{display:block;font-size:12.5px}.pk-tr small{display:block;font-size:10.5px;color:#8A97A0}
+.bt{border-collapse:collapse;font-size:13px}.bt th,.bt td{padding:4px 5px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}.bt th{font-size:12px;color:var(--muted);font-weight:700}.bt input{padding:6px 7px;font-size:15px}
 .pk-ph{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:start}.pk-ph .ph{height:160px;overflow:hidden;border-radius:6px;background:#EEE9DD}.pk-ph img{width:100%;display:block}.pk-ph small{display:block;text-align:center;font-size:10.5px;color:#8A97A0;margin-top:2px}
 .pk-qr{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.pk-qr>div{text-align:center}.pk-qr img{width:118px;height:118px;image-rendering:pixelated}.pk-qr small{display:block;font-size:11px;color:#37525F}
 .pk-ol{margin:4px 0;padding-left:22px}.pk-ol li{margin:4px 0}.pk-ol small{color:#8A97A0}
@@ -616,7 +617,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.27a';
+var APPVER='2026.11.27b';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -1745,6 +1746,7 @@ function vHome(){
  +'<button class="btn" data-act="newen">'+svg('plus',16)+' 新增報名</button>'
  +'<button class="btn sec" data-act="poster">'+svg('cal',16)+' 週課表圖片</button>'
  +'<button class="btn sec" data-act="biz">'+svg('chart',16)+' 經營分析</button>'
+ +'<button class="btn sec" data-act="batch">'+svg('edit',16)+' 檢測日</button>'
  +'</div>'
 
  +reqCenterHTML()
@@ -3574,16 +3576,77 @@ function progHTML(s){
    +(!lr.x.cmt&&!lr.x.next&&!lr.x.hw?'<div class="mini">這堂沒有寫評語和下堂重點。</div>':'')+'</div>';}
  return h;
 }
+/* ---- 下一期建議重點（2026-11-27）：用最近一次檢測，跟自己上一次、跟同層級的學員比，挑出最多 3 個要優先練的方向 ----
+   規則是教練團可以討論調整的起點，不是診斷；同層級少於 5 位就不做排名比較 */
+function npThrowSide(name){var s=stuByName(name),h=(s&&s.profile&&s.profile.hand)||'';return h.indexOf('左投')===0?'l':'r';}
+function npPeers(name,lv,k,fn){var a=[];STU().forEach(function(s){if(s.name===name)return;
+  var ts=testsOf(s.name).filter(function(t){return (t.level||(s.profile&&s.profile.level)||'')===lv;});
+  for(var i=ts.length-1;i>=0;i--){var x=fn?fn(ts[i].v||{}):parseFloat((ts[i].v||{})[k]);if(isFinite(x)){a.push(x);break;}}});return a;}
+function npPct(name,lv,k,val,fn){if(!isFinite(val)||!lv)return null;var a=npPeers(name,lv,k,fn);if(a.length<5)return null;
+ return a.filter(function(x){return x<val;}).length/a.length;}
+function nextPlan(name,vOver,lvOver){
+ var st=stuByName(name),ts=testsOf(name).filter(function(t){return t.v&&Object.keys(t.v).length;});
+ if(!vOver&&!ts.length)return {items:[],t:null};
+ var t=vOver?{v:vOver,level:lvOver,date:today()}:ts[ts.length-1],v=t.v||{},lv=t.level||(st&&st.profile&&st.profile.level)||'';
+ var N=function(k){return parseFloat(v[k]);},P=function(k,fn,val){return npPct(name,lv,k,val!==undefined?val:N(k),fn);};
+ var low=function(x){return x!==null&&x<0.35;},pc=function(x){return '贏過同層級 '+Math.round(x*100)+'% 的學員';};
+ var out=[],young=isYoung(lv),d=npThrowSide(name),o=d==='r'?'l':'r';
+ /* 打擊：棒速 × 藥球 */
+ var bp=P('bat'),mk=isFinite(N('mbv'))?'mbv':'mbs',mp=P(mk);
+ if(low(bp)){
+  if(low(mp))out.push({s:3,t:'旋轉爆發力',why:'棒速 '+N('bat')+' mph（'+pc(bp)+'），藥球也在後段（'+pc(mp)+'），力量還不夠',do:'藥球側拋、跳躍類爆發力訓練多排一些，揮棒動作先維持'});
+  else if(mp!==null&&mp>=0.5)out.push({s:3,t:'把力量轉到球棒上',why:'藥球成績'+pc(mp)+'，棒速卻在後段（'+pc(bp)+'），力量有了、沒有傳到球棒',do:'動力鏈和前腳煞車的練習，例如前腳回拉（Drill 15、16）'});
+  else out.push({s:2,t:'提升棒速',why:'棒速 '+N('bat')+' mph（'+pc(bp)+'）'+(mp===null?'，沒有藥球成績，分不出是力量還是動作':''),do:mp===null?'下次加測藥球側拋出手速度，再決定練力量還是練動作':'力量和動作各半'});}
+ /* 攻擊仰角 */
+ var aa=N('aaa');if(isFinite(aa)){var lo=(lv==='U15'||lv==='U18')?4:0,hi=(lv==='U15'||lv==='U18')?16:15;
+  if(aa<lo)out.push({s:2,t:'揮棒路徑（仰角偏低）',why:'攻擊仰角平均 '+aa+'°，建議 '+lo+'～'+hi+'°，球容易被打成滾地',do:'練擊球面順著來球往上的路徑，打擊座放低一點、目標放在前方網子中段'});
+  else if(aa>hi)out.push({s:2,t:'揮棒路徑（仰角偏高）',why:'攻擊仰角平均 '+aa+'°，建議 '+lo+'～'+hi+'°，容易打成高飛或揮空',do:'練平一點的擊球面，目標放低'});}
+ var ah=N('aah'),al=N('aal');if(isFinite(ah)&&isFinite(al)&&ah-al>5)out.push({s:1,t:'每一下揮棒一致',why:'攻擊仰角最高和最低差 '+Math.round((ah-al)*10)/10+'°（超過 5° 算分散）',do:'固定打擊座高度和位置，連續打同一條路徑'});
+ /* 擊球紮實度：初速 ÷ 棒速 */
+ var ev=N('ev'),bt=N('bat');if(isFinite(ev)&&isFinite(bt)&&bt>0&&!low(bp)){var rf=function(x){var a=parseFloat(x.ev),b=parseFloat(x.bat);return a>0&&b>0?a/(b*1.609):NaN;};
+  var rp=P('evr',rf,ev/(bt*1.609));if(low(rp))out.push({s:2,t:'擊球紮實度',why:'棒速不差，但擊球初速 '+ev+' km/h 偏低（初速÷棒速 '+pc(rp)+'），球沒有打在甜蜜點',do:'打擊座、近距離拋打，要求打到球的正中間'});}
+ /* 投球 */
+ var sk=N('strk');if(isFinite(sk)&&sk<10)out.push({s:3,t:'控球',why:'20 球裡 '+sk+' 球好球',do:'先固定投球動作和節奏，好球率穩定再追球速'});
+ var vp=P('velo'),sr=function(x){var a=parseFloat(x.strd),b=parseFloat(x.ht);return a>0&&b>0?a/b:NaN;},srv=sr(v),sp=isFinite(srv)?P('strd%',sr,srv):null;
+ if(low(vp)){if(low(sp))out.push({s:2,t:'跨步和往本壘推進',why:'球速'+pc(vp)+'，跨步距離是身高的 '+Math.round(srv*100)+'%（'+pc(sp)+'）',do:'練跨大步、整個身體往本壘推（Driveline 的 12 歲投手資料：投得快的孩子跨步比較大）'});
+  else out.push({s:1,t:'球速',why:'球速 '+N('velo')+' km/h（'+pc(vp)+'）',do:isFinite(srv)?'跨步已經不錯，看前腳著地的時機和手臂位置':'下次加測跨步距離和身高，看是不是跨步太小'});}
+ if(v.pm_arm&&v.pm_arm.indexOf('偏晚')===0)out.push({s:2,t:'投球手臂時機',why:'前腳著地時手臂還在下面',do:'練前腳著地時手肘到肩膀高度'});
+ if(v.pm_knee==='往前塌'&&!young)out.push({s:(lv==='U15'||lv==='U18')?2:1,t:'前腳煞車',why:'前腳著地後膝蓋往前塌',do:'下肢肌力和單腳落地穩定；年紀越大，前腳煞不煞得住對球速影響越大'});
+ if(v.pm_dir&&v.pm_dir!=='朝本壘直線')out.push({s:1,t:'跨步方向',why:'跨步'+v.pm_dir,do:'地上貼一條線，練跨步朝本壘'});
+ /* 肩、髖活動度 */
+ var tr=N('trom_'+o)-N('trom_'+d),ir=N('sir_'+o)-N('sir_'+d);
+ if((isFinite(tr)&&tr>5)||(isFinite(ir)&&ir>=20))out.push({s:3,t:'投球手的肩活動度',why:(isFinite(tr)?'總活動弧比另一手少 '+tr+'°':'')+(isFinite(ir)&&ir>=20?(isFinite(tr)?'，':'')+'內旋少 '+ir+'°':'')+'。這是高中、職業投手研究用的提醒線，小朋友只當提醒',do:'加強肩活動度伸展，注意投球量；如果一直變差或會痛，請物理治療師評估'});
+ var hd=Math.abs(N('hir_l')-N('hir_r'));if(isFinite(hd)&&hd>10)out.push({s:1,t:'髖活動度左右不平均',why:'左右髖內旋差 '+hd+'°',do:'髖活動度和單腳穩定練習'});
+ /* 落地、深蹲（低年級） */
+ if([v.stk_l,v.stk_r].some(function(x){return x==='晃動'||x==='待加強';}))out.push({s:2,t:'落地穩定',why:'跳停著地'+[v.stk_l?'左'+v.stk_l:'',v.stk_r?'右'+v.stk_r:''].filter(Boolean).join('、'),do:'跳下來站穩 2 秒、髖屈系列'});
+ if(v.ohs==='代償')out.push({s:1,t:'深蹲動作',why:'過頂深蹲有代償',do:'髖、踝活動度和深蹲動作控制'});
+ /* 跟自己上一次比 */
+ var prev=vOver?ts[ts.length-1]:ts[ts.length-2],note='';
+ if(prev&&prev.v){var c=function(k){var a=parseFloat(prev.v[k]),b=N(k);return isFinite(a)&&isFinite(b)&&a>0?(b-a)/a:null;};
+  var cb=c('bat'),cv=c('velo');var ok=[],st2=[];if(cb!==null)(cb>=0.03?ok:st2).push('棒速');if(cv!==null)(cv>=0.03?ok:st2).push('球速');
+  note=(ok.length?ok.join('、')+'比上一次進步':'')+(ok.length&&st2.length?'；':'')+(st2.length?st2.join('、')+'跟上一次差不多（變化小於 3%）':'');}
+ out.sort(function(a,b){return b.s-a.s;});
+ return {items:out.slice(0,3),more:out.length>3?out.length-3:0,t:t,lv:lv,note:note,peers:lv?npPeers(name,lv,'bat').length:0};}
+function nextPlanText(R){return R.items.map(function(x,i){return (i+1)+'. '+x.t+'：'+x.do+'。原因：'+x.why;}).join('\n');}
+function nextPlanHTML(name){var R=nextPlan(name);if(!R.t)return '';
+ return '<div class="sec-t">下一期建議重點</div><div class="card">'
+ +(R.items.length?R.items.map(function(x,i){return '<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>'+(i+1)+'. '+esc(x.t)+'</b>'
+   +'<div class="mini" style="margin:3px 0 0">為什麼：'+esc(x.why)+'</div><div class="mini" style="margin:2px 0 0">建議：'+esc(x.do)+'</div></div>';}).join('')
+  :'<div class="mini" style="margin:0">最近一次檢測沒有看到特別需要優先處理的地方。</div>')
+ +(R.note?'<div class="mini" style="margin-top:8px">'+esc(R.note)+'</div>':'')
+ +'<div class="mini" style="margin-top:8px">依 '+md(R.t.date)+' 的檢測產生'+(R.lv?'，跟同層級（'+esc(R.lv)+'）'+R.peers+' 位學員比較':'')+(R.peers<5?'；同層級人數不夠，先不做排名比較':'')
+ +(R.more?'；還有 '+R.more+' 項比較次要的沒列出':'')+'。這是討論的起點，教練看過孩子的實際狀況再決定。</div></div>';}
 function fProgress(sid){var s=byId(DB.students,sid);if(!s)return;
  openSheet(head('成長數據　'+esc(s.name))
   +'<div class="row" style="gap:8px;margin:2px 0 4px"><button class="btn sm" data-act="pkOpen" data-sid="'+s.id+'">'+svg('file',14)+' 十堂成長檔案</button>'
   +'<button class="btn sec sm" data-act="pxOpen" data-sid="'+s.id+'">加值報告（自選）</button></div>'
-  +progHTML(s)+'<div style="height:10px"></div>');}
+  +nextPlanHTML(s.name)+progHTML(s)+'<div style="height:10px"></div>');}
 function vCoachData(){
  var base=PDSEG==='mine'?myStudents():STU().filter(function(s){return lessonsOf(s.name).some(function(l){return l.status==='已完成';});});
  var list=base.map(function(s){var d=progData(s.name);return {s:s,d:d,last:d.done.length?d.done[d.done.length-1].date:''};})
   .sort(function(a,b){return a.last<b.last?1:(a.last>b.last?-1:0);});
  return '<h2>成長數據</h2><div class="hint">點學員看進步曲線：檢測數據、課堂掌握度、修正重點有沒有改善。</div>'
+ +'<button class="btn full" data-act="batch" style="margin:2px 0 10px">'+svg('edit',16)+' 檢測日：多位學員一起填</button>'
  +'<div class="seg"><button data-act="pdSeg" data-s="mine" class="'+(PDSEG==='mine'?'on':'')+'">我的學員</button>'
  +'<button data-act="pdSeg" data-s="all" class="'+(PDSEG==='all'?'on':'')+'">全部學員</button></div>'
  +(list.length?list.map(function(o){var s=o.s,d=o.d,lv=(s.profile&&s.profile.level)||'',sv=d.recs.filter(function(r){return r.score;}).slice(-8).map(function(r){return r.score;});
@@ -5082,7 +5145,7 @@ function buildPeriod(wb,n){
 /* 學員 s.tests＝[{id,kind:'前測'|'後測'|'檢測',date,level,nth,coach,lid,by,at,v:{欄位:值}}]
    每 10 堂一期：第 1 堂做前測、第 10、20…堂做後測（後測同時當下一期的基準）；只算一對一、一對二 */
 var TG=[['g1','一、關節活動度 (ROM & TROM)','s1'],['g2','二、基礎動作控制與協調','s2'],['g3','三、爆發力、敏捷與核心穩定','s3'],
- ['g4','四、棒球專項技術數據','s4'],['g5','五、教練綜合評估與發展規劃','s5']];
+ ['g4','四、棒球專項技術數據','s4'],['g6','五、投手專項與身體成長','s3'],['g5','六、教練綜合評估與發展規劃','s5']];
 /* [代號, Excel 欄名, 群組, 類型 n數字 nt數字或文字 s單選 t文字, 適用 y=U8/U10 o=U12以上 a=都測, 單位, 越大越好+ 越小越好-, 選項] 順序＝Excel 欄位順序 */
 var TF=[
  ['bs_l','摸背_左上(cm)','g1','nt','y','cm','-',['可碰到']],['bs_r','摸背_右上(cm)','g1','nt','y','cm','-',['可碰到']],
@@ -5111,7 +5174,19 @@ var TF=[
  ['mim','動作模仿彈性','g5','s','a','','',['能迅速模仿','需分解動作引導']],
  ['chain','動力鏈傳導效率','g5','s','a','','',['優','尚可','待修正']],
  ['stab','動作穩定性','g5','s','a','','',['優','尚可','待加強']],
- ['cmt','教練綜合評語','g5','t','a'],['weak','待強化動作細節/瓶頸','g5','t','a'],['plan','下階段訓練規劃方向','g5','t','a']];
+ ['cmt','教練綜合評語','g5','t','a'],['weak','待強化動作細節/瓶頸','g5','t','a'],['plan','下階段訓練規劃方向','g5','t','a'],
+ /* 2026-11-27 新增（接在最後，Google 試算表要另外加欄位才會出現）：Blast 其他數據、投手專項、身體成長 */
+ ['ttc','擊球時間 Time to Contact(秒)','g4','n','o','秒','-'],['ope','平面效率 On-Plane(%)','g4','n','o','%','+'],
+ ['rac','旋轉加速度(g)','g4','n','o','g','+'],['hsp','最高手速(mph)','g4','n','o','mph','+'],
+ ['ht','身高(cm)','g6','n','a','cm',''],['wt','體重(kg)','g6','n','a','kg',''],
+ ['grip_d','握力_投球手(kg)','g6','n','o','kg','+'],['grip_n','握力_非投球手(kg)','g6','n','o','kg','+'],
+ ['mbv','藥球側拋出手速度(km/h)','g6','n','o','km/h','+'],
+ ['veloa','平均球速(km/h)','g6','n','o','km/h','+'],['strk','好球數(/20球)','g6','n','o','/20','+'],
+ ['strd','跨步距離(cm)','g6','n','o','cm','+'],
+ ['pm_dir','跨步方向','g6','s','o','','',['朝本壘直線','偏開','偏關']],
+ ['pm_arm','前腳著地時手臂位置','g6','s','o','','',['準時（手肘到肩膀高度）','偏晚（手還在下面）']],
+ ['pm_knee','前腳著地後膝蓋','g6','s','o','','',['煞得住','往前塌']],
+ ['pm_fin','投完收尾平衡','g6','s','o','','',['站得穩','往一側倒']]];
 var TPROG=['顯著進步','微幅修正','停滯'];
 var TNDIR=['技術已達標，轉入高階情境模擬與抗壓訓練','機制已修正，增加爆發力與身體抗旋轉素質','持續精熟基礎動作'];
 var TKEY=['velo','bat','ev','bj','mbs','sp15'];   // 摘要優先顯示的數字
@@ -5187,6 +5262,8 @@ function fTest(sid,tid,kind,lid,draft){
  +(t.kind==='後測'?recSec('✓','十堂成效複檢','s5',
    fld('動作機制優化程度',chips('tf_prog',TPROG,v.prog,1))
    +fld('下一個 10 堂課的訓練調整方向',chips('tf_ndir',TNDIR,v.ndir,1))):'')
+ +'<div class="row" style="margin:10px 0 0"><button type="button" class="btn sec sm" data-act="planFill">把系統建議帶入「下階段訓練規劃方向」</button></div>'
+ +'<div class="mini">依這張表填好的數字，跟同層級學員比較後產生，可以再自己改。</div>'
  +'<div class="savebar">'+(t.id?'<button class="btn sec sm" data-act="tDel" data-sid="'+sid+'" data-id="'+t.id+'">刪除</button>':'')
  +'<button class="btn" data-act="tSave" data-sid="'+sid+'" data-id="'+(t.id||'')+'" data-lid="'+esc(t.lid||'')+'">'+svg('check',16)+' 儲存檢測</button></div>';
  FTEST={sid:sid,t:t};
@@ -5195,6 +5272,46 @@ function fTest(sid,tid,kind,lid,draft){
  if(ca)ca.onchange=function(){var nt=Object.assign({},FTEST.t,readTest());TALL=ca.checked;var dirty=REC_DIRTY;fTest(sid,nt.id,nt.kind,lid,nt);REC_DIRTY=dirty;};
 }
 var FTEST=null;
+/* 檢測日（2026-11-27）：選一站、選學員，一位一列快速輸入；存檔時併進該學員同一天的檢測（沒有就新增） */
+var BT_ST=[['hit','打擊站',['bat','aaa','ev']],['pit','投球站',['velo','veloa','strk','strd']],
+ ['pow','爆發力站',['bj','mbv','mbs','grip_d','grip_n','sp15']],
+ ['rom','活動度站',['sir_l','sir_r','ser_l','ser_r','hir_l','hir_r','tr_l','tr_r']],['body','身高體重',['ht','wt']]];
+var BT={date:'',st:'hit',ns:[]};
+function btDefault(d){var m={};LES().filter(function(l){return l.date===d&&l.status!=='取消'&&!isGrpPlan(l.plan)&&(MODE!=='coach'||l.coach===ME);})
+ .forEach(function(l){(l.students||[]).forEach(function(n){m[n]=1;});});return Object.keys(m);}
+function fBatch(){if(!BT.date){BT.date=today();BT.ns=btDefault(BT.date);}
+ var st=BT_ST.filter(function(x){return x[0]===BT.st;})[0]||BT_ST[0];
+ var F=st[2].map(function(k){return TF.filter(function(f){return f[0]===k;})[0];}).filter(Boolean);
+ var cur=function(n,k){var t=testsOf(n).filter(function(x){return x.date===BT.date;}).pop();return t?tVal(t,k):'';};
+ var pool=(MODE==='coach'?myStudents():STU()).map(function(s){return s.name;}).filter(function(n){return BT.ns.indexOf(n)<0;}).sort();
+ openSheet(head('檢測日：多位學員一起填')
+ +'<div class="fbox"><div class="grid2"><div><label>檢測日期</label><input type="date" id="bt_date" value="'+BT.date+'"></div>'
+ +'<div><label>加學員</label><select id="bt_add"><option value="">選一位加進來</option>'+pool.map(function(n){return '<option>'+esc(n)+'</option>';}).join('')+'</select></div></div>'
+ +'<div class="seg" style="margin:10px 0 4px">'+BT_ST.map(function(x){return '<button type="button" data-act="btSt" data-s="'+x[0]+'" class="'+(x[0]===BT.st?'on':'')+'">'+x[1]+'</button>';}).join('')+'</div>'
+ +'<div class="mini">一站測完換下一站，切換前會先暫存。存檔時會併進每位學員同一天的檢測；那天剛好是第 1 堂或期末那堂，就記成前測或後測。</div></div>'
+ +(BT.ns.length?'<div style="overflow-x:auto"><table class="bt"><tr><th>學員</th>'+F.map(function(f){return '<th>'+esc(tShort(f))+(f[5]?'<br><small>'+esc(f[5])+'</small>':'')+'</th>';}).join('')+'<th></th></tr>'
+   +BT.ns.map(function(n,i){return '<tr><td><b>'+esc(n)+'</b></td>'+F.map(function(f){var v=(BT.v&&BT.v[n]&&BT.v[n][f[0]]!==undefined)?BT.v[n][f[0]]:cur(n,f[0]);
+     return '<td><input class="btin" data-n="'+esc(n)+'" data-k="'+f[0]+'" inputmode="decimal" value="'+esc(v)+'" style="min-width:64px"></td>';}).join('')
+     +'<td><button type="button" class="btn sec sm" data-act="btDel" data-i="'+i+'">移除</button></td></tr>';}).join('')+'</table></div>'
+   :'<div class="empty">這天沒有排課的學員，用上面「加學員」加進來</div>')
+ +'<div class="savebar"><button class="btn" data-act="btSave">'+svg('check',16)+' 全部儲存</button></div>');
+ var dd=document.getElementById('bt_date');if(dd)dd.onchange=function(){btKeep();BT.date=dd.value||today();BT.ns=btDefault(BT.date);BT.v={};fBatch();};
+ var ad=document.getElementById('bt_add');if(ad)ad.onchange=function(){if(!ad.value)return;btKeep();BT.ns.push(ad.value);fBatch();};
+ REC_DIRTY=false;var sh=document.getElementById('sheet');if(sh){sh.dataset.rec='1';sh.oninput=function(){REC_DIRTY=true;};}}
+function btKeep(){BT.v=BT.v||{};[].forEach.call(document.querySelectorAll('.btin'),function(e){var n=e.dataset.n;BT.v[n]=BT.v[n]||{};BT.v[n][e.dataset.k]=e.value.trim();});}
+function btSave(){btKeep();var n0=0;
+ Object.keys(BT.v||{}).forEach(function(n){var vals=BT.v[n],ks=Object.keys(vals).filter(function(k){return vals[k]!=='';});
+  var s=stuByName(n);if(!s)return;
+  var t=testsOf(n).filter(function(x){return x.date===BT.date;}).pop();
+  var changed=ks.some(function(k){return !t||tVal(t,k)!==vals[k];})||(t&&Object.keys(vals).some(function(k){return vals[k]===''&&tVal(t,k)!=='';}));
+  if(!changed)return;
+  if(t)t=JSON.parse(JSON.stringify(t));
+  else{var l=lessonsOf(n).filter(function(x){return x.date===BT.date&&x.status!=='取消'&&!isGrpPlan(x.plan);})[0],c=l?cycInfo(l,n):null;
+   t={id:uid(),kind:c&&c.pre?'前測':(c&&c.post?'後測':'檢測'),date:BT.date,level:(s.profile&&s.profile.level)||'',nth:c?'第'+c.n+'堂':'',
+    coach:MODE==='coach'?ME:(l?l.coach:''),lid:l?l.id:'',v:{}};}
+  t.v=t.v||{};Object.keys(vals).forEach(function(k){if(vals[k]==='')delete t.v[k];else t.v[k]=vals[k];});
+  t.by=recWho();t.at=Date.now();setTest(s,t);pushTest(s,t);n0++;});
+ persist();REC_DIRTY=false;BT.v={};closeSheet(true);render();toast(n0?'已儲存 '+n0+' 位學員的檢測':'沒有新的數字要存');}
 /* 11/22 會議共識：攻擊仰角標準、穩定度定義、跳遠量法；逐球輸入自動算平均／最高／最低 */
 var TB_LIST=[['bat','bat_l','揮棒速度','mph'],['ev','ev_l','擊球初速','km/h'],['aa','aa_l','攻擊仰角','°'],['velo','velo_l','球速','km/h']];
 var AA_STD='少棒 0°～15°、成棒 4°～16°（教練團 11/22 共識，參考 Blast Motion）。力量好的可以到 14～15°，力量較弱的揮平一點，約 5～8°。';
@@ -5205,6 +5322,8 @@ function tgNote(g,fs,v){var has=function(k){return fs.some(function(f){return f[
  if(g!=='g4')return '';
  var it=TB_LIST.filter(function(x){return x[0]==='aa'?has('aaa'):has(x[0]);});if(!it.length)return '';
  return '<div class="tball"><b>逐球紀錄（選填）</b><div class="mini" style="margin:2px 0 6px">測幾顆就打幾個數字，用空白隔開，下面的最高、平均會自動算好。</div>'
+  +(has('bat')?'<div class="row" style="margin:0 0 8px"><button type="button" class="btn sec sm" data-act="blastImp">匯入 Blast 揮棒資料（CSV）</button></div>'
+   +'<div class="mini" style="margin:-4px 0 8px">在 Blast App 或 Blast Connect 匯出 CSV，選檔案後會帶入檢測當天的每一下揮棒（棒速、攻擊仰角、擊球時間、平面效率等）。</div>':'')
   +it.map(function(x){return '<div class="rf"><label>'+x[2]+'（'+x[3]+'）</label><input id="tb_'+x[0]+'" data-tb="'+x[0]+'" value="'+esc(v[x[1]]||'')+'" placeholder="例如 '+(x[0]==='aa'?'8 12 5 -2 10':'52 54.5 53')+'" autocomplete="off"><div class="mini tbsum" id="tbs_'+x[0]+'"></div></div>';}).join('')
   +(has('aaa')?'<div class="mini" style="margin:6px 0 0">攻擊仰角標準：'+AA_STD+'<br>仰角穩定度：'+AA_STAB+'。</div>':'')+'</div>';}
 function tbCalc(k,write){var e=document.getElementById('tb_'+k),o=document.getElementById('tbs_'+k);if(!e)return;var a=tbNums(e.value);
@@ -5214,7 +5333,42 @@ function tbCalc(k,write){var e=document.getElementById('tb_'+k),o=document.getEl
  if(k==='aa'){var d=Math.round((mx-mn)*10)/10,st=d<=5?'集中':'過於分散';set('tf_aaa',av);set('tf_aah',mx);set('tf_aal',mn);
   if(write){var box=document.getElementById('tf_aas');if(box)[].forEach.call(box.querySelectorAll('.pick'),function(b){b.classList.toggle('on',b.dataset.v===st);});}
   if(o)o.textContent=a.length+' 顆：平均 '+av+'°、最高 '+mx+'°、最低 '+mn+'°，相差 '+d+'° → '+st;}
- else{set('tf_'+k,mx);if(o)o.textContent=a.length+' 顆：最高 '+mx+'、平均 '+av+'（表格填最高）';}}
+ else{set('tf_'+k,mx);if(k==='velo')set('tf_veloa',av);if(o)o.textContent=a.length+' 顆：最高 '+mx+'、平均 '+av+(k==='velo'?'（最高填「最快球速」，平均填「平均球速」）':'（表格填最高）');}}
+/* Blast CSV（2026-11-27）：Blast App 或 Blast Connect 匯出的揮棒資料，照欄位名稱找棒速、攻擊仰角等，帶進逐球紀錄 */
+function csvRows(t){var rows=[],row=[],cur='',q=false;t=String(t||'').replace(/^\ufeff/,'');
+ for(var i=0;i<t.length;i++){var c=t[i];
+  if(q){if(c==='"'){if(t[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;continue;}
+  if(c==='"')q=true;else if(c===','){row.push(cur);cur='';}else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(cur);rows.push(row);row=[];cur='';}else cur+=c;}
+ if(cur!==''||row.length){row.push(cur);rows.push(row);}
+ return rows.filter(function(r){return r.some(function(x){return String(x).trim()!=='';});});}
+var BLAST_COLS=[['bat',/bat\s*speed/i],['aa',/attack\s*angle/i],['ttc',/time\s*to\s*contact/i],['ope',/on[\s-]*plane\s*eff/i],
+ ['rac',/rotational\s*acc/i],['hsp',/(peak\s*)?hand\s*speed/i],['date',/^\s*(date|time|swing\s*date|created)/i]];
+function blastParse(text){var R=csvRows(text);if(R.length<2)return null;
+ var hi=-1,col={};for(var r=0;r<Math.min(R.length,10)&&hi<0;r++){var c={};
+  R[r].forEach(function(h,j){BLAST_COLS.forEach(function(b){if(c[b[0]]===undefined&&b[1].test(h))c[b[0]]=j;});});
+  if(c.bat!==undefined||c.aa!==undefined){hi=r;col=c;}}
+ if(hi<0)return null;
+ var num=function(x){var m=String(x||'').match(/-?\d+(\.\d+)?/);return m?+m[0]:null;};
+ var day=function(x){x=String(x||'').trim();if(!x)return '';var m=x.match(/(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+  if(m)return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+  var d=new Date(x);if(isNaN(d))return '';return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);};
+ var out=R.slice(hi+1).map(function(r){var o={d:col.date!==undefined?day(r[col.date]):''};
+  ['bat','aa','ttc','ope','rac','hsp'].forEach(function(k){if(col[k]!==undefined)o[k]=num(r[col[k]]);});return o;})
+  .filter(function(o){return o.bat!==null&&o.bat!==undefined||o.aa!==null&&o.aa!==undefined;});
+ return {rows:out,cols:Object.keys(col)};}
+function blastApply(P){var td=val('tf_date')||today(),use=P.rows.filter(function(o){return o.d===td;});
+ if(!use.length){var ds={};P.rows.forEach(function(o){if(o.d)ds[o.d]=1;});var dl=Object.keys(ds).sort();
+  if(!confirm('檔案裡沒有 '+td.replace(/-/g,'/')+' 的揮棒'+(dl.length?'（檔案裡的日期：'+dl.slice(-5).map(md).join('、')+'）':'')+'。\n要用檔案裡全部 '+P.rows.length+' 下揮棒嗎？'))return;
+  use=P.rows;}
+ var vals=function(k){return use.map(function(o){return o[k];}).filter(function(x){return x!==null&&x!==undefined&&isFinite(x);});};
+ var avg=function(a){return a.length?Math.round(a.reduce(function(x,y){return x+y;},0)/a.length*100)/100:'';};
+ var put=function(id,v){var e=document.getElementById(id);if(e&&v!==''&&v!==undefined)e.value=String(v);};
+ var b=vals('bat'),a=vals('aa');
+ if(b.length){put('tb_bat',b.join(' '));tbCalc('bat',true);}
+ if(a.length){put('tb_aa',a.join(' '));tbCalc('aa',true);}
+ put('tf_ttc',avg(vals('ttc')));put('tf_ope',avg(vals('ope')));put('tf_rac',avg(vals('rac')));
+ var h=vals('hsp');if(h.length)put('tf_hsp',Math.max.apply(null,h));
+ REC_DIRTY=true;toast('已帶入 '+use.length+' 下揮棒，存檔前可以再看一下');}
 function tbBind(){TB_LIST.forEach(function(x){var e=document.getElementById('tb_'+x[0]);if(!e)return;tbCalc(x[0],false);e.oninput=function(){tbCalc(x[0],true);};});}
 function readTest(){
  var t=FTEST.t,v={};for(var k in (t.v||{}))v[k]=t.v[k];
@@ -6530,6 +6684,18 @@ function bind(){
     return fTest(b.dataset.sid,b.dataset.tid||'',b.dataset.k||'前測',tl||'');}
    if(a==='tKind'){if(!FTEST)return;var nt=Object.assign({},FTEST.t,readTest());nt.kind=b.dataset.k;fTest(FTEST.sid,nt.id,nt.kind,nt.lid,nt);REC_DIRTY=true;return;}
    if(a==='tSave')return saveTest(b.dataset.sid,b.dataset.id,b.dataset.lid);
+   if(a==='planFill'){if(!FTEST)return;var s9=byId(DB.students,FTEST.sid),d9=readTest();var R9=nextPlan(s9.name,d9.v,d9.level);
+    var tx=nextPlanText(R9);if(!tx)return alert('這張表的數字還看不出要優先練什麼，可以自己寫。');
+    var pe=document.getElementById('tf_plan');if(!pe){TALL=true;var nt9=Object.assign({},FTEST.t,d9);fTest(FTEST.sid,nt9.id,nt9.kind,nt9.lid,nt9);pe=document.getElementById('tf_plan');}
+    if(pe){pe.value=(pe.value?pe.value+'\n':'')+tx;REC_DIRTY=true;pe.scrollIntoView({block:'center'});toast('已帶入，可以再改');}return;}
+   if(a==='batch'){BT={date:'',st:'hit',ns:[],v:{}};return fBatch();}
+   if(a==='btSt'){btKeep();BT.st=b.dataset.s;return fBatch();}
+   if(a==='btDel'){btKeep();var dn=BT.ns.splice(+b.dataset.i,1)[0];if(BT.v)delete BT.v[dn];return fBatch();}
+   if(a==='btSave')return btSave();
+   if(a==='blastImp'){var fi=document.createElement('input');fi.type='file';fi.accept='.csv,text/csv';
+    fi.onchange=function(){var f=fi.files&&fi.files[0];if(!f)return;var rd=new FileReader();
+     rd.onload=function(){var P=blastParse(rd.result);if(!P||!P.rows.length)return alert('看不懂這個檔案。請確認是 Blast 匯出的 CSV（要有 Bat Speed 或 Attack Angle 欄位）。');blastApply(P);};
+     rd.readAsText(f);};fi.click();return;}
    if(a==='tDel'){var tsx=byId(DB.students,b.dataset.sid);if(!tsx)return;
     if(!confirm('刪除這筆檢測？'))return;pushTest(tsx,{id:b.dataset.id},1);delTest(tsx,b.dataset.id);
     persist();REC_DIRTY=false;closeSheet(true);render();toast('已刪除');return;}
