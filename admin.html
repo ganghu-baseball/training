@@ -616,7 +616,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.26b';
+var APPVER='2026.11.26c';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -2135,7 +2135,10 @@ function fStu(id){
  +['是','否'].map(function(v){return '<option'+(s.ganghu===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select></div>'
  +'<div><label>主要教練</label><select id="f_scoach"><option value="">未指定</option>'
  +coachList(s.coach).map(function(c){return '<option'+(s.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div></div>'
- +'<label>備註</label><textarea id="f_note" rows="2">'+esc(s.note)+'</textarea></div>';
+ +'<label>備註</label><textarea id="f_note" rows="2">'+esc(s.note)+'</textarea>'
+ +(id?'<label>課表外的課（只算堂數）</label><input id="f_xles" value="'+esc((s.xLes||[]).join('、'))+'" placeholder="例如 2026-09-19、2026-09-28">'
+   +'<div class="mini">系統課表沒有、但要算進「第幾堂」的課，填日期就好。只影響上課順序的堂數，不算鐘點費，也不扣剩餘堂數。</div>':'')
+ +'</div>';
 
  if(!id){
   h+='<div class="fbox"><div class="ttl">這次報名與繳費</div>'
@@ -4994,6 +4997,7 @@ function cycInfo(l,name){
  var mine=lessonsOf(name).filter(function(x){return !isGrpPlan(x.plan)&&x.status!=='取消'&&x.status!=='請假改期';});
  var before=0;
  for(var i=0;i<mine.length;i++){if(mine[i].id===l.id)break;before+=unitsOf(mine[i]);}
+ if(before>0)before+=xAdd(name,l.date);
  var after=before+unitsOf(l),bound=(Math.floor(before/10)+1)*10;
  var post=after>=bound,pre=before===0;
  var ts=testsOf(name);
@@ -5150,7 +5154,9 @@ function tfk(k){return TF.filter(function(f){return f[0]===k;})[0]||null;}
    讓接手的教練一眼看到學員前面上過哪幾堂、哪幾堂沒有紀錄。PDF 的「第幾堂」也照這個順序。 */
 function nfmt(x){return x%1?String(Math.round(x*10)/10):String(x);}
 /* 2026-11-26 凱文：堂數要一直累加，第二期不要又從第 1 堂算（第 2 期接著第 11、12 堂） */
-function cycPos(name){var m={},u=0;cycLes(name).forEach(function(cs,ci){cs.forEach(function(l){var a=u;u+=unitsOf(l);m[l.id]={k:ci+1,a:a,b:u};});});return m;}
+/* 課表外的課（s.xLes 日期，2026-11-26 簡子翃 9/19、9/28 捕手課）：在那天之後的課，堂數往後加 */
+function xAdd(name,date){var s=stuByName(name);return ((s&&s.xLes)||[]).filter(function(d){return d<date;}).length;}
+function cycPos(name){var m={},u=0;cycLes(name).forEach(function(cs,ci){cs.forEach(function(l){var a=u,x=xAdd(name,l.date);u+=unitsOf(l);m[l.id]={k:ci+1,a:a+x,b:u+x};});});return m;}
 function posTxt(p){var w=p.b-p.a;return (w>1&&w%1===0)?nfmt(p.a+1)+'–'+nfmt(p.b):nfmt(p.b);}
 function nthNum(v){v=String(v||'').replace(/[第堂課\s]/g,'');if(/^\d+(\.\d+)?$/.test(v))return +v;
  var C='零一二三四五六七八九';if(v.length===1&&C.indexOf(v)>0)return C.indexOf(v);
@@ -5175,7 +5181,8 @@ function lesSeqHTML(n,curId,inForm){
    +'<button type="button" class="btn sec sm" data-act="nthFix" data-nm="'+esc(n)+'" data-ids="'+off.join(',')+'">把紀錄裡的堂數改成跟上面一樣</button>':'';
  var body='<div class="card" style="padding:4px 12px;margin-bottom:0">'+rows+fix+'</div>';
  if(!inForm)return '<div class="sec-t">上課順序（'+ki+'，已上 '+nfmt(du)+' 堂）</div>'
-  +'<div class="mini" style="margin:-4px 0 8px">照日期排，其他教練上的課也算在內。</div>'+body;
+  +'<div class="mini" style="margin:-4px 0 8px">照日期排，其他教練上的課也算在內。'
+  +(function(){var s=stuByName(n),xs=(s&&s.xLes)||[];return xs.length?'另外算進堂數的課（課表沒有）：'+xs.map(md).join('、')+'。':'';})()+'</div>'+body;
  var cp=cur&&P[cur.id];
  var open=gap||off.length||c.some(function(l){return l.status==='已完成'&&cur&&l.coach!==cur.coach;});
  return '<details class="seqd"'+(open?' open':'')+'><summary>上課順序：'+(cp?'這堂是'+ki+'第 '+posTxt(cp)+' 堂':ki)+'（點開看每一堂）</summary>'+body+'</details>';
@@ -6858,6 +6865,11 @@ function bind(){
     if(!n)return alert('請填學員姓名');
     var o={name:n,parent:val('f_parent'),phone:val('f_phone'),ganghu:val('f_ganghu'),
       coach:val('f_scoach'),note:val('f_note')};
+    if(document.getElementById('f_xles')){
+     var xl=(val('f_xles').match(/\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}/g)||[]).map(function(d){
+      var q=d.split(/[-\/.]/);return q[0]+'-'+('0'+q[1]).slice(-2)+'-'+('0'+q[2]).slice(-2);}).sort();
+     if(val('f_xles').trim()&&!xl.length)return alert('「課表外的課」請填日期，例如 2026-09-19');
+     o.xLes=xl;}
     if(id){
      var old=byId(DB.students,id);
      if(old&&old.name!==n){
