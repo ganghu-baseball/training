@@ -616,7 +616,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.26a';
+var APPVER='2026.11.26b';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -736,8 +736,14 @@ var TIMES=['13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:0
  '18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30'];
 function t2m(t){var a=(t||'0:0').split(':');return (+a[0])*60+(+a[1]);}
 function m2t(m){return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
-function timeOpts(sel){return TIMES.map(function(t){
+/* 結束時間多到 22:00（2026-11-26 凱文：泰宇上到 22:00，選單最晚只有 21:30）；
+   原本存的時間不在清單裡也照樣顯示，不會被悄悄改掉 */
+var ENDTIMES=TIMES.concat(['22:00','22:30']);
+function timeOpts(sel,list){list=list||TIMES;
+ var o=list.slice();if(sel&&o.indexOf(sel)<0){o.push(sel);o.sort();}
+ return o.map(function(t){
  return '<option'+(sel===t?' selected':'')+'>'+t+'</option>';}).join('');}
+function endOpts(sel){return timeOpts(sel,ENDTIMES);}
 /* 整週實際有課的時段，課表和匯出圖都用這個 */
 function usedSlots(days){
  var u=TIMES.filter(function(t){
@@ -896,6 +902,8 @@ function adminFee(l){return ADMINTB[headOf(l)]||50;}
    11/11 以前的課一律算 1 堂，已經結算過的金額不會變。 */
 var UNIT_FROM='2026-11-11';
 function isGrpPlan(p){return (p||'').indexOf('團班')===0;}
+/* 團班不用每堂填上課紀錄（2026-11-26 凱文反映），不列在「待填」；想填還是可以點進去填 */
+function needRec(l){return !isGrpPlan(l.plan);}
 function durMin(l){var m=t2m(l.end)-t2m(l.start);return m>0?m:60;}
 function unitsOf(l){
  if(l&&l.u!==undefined&&l.u!==null&&l.u!==''&&+l.u>0)return +l.u;
@@ -3022,7 +3030,7 @@ function fRec(lid,draft){
  /* 一、基本資料與課堂屬性 */
  +recSec('一','基本資料與課堂屬性','s1',
    '<div class="kvs"><div><small>上課日期</small><b>'+l.date.replace(/-/g,'/')+'</b></div><div><small>授課教練</small><b>'+esc(l.coach)+'</b></div></div>'
-   +fld('實際上課時間','<div class="grid2"><select id="r_start">'+timeOpts(l.start)+'</select><select id="r_end">'+timeOpts(l.end)+'</select></div>'
+   +fld('實際上課時間','<div class="grid2"><select id="r_start">'+timeOpts(l.start)+'</select><select id="r_end">'+endOpts(l.end)+'</select></div>'
      +'<div class="mini">跟排定的不一樣才需要改，存檔後課表會一起更新。</div>')
    +per(function(n,i,x){var s=stuByName(n),lv=x.level||(s&&s.profile&&s.profile.level)||'';
      var P=cycPos(n),p=P[l.id],sn=p?'第'+posTxt(p)+'堂':nthOf(l,n);
@@ -3202,7 +3210,7 @@ function stuLeftTag(n){var b=boughtOf(n),lf=leftOf(n);
 function cLesCard(l,showDate){
  var t0=today(),past=l.date<=t0;
  var st=l.status==='請假改期'?'<span class="tag r">待改期</span>'
-  :(l.rec?'<span class="tag g">已填・可修改</span>':(past?'<span class="tag r">待填紀錄</span>':'<span class="tag b">'+esc(l.status)+'</span>'));
+  :(l.rec?'<span class="tag g">已填・可修改</span>':(past?(needRec(l)?'<span class="tag r">待填紀錄</span>':'<span class="tag b">團班・可不填</span>'):'<span class="tag b">'+esc(l.status)+'</span>'));
  var dn=reqsOf(l.id).some(function(r){return r.type==='done'&&r.st!=='no';});
  var qd=(l.status!=='已排定'||l.vr)?'':(dn?'<span class="tag g">已點名</span>'
   :(MODE==='coach'&&past?'<button class="btn sm qdone" data-act="qDone" data-id="'+l.id+'">'+svg('check',14)+'有上課</button>':''));
@@ -3238,7 +3246,7 @@ var CW_MORE={},CTSEG='mine';
 function vCoachWeek(){
  var t0=today(),mine=myLes();
  var tdy=mine.filter(function(l){return l.date===t0&&l.status!=='請假改期';}).sort(function(a,b){return a.start<b.start?-1:1;});
- var todo=mine.filter(function(l){return !l.rec&&l.date<=t0&&l.date>=addD(t0,-21)&&l.status!=='請假改期';})
+ var todo=mine.filter(function(l){return !l.rec&&needRec(l)&&l.date<=t0&&l.date>=addD(t0,-21)&&l.status!=='請假改期';})
   .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?1:-1;});
  var rn=myStudents().filter(function(s){var b=boughtOf(s.name);return b>0&&leftOf(s.name)<=RENEW_AT&&!(s.renewOff&&+s.renewOff===b);})
   .sort(function(a,b){return leftOf(a.name)-leftOf(b.name);});
@@ -3393,7 +3401,7 @@ function vCoachRec(){
  var t0=today(),from=addD(t0,-150),to=addD(t0,45);
  var all=myLes().filter(function(l){return l.date>=from&&l.date<=to&&(!RECS||(l.students||[]).indexOf(RECS)>=0);});
  var names={};myLes().filter(function(l){return l.date>=from&&l.date<=to;}).forEach(function(l){(l.students||[]).forEach(function(n){names[n]=1;});});
- var sets={todo:all.filter(function(l){return l.date<=t0&&!l.rec&&l.status!=='請假改期';}),done:all.filter(function(l){return !!l.rec;}),
+ var sets={todo:all.filter(function(l){return l.date<=t0&&!l.rec&&needRec(l)&&l.status!=='請假改期';}),done:all.filter(function(l){return !!l.rec;}),
   next:all.filter(function(l){return l.date>t0&&l.status!=='請假改期';}),all:all};
  var ls=(sets[RECF]||all).slice().sort(function(a,b){var x=a.date+a.start,y=b.date+b.start;return RECF==='next'?(x<y?-1:1):(x<y?1:-1);});
  var pages=Math.max(1,Math.ceil(ls.length/20));if(RECPG>pages)RECPG=pages;if(RECPG<1)RECPG=1;
@@ -4040,7 +4048,7 @@ function fLes(id){
  +'<div class="fbox"><div class="ttl">時間與教練</div>'
  +'<label>日期 *</label><input type="date" id="f_date" value="'+l.date+'">'
  +'<div class="grid2"><div><label>開始</label><select id="f_start">'+timeOpts(l.start)+'</select></div>'
- +'<div><label>結束</label><select id="f_end">'+timeOpts(l.end)+'</select></div></div>'
+ +'<div><label>結束</label><select id="f_end">'+endOpts(l.end)+'</select></div></div>'
  +'<label>教練 *</label><select id="f_coach"><option value="">請選擇</option>'
  +coachList(l.coach).map(function(c){return '<option'+(l.coach===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'
  +'<div class="fbox"><div class="ttl">課程與學員</div>'
@@ -5141,7 +5149,8 @@ function tfk(k){return TF.filter(function(f){return f[0]===k;})[0]||null;}
 /* 上課順序（2026-11-23）：同一期裡照日期排，所有教練上的課都算（代課、前教練上的也算），
    讓接手的教練一眼看到學員前面上過哪幾堂、哪幾堂沒有紀錄。PDF 的「第幾堂」也照這個順序。 */
 function nfmt(x){return x%1?String(Math.round(x*10)/10):String(x);}
-function cycPos(name){var m={};cycLes(name).forEach(function(cs,ci){var u=0;cs.forEach(function(l){var a=u;u+=unitsOf(l);m[l.id]={k:ci+1,a:a,b:u};});});return m;}
+/* 2026-11-26 凱文：堂數要一直累加，第二期不要又從第 1 堂算（第 2 期接著第 11、12 堂） */
+function cycPos(name){var m={},u=0;cycLes(name).forEach(function(cs,ci){cs.forEach(function(l){var a=u;u+=unitsOf(l);m[l.id]={k:ci+1,a:a,b:u};});});return m;}
 function posTxt(p){var w=p.b-p.a;return (w>1&&w%1===0)?nfmt(p.a+1)+'–'+nfmt(p.b):nfmt(p.b);}
 function nthNum(v){v=String(v||'').replace(/[第堂課\s]/g,'');if(/^\d+(\.\d+)?$/.test(v))return +v;
  var C='零一二三四五六七八九';if(v.length===1&&C.indexOf(v)>0)return C.indexOf(v);
@@ -5326,12 +5335,13 @@ function pkLesson(s,l,c,hdr,first,tail){
   +'<ul class="pk-ul"><li><b>動作：</b>'+(x.hw?'<div class="pk-box">'+pkMulti(x.hw)+'</div>':'')+'</li><li><b>頻率：</b>'+esc(freq)+'</li><li><b>次數／組數：</b>'+esc(reps)+'</li></ul>'
   +(tail||'')+'</div>';
 }
-/* 單堂課堂紀錄（給家長看這一堂）：每位學員一頁，跟十堂檔案裡的課堂紀錄同一個版面，有照片就附上 */
+/* 單堂課堂紀錄（給家長看這一堂）：每位學員一頁，跟十堂檔案裡的課堂紀錄同一個版面。
+   2026-11-26 凱文：照片不放進 PDF（列印很耗墨水、也佔版面），照片在雲端硬碟看 */
 function pkOneHTML(l){var ns=(l.students||[]).filter(function(n){return pkX(l,n);});
  return '<div class="pk">'+ns.map(function(n,i){var s=stuByName(n)||{name:n,profile:{}},x=pkX(l,n);
   var hdr='<div class="pk-xh"><img src="assets/app/logo.png" alt=""><div><small>GANGHU BASEBALL TRAINING</small><b>球員成長學習檔案・課堂紀錄</b>'
    +'<span>'+esc(n)+'　'+l.date.replace(/-/g,'/')+'（'+DAYN[dowOf(l.date)].slice(1)+'）　'+esc(l.coach)+' 教練</span></div></div>';
-  var ph=((x&&x.media)||[]).filter(function(m){return m.t==='i'&&(m.d||m.p);}).slice(0,3);
+  var ph=[];
   var tail=ph.length?'<div class="pk-sec" style="margin-top:14px"><h3>上課照片</h3><div class="pk-ph">'+ph.map(function(m){return '<div><div class="ph">'
    +(m.d?'<img src="'+mThumb(m,800)+'" data-d="'+esc(m.d)+'" referrerpolicy="no-referrer" alt="">':'<img src="'+mediaUrl(m.p)+'" crossorigin="anonymous" alt="">')+'</div></div>';}).join('')+'</div></div>':'';
   return pkLesson(s,l,{done:[]},hdr,i===0,tail);}).join('')+'</div>';}
@@ -5398,7 +5408,7 @@ function pkHTML(s,c){
 /* ---- 按鈕二：加值報告（教練自己勾） ---- */
 var PX_OPTS=[['cmp','進步一覽（進步／持平／要加強）',1],['trend','歷次檢測趨勢圖',1],['day','當日技術數據走勢（揮棒、擊球初速、球速）',1],
  ['score','課堂掌握度曲線',1],['parts','修正重點追蹤',1],['topic','這期練了什麼（主題和 Drills）',1],['hw','課後自主訓練總整理',1],
- ['photo','上課照片精選',1],['video','上課影片（掃 QR code 看）',1],['week','上課節奏（每週幾堂）',0],['fb','孩子自己說的（球員課堂自評）',0],
+ ['photo','上課照片精選（會多用墨水）',0],['video','上課影片（掃 QR code 看）',1],['week','上課節奏（每週幾堂）',0],['fb','孩子自己說的（球員課堂自評）',0],
  ['expl','檢測項目說明（每一項在測什麼）',0],['letter','教練想對家長說的話',1]];
 var PX_EXPL=[[['tr_l','tr_r'],'胸椎旋轉','上半身能轉多少，影響揮棒和投球時轉體的空間。'],
  [['hir_l','hir_r','her_l','her_r'],'髖關節內轉／外轉','下半身轉動的空間，跟揮棒、投球時的重心轉移有關。'],
@@ -7092,7 +7102,7 @@ function bind(){
    var d=t2m(fe.value)-t2m(prev||fs.value);
    if(!(d>0))d=60;
    var ne=m2t(t2m(fs.value)+d);
-   if(TIMES.indexOf(ne)>=0)fe.value=ne;}
+   if(ENDTIMES.indexOf(ne)>=0)fe.value=ne;}
   fs.dataset.prev=fs.value;
   recalcDays();};
  ['f_dur','f_per'].forEach(function(k){
