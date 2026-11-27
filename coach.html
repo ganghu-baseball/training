@@ -617,7 +617,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.27e';
+var APPVER='2026.11.28a';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -5186,7 +5186,9 @@ var TF=[
  ['pm_dir','跨步方向','g6','s','o','','',['朝本壘直線','偏開','偏關']],
  ['pm_arm','前腳著地時手臂位置','g6','s','o','','',['準時（手肘到肩膀高度）','偏晚（手還在下面）']],
  ['pm_knee','前腳著地後膝蓋','g6','s','o','','',['煞得住','往前塌']],
- ['pm_fin','投完收尾平衡','g6','s','o','','',['站得穩','往一側倒']]];
+ ['pm_fin','投完收尾平衡','g6','s','o','','',['站得穩','往一側倒']],
+ /* 2026-11-28：藥球側拋分左右（建廷 11/27 後測量了兩邊），「藥球拋擲_側面」自動帶較好的那邊 */
+ ['mbs_l','藥球側拋_左(m)','g3','n','o','m','+'],['mbs_r','藥球側拋_右(m)','g3','n','o','m','+']];
 var TPROG=['顯著進步','微幅修正','停滯'];
 var TNDIR=['技術已達標，轉入高階情境模擬與抗壓訓練','機制已修正，增加爆發力與身體抗旋轉素質','持續精熟基礎動作'];
 var TKEY=['velo','bat','ev','bj','mbs','sp15'];   // 摘要優先顯示的數字
@@ -5224,9 +5226,14 @@ function testBanner(l){
   return '';}).join('');
 }
 var TALL=false;
+/* 2026-11-28 建廷反映：後測填一半先按儲存，再點進去變成一份新的空白檢測（11/27 一對二兩人各存出 3 份）。
+   現在打開檢測時，同一堂（或同一天）同一種檢測已經有了，就打開那一份 */
+function findTest(s,lid,kind,date){return (s.tests||[]).filter(function(t){return t.kind===kind&&((lid&&t.lid===lid)||(date&&t.date===date&&(!lid||!t.lid)));})
+ .sort(function(a,b){return (b.at||0)-(a.at||0);})[0]||null;}
 function fTest(sid,tid,kind,lid,draft){
  var s=byId(DB.students,sid);if(!s)return;
  var t=draft||null;if(!t)(s.tests||[]).forEach(function(x){if(x.id===tid)t=x;});
+ if(!t&&!tid){var l0=lid?byId(DB.lessons,lid):null;t=findTest(s,lid,kind||'前測',l0?l0.date:'');}
  if(t&&!lid)lid=t.lid;
  var l=lid?byId(DB.lessons,lid):null;
  if(!t){t={kind:kind||'前測',date:l?l.date:today(),level:(s.profile&&s.profile.level)||'',
@@ -5241,13 +5248,17 @@ function fTest(sid,tid,kind,lid,draft){
   if(f[3]==='t')return fld(f[1],ta('tf_'+k,cur,'',3));
   return '<div class="rf tnum"><label>'+esc(tShort(f))+'</label><div class="tin"><input id="tf_'+k+'" inputmode="decimal" value="'+esc(cur)+'" placeholder="'+esc(ph)+'">'
    +(f[5]?'<span>'+esc(f[5])+'</span>':'')+'</div>'
+   +(k==='bat'?'<div class="tin" style="margin-top:6px"><input id="tf_batk" inputmode="decimal" placeholder="km/h"><span>km/h</span></div>':'')
    +(f[7]?'<div class="fills">'+f[7].map(function(o){return '<button type="button" class="fillc" data-to="tf_'+k+'" data-v="'+esc(o)+'">'+esc(o)+'</button>';}).join('')+'</div>':'')+'</div>';};
  var body=TG.map(function(g){
   var fs=TF.filter(function(f){return f[2]===g[0]&&show(f);});
   if(!fs.length)return '';
   var nums=fs.filter(function(f){return f[3]==='n'||f[3]==='nt';}),oth=fs.filter(function(f){return f[3]!=='n'&&f[3]!=='nt';});
   return recSec(g[1].slice(0,1),g[1].slice(2),g[2],tgNote(g[0],fs,v)+(nums.length?'<div class="tgrid">'+nums.map(inp).join('')+'</div>':'')+oth.map(inp).join(''));}).join('');
+ var mates=(l&&(l.students||[]).length>1)?l.students:[];
  var h=head((t.id?'':'新增')+'檢測　'+esc(s.name))
+ +(mates.length?'<div class="stusw" style="margin:4px 0 8px">'+mates.map(function(n){var o=stuByName(n);return o?'<button type="button" data-act="tSw" data-sid="'+o.id+'" class="'+(o.id===sid?'on':'')+'">'+esc(n)+'</button>':'';}).join('')
+   +'</div><div class="mini" style="margin:-4px 0 8px">一對二：點名字切換學員，切換前會自動儲存，兩個人各自只有一份'+esc(t.kind)+'。</div>':'')
  +'<div class="seg" style="margin-top:6px">'+['前測','後測','檢測'].map(function(k){
    return '<button type="button" data-act="tKind" data-k="'+k+'" class="'+(t.kind===k?'on':'')+'">'+(k==='檢測'?'一般檢測':k)+'</button>';}).join('')+'</div>'
  +(base?'<div class="mini" style="margin-top:-6px">格子裡淡淡的數字是上一次 '+esc(base.kind)+'（'+md(base.date)+'）的成績，方便對照。</div>':'')
@@ -5267,7 +5278,10 @@ function fTest(sid,tid,kind,lid,draft){
  +'<div class="savebar">'+(t.id?'<button class="btn sec sm" data-act="tDel" data-sid="'+sid+'" data-id="'+t.id+'">刪除</button>':'')
  +'<button class="btn" data-act="tSave" data-sid="'+sid+'" data-id="'+(t.id||'')+'" data-lid="'+esc(t.lid||'')+'">'+svg('check',16)+' 儲存檢測</button></div>';
  FTEST={sid:sid,t:t};
- openSheet(h);tbBind();var sh=document.getElementById('sheet');sh.dataset.rec='1';sh.oninput=function(){REC_DIRTY=true;};
+ openSheet(h);tbBind();batKBind();var sh=document.getElementById('sheet');sh.dataset.rec='1';sh.oninput=function(){REC_DIRTY=true;};
+ /* 換受測層級就換成那個層級的模板（例如 U10 的孩子這次用 U12 的項目測） */
+ var lvb=document.getElementById('tf_level');if(lvb)lvb.addEventListener('click',function(){setTimeout(function(){var d=readTest();if(d.level===(FTEST.t.level||''))return;
+  var nt=Object.assign({},FTEST.t,d);var sc=sh.scrollTop,dirty=true;fTest(sid,nt.id,nt.kind,lid,nt);REC_DIRTY=dirty;document.getElementById('sheet').scrollTop=sc;toast('已換成 '+(d.level||'')+' 的檢測項目');},0);});
  var ca=document.getElementById('tf_all');
  if(ca)ca.onchange=function(){var nt=Object.assign({},FTEST.t,readTest());TALL=ca.checked;var dirty=REC_DIRTY;fTest(sid,nt.id,nt.kind,lid,nt);REC_DIRTY=dirty;};
 }
@@ -5330,6 +5344,7 @@ function tbCalc(k,write){var e=document.getElementById('tb_'+k),o=document.getEl
  if(!a.length){if(o)o.textContent='';return;}
  var mx=Math.max.apply(null,a),mn=Math.min.apply(null,a),av=Math.round(a.reduce(function(x,y){return x+y;},0)/a.length*10)/10;
  var set=function(id,val){var f=document.getElementById(id);if(f&&write)f.value=String(val);};
+ if(k==='bat'){set('tf_bat',mx);var kb=document.getElementById('tf_batk');if(kb&&write)kb.value=mph2k(mx);if(o)o.textContent=a.length+' 下：最高 '+mx+' mph（'+mph2k(mx)+' km/h）、平均 '+av+' mph（'+mph2k(av)+' km/h）';return;}
  if(k==='aa'){var d=Math.round((mx-mn)*10)/10,st=d<=5?'集中':'過於分散';set('tf_aaa',av);set('tf_aah',mx);set('tf_aal',mn);
   if(write){var box=document.getElementById('tf_aas');if(box)[].forEach.call(box.querySelectorAll('.pick'),function(b){b.classList.toggle('on',b.dataset.v===st);});}
   if(o)o.textContent=a.length+' 顆：平均 '+av+'°、最高 '+mx+'°、最低 '+mn+'°，相差 '+d+'° → '+st;}
@@ -5369,6 +5384,11 @@ function blastApply(P){var td=val('tf_date')||today(),use=P.rows.filter(function
  put('tf_ttc',avg(vals('ttc')));put('tf_ope',avg(vals('ope')));put('tf_rac',avg(vals('rac')));
  var h=vals('hsp');if(h.length)put('tf_hsp',Math.max.apply(null,h));
  REC_DIRTY=true;toast('已帶入 '+use.length+' 下揮棒，存檔前可以再看一下');}
+/* 2026-11-28：揮棒速度 mph 和 km/h 並列，填哪一邊都可以，存的是 mph（Blast 用 mph） */
+function mph2k(v){var x=parseFloat(v);return isFinite(x)?Math.round(x*1.609*10)/10:'';}
+function batKBind(){var m=document.getElementById('tf_bat'),k=document.getElementById('tf_batk');if(!m||!k)return;
+ k.value=mph2k(m.value);m.addEventListener('input',function(){k.value=mph2k(m.value);});
+ k.addEventListener('input',function(){var x=parseFloat(k.value);m.value=isFinite(x)?String(Math.round(x/1.609*10)/10):'';});}
 function tbBind(){TB_LIST.forEach(function(x){var e=document.getElementById('tb_'+x[0]);if(!e)return;tbCalc(x[0],false);e.oninput=function(){tbCalc(x[0],true);};});}
 function readTest(){
  var t=FTEST.t,v={};for(var k in (t.v||{}))v[k]=t.v[k];
@@ -5380,10 +5400,11 @@ function readTest(){
  /* 肩總活動弧沒填就用內旋＋外旋算 */
  ['l','r'].forEach(function(sd){var a=parseFloat(v['sir_'+sd]),b=parseFloat(v['ser_'+sd]);
   if(!v['trom_'+sd]&&!isNaN(a)&&!isNaN(b))v['trom_'+sd]=String(a+b);});
+ if(!v.mbs){var ml=parseFloat(v.mbs_l),mr=parseFloat(v.mbs_r);if(isFinite(ml)||isFinite(mr))v.mbs=String(Math.max(isFinite(ml)?ml:-1,isFinite(mr)?mr:-1));}
  Object.keys(v).forEach(function(k){if(v[k]==='')delete v[k];});
  return {date:val('tf_date')||today(),nth:val('tf_nth').trim(),level:picked('tf_level')[0]||'',coach:val('tf_coach'),v:v};
 }
-function saveTest(sid,id,lid){
+function saveTest(sid,id,lid,stay,quiet){
  var s=byId(DB.students,sid);if(!s||!FTEST)return;
  var d=readTest();
  var t=null;(s.tests||[]).forEach(function(x){if(x.id===id)t=JSON.parse(JSON.stringify(x));});
@@ -5391,7 +5412,11 @@ function saveTest(sid,id,lid){
  t.kind=FTEST.t.kind;t.date=d.date;t.nth=d.nth;t.level=d.level;t.coach=d.coach;t.lid=lid||t.lid||'';t.v=d.v;t.by=recWho();t.at=Date.now();
  setTest(s,t);
  if(d.level&&!(s.profile&&s.profile.level)){var pp1=JSON.parse(JSON.stringify(s.profile||{}));pp1.level=d.level;setProf(s,pp1);}
- persist();pushTest(s,t);REC_DIRTY=false;closeSheet(true);render();toast(t.kind+'已儲存，之後可以再修改');
+ persist();pushTest(s,t);REC_DIRTY=false;
+ var sh=document.getElementById('sheet'),sc=sh?sh.scrollTop:0;render();
+ if(stay===false){closeSheet(true);return t;}
+ fTest(sid,t.id,t.kind,t.lid);var sh2=document.getElementById('sheet');if(sh2)sh2.scrollTop=sc;
+ if(!quiet)toast(t.kind+'已儲存，可以繼續填');return t;
 }
 /* 學員頁：前後測成績 */
 function tVal(t,k){var x=t&&t.v&&t.v[k];return x===undefined?'':x;}
@@ -5525,7 +5550,7 @@ function pkGap(t,a,b,k){var x=parseFloat(tVal(t,a)),y=parseFloat(tVal(t,b));if(!
 function pkVal(t,base,young){
  return function(lab,k,u,rk){var v=tVal(t,k),b=base?tVal(base,k):'',f=tfk(k),st=(base&&f&&b!==''&&v!=='')?tStat(f,b,v):null;
   return '<div class="pk-v">'+(lab?'<span class="pk-l">'+lab+'</span>':'')+(v===''?'<span class="pk-bl"></span>':'<b>'+esc(v)+'</b>')
-   +(v!==''&&u&&isFinite(parseFloat(v))?' '+u:(v===''&&u?' '+u:''))+(rk?pkRate(rk,v,young):'')
+   +(v!==''&&u&&isFinite(parseFloat(v))?' '+u+(u==='mph'?'（'+mph2k(v)+' km/h）':''):(v===''&&u?' '+u:''))+(rk?pkRate(rk,v,young):'')
    +(base&&b!==''?'<small class="pk-was">前測 '+esc(b)+(st?(st.k==='g'?'　<i class="pk-d g">↑ '+esc(st.d)+'</i>':(st.k==='r'?'　<i class="pk-d r">↓ '+esc(st.d)+'</i>':(st.t==='持平'?'　<i class="pk-d n">持平</i>':(st.k==='b'?'　<i class="pk-d n">'+esc(st.t)+'</i>':'')))):'')+'</small>':'')+'</div>';};}
 function pkSel(t,base,lab){return function(k,pre){var f=tfk(k),v=tVal(t,k),b=base?tVal(base,k):'';
  return (pre?'<div class="pk-v"><span class="pk-l">'+pre+'</span></div>':'')+'<div class="pk-opts">'+pkBox(f[7],v,lab)+'</div>'
@@ -5600,7 +5625,8 @@ function pkLesson(s,l,c,hdr,first,tail){
  var x=pkX(l,s.name)||{},r=l.rec||{},d=l.date.split('-');
  var tst=(testsOf(s.name).filter(function(t){return t.lid===l.id;})[0])||null;
  var dv=function(a,tk){return x[a]||(tst?tVal(tst,tk):'')||'';};
- var data=[['揮棒速度',dv('bs','bat'),'mph'],['擊球初速',dv('ev','ev'),'km/h'],['投球速度',dv('velo','velo'),'km/h']];
+ var bv0=dv('bs','bat'),bok=bv0!==''&&isFinite(parseFloat(bv0));
+ var data=[['揮棒速度',bok?bv0+' mph（'+mph2k(bv0)+' km/h）':bv0,bok?'':'mph'],['擊球初速',dv('ev','ev'),'km/h'],['投球速度',dv('velo','velo'),'km/h']];
  var sp=cycPos(s.name)[l.id],nth=sp?posTxt(sp):String(x.nth||nthOf(l,s.name)||'').replace(/^第|堂$/g,'');
  var opt=[x.issue,(x.parts||[]).length?'重點部位：'+x.parts.join('、'):''].filter(Boolean).join('\n');
  var gear=(r.gear||[]).concat(r.gearx?[r.gearx]:[]).join('、');
@@ -6697,6 +6723,11 @@ function bind(){
     return fTest(b.dataset.sid,b.dataset.tid||'',b.dataset.k||'前測',tl||'');}
    if(a==='tKind'){if(!FTEST)return;var nt=Object.assign({},FTEST.t,readTest());nt.kind=b.dataset.k;fTest(FTEST.sid,nt.id,nt.kind,nt.lid,nt);REC_DIRTY=true;return;}
    if(a==='tSave')return saveTest(b.dataset.sid,b.dataset.id,b.dataset.lid);
+   if(a==='tSw'){if(!FTEST)return;var to=b.dataset.sid;if(to===FTEST.sid)return;var k9=FTEST.t.kind,l9=FTEST.t.lid||'',lv9=readTest().level;
+    if(REC_DIRTY){var sb=document.querySelector('[data-act=tSave]');saveTest(FTEST.sid,sb?sb.dataset.id:'',l9,true,true);}
+    REC_DIRTY=false;fTest(to,'',k9,l9);
+    if(FTEST&&!FTEST.t.id&&lv9&&FTEST.t.level!==lv9){var nt8=Object.assign({},FTEST.t,{level:lv9});fTest(to,'',k9,l9,nt8);}
+    toast('已切換到 '+(byId(DB.students,to)||{}).name);return;}
    if(a==='planFill'){if(!FTEST)return;var s9=byId(DB.students,FTEST.sid),d9=readTest();var R9=nextPlan(s9.name,d9.v,d9.level);
     var tx=nextPlanText(R9);if(!tx)return alert('這張表的數字還看不出要優先練什麼，可以自己寫。');
     var pe=document.getElementById('tf_plan');if(!pe){TALL=true;var nt9=Object.assign({},FTEST.t,d9);fTest(FTEST.sid,nt9.id,nt9.kind,nt9.lid,nt9);pe=document.getElementById('tf_plan');}
