@@ -617,7 +617,7 @@ try{localStorage.setItem('__t','1');localStorage.removeItem('__t');}catch(e){HAS
 function lsKey(k){return (MODE==='coach'&&k!=='sess'&&k!=='sb'?'ghc_':'gh_')+k;}
 function save(k,v){var s=JSON.stringify(v);if(HASLS){try{localStorage.setItem(lsKey(k),s);}catch(e){MEM[k]=s;}}else{MEM[k]=s;}}
 function load(k,d){var s=HASLS?localStorage.getItem(lsKey(k)):MEM[k];if(!s)return d;try{return JSON.parse(s);}catch(e){return d;}}
-var APPVER='2026.11.28a';
+var APPVER='2026.11.28b';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
 /* 本地日期工具（不用 toISOString，避免 UTC+8 早上 8 點前日期少一天） */
@@ -2442,7 +2442,7 @@ function ta(id,v,ph,rows){return '<textarea id="'+id+'" rows="'+(rows||2)+'" pla
 function profForm(px,s){
  var p=s.profile||{};
  return '<label>層級組別</label>'+chips(px+'level',LEVELS,p.level,1)
- +'<div class="grid2"><div><label>生日</label><input type="date" id="'+px+'birth" value="'+esc(p.birth||'')+'"></div>'
+ +'<div class="grid2"><div><label>出生年月</label><input type="month" id="'+px+'birth" placeholder="例如 2016-09" value="'+esc((p.birth||'').slice(0,7))+'"></div>'
  +'<div><label>學校年級</label><input id="'+px+'grade" value="'+esc(p.grade||'')+'" placeholder="例如 國小五年級"></div></div>'
  +'<div class="grid2"><div><label>所屬球隊</label><input id="'+px+'team" value="'+esc(p.team!==undefined?p.team:(s.ganghu==='否'?'':'港湖'))+'"></div>'
  +'<div><label>投打習慣</label><select id="'+px+'hand"><option value="">請選擇</option>'
@@ -2459,13 +2459,15 @@ function profForm(px,s){
 function readProf(px,old){
  var p={};for(var k in (old||{}))p[k]=old[k];
  ['birth','grade','team','hand','height','weight','years','injury','goal','days'].forEach(function(k){p[k]=val(px+k).trim();});
+ /* 2026-11-28 建廷：生日只要寫到月。電腦版 Safari 沒有月份選擇器，會變成文字框，所以「2016/9」「2016-9」也接受 */
+ var bm=(p.birth||'').match(/^(\d{4})\D+(\d{1,2})/);p.birth=bm?bm[1]+'-'+('0'+bm[2]).slice(-2):'';
  p.pos=picked(px+'pos');p.level=picked(px+'level')[0]||'';p.focus=picked(px+'focus');
  return p;
 }
 function profMissing(p){var m=[];
  if(!p.level)m.push('層級組別');if(!p.grade)m.push('學校年級');if(!p.hand)m.push('投打習慣');if(!p.pos||!p.pos.length)m.push('守備位置');if(!p.goal)m.push('上課目標');return m;}
-function ageOf(b){if(!b)return '';var d=pd(b),n=new Date(),a=n.getFullYear()-d.getFullYear();
- if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a>0&&a<40?a+' 歲':'';}
+function ageOf(b){if(!b)return '';var d=pd(b),n=new Date(),a=n.getFullYear()-d.getFullYear(),noDay=String(b).length<=7;
+ if(n.getMonth()<d.getMonth()||(!noDay&&n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a>0&&a<40?a+' 歲':'';}
 function profView(s){
  var p=s.profile||{};
  var kv=function(k,v){return v?'<div class="kv"><b>'+k+'</b><span>'+esc(v).replace(/\n/g,'<br>')+'</span></div>':'';};
